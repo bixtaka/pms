@@ -5,12 +5,14 @@ class GanttChartWidget extends StatelessWidget {
   final List<Product> products;
   final DateTime startDate;
   final DateTime endDate;
+  final String? selectedCategory;
 
   const GanttChartWidget({
     Key? key,
     required this.products,
     required this.startDate,
     required this.endDate,
+    this.selectedCategory,
   }) : super(key: key);
 
   @override
@@ -39,6 +41,48 @@ class GanttChartWidget extends StatelessWidget {
                 height: 44,
                 child: _buildHeader(totalDays, cellWidth),
               ),
+              // 一次加工が選択されている場合のみデフォルトラベル行を表示
+              if (selectedCategory == "一次加工")
+                ...['材料入荷', '孔あけ', '切断', '開先加工', 'ショットブラスト'].map((label) => Row(
+                  children: [
+                    Container(
+                      width: 150,
+                      height: rowHeight,
+                      alignment: Alignment.centerLeft,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      decoration: BoxDecoration(
+                        border: Border(
+                          right: BorderSide(color: Colors.grey.shade300),
+                          bottom: BorderSide(color: Colors.grey.shade200),
+                        ),
+                      ),
+                      child: Text(
+                        label,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    // 日付グリッド部分は空白
+                    Row(
+                      children: List.generate(
+                        totalDays,
+                        (index) => Container(
+                          width: cellWidth,
+                          height: rowHeight,
+                          decoration: BoxDecoration(
+                            border: Border(
+                              right: BorderSide(color: Colors.grey.shade100),
+                              bottom: BorderSide(color: Colors.grey.shade200),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                )),
               // 本体
               ...products.map(
                 (product) => SizedBox(
@@ -107,7 +151,7 @@ class GanttChartWidget extends StatelessWidget {
             ),
           ),
           child: const Text(
-            '製品名',
+            '一次加工',
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
         ),

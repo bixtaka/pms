@@ -25,6 +25,16 @@ class _ProductionManagementScreenState
   GanttType _currentGanttType = GanttType.product;
   late DateTime startDate;
   late DateTime endDate;
+  
+  // 工程選択状態を管理
+  String? selectedProcess;
+
+  // 工程データ構造
+  final Map<String, List<String>> processSteps = {
+    "一次加工": ["材料入荷", "孔あけ", "切断", "開先加工", "ショットブラスト"],
+    "組立": ["仮組立", "本組立", "溶接"],
+    "検査": ["外観", "寸法", "超音波検査"]
+  };
 
   @override
   void initState() {
@@ -120,7 +130,6 @@ class _ProductionManagementScreenState
                 );
               },
             ),
-            // 他のメニュー項目もここに追加できます
           ],
         ),
       ),
@@ -129,41 +138,11 @@ class _ProductionManagementScreenState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // サンプルデータ追加ボタン
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.blue.shade200),
-              ),
-              child: Column(
-                children: [
-                  const Text(
-                    '初回使用時はサンプルデータを追加してください',
-                    style: TextStyle(fontSize: 14, color: Colors.blue),
-                  ),
-                  const SizedBox(height: 8),
-                  ElevatedButton.icon(
-                    onPressed: _addSampleData,
-                    icon: const Icon(Icons.add),
-                    label: const Text('サンプルデータ追加'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-
+            // サンプルデータ追加欄を削除
             // 工種別進捗サマリー
             _buildProgressSummary(),
             const SizedBox(height: 20),
-
-            // ガントチャート
+            // ガントチャートタイトル・期間・セレクタ
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -187,21 +166,39 @@ class _ProductionManagementScreenState
               ],
             ),
             const SizedBox(height: 8),
-
-            // ガントチャートタイプ切り替えタブ
+            // タブ
             _buildGanttTypeTabs(),
             const SizedBox(height: 8),
-
-            Container(height: 400, child: _buildGanttChart()),
-            const SizedBox(height: 20),
-
-            // 製品リスト
-            // const Text(
-            //   '製品リスト',
-            //   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            // ),
-            // const SizedBox(height: 8),
-            // Expanded(child: _buildProductList()),
+            // タブの下の中身
+            Expanded(
+              child: _currentGanttType == GanttType.product
+                  ? SingleChildScrollView(
+                      child: _buildGanttChart(),
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ProcessStepSelector(
+                          onProcessChanged: (String process) {
+                            // 選択された工程に応じてガントチャートを更新
+                            setState(() {
+                              selectedProcess = process.isEmpty ? null : process;
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        Expanded(
+                          child: WorkTypeGanttWidget(
+                            workTypeData: [], // 必要に応じてデータを渡す
+                            startDate: startDate,
+                            endDate: endDate,
+                            selectedProcess: selectedProcess,
+                            processSteps: processSteps,
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
           ],
         ),
       ),
@@ -335,6 +332,7 @@ class _ProductionManagementScreenState
         final summary = snapshot.data!;
         return Container(
           padding: const EdgeInsets.all(16),
+          constraints: const BoxConstraints(maxHeight: 120),
           decoration: BoxDecoration(
             color: Colors.grey.shade100,
             borderRadius: BorderRadius.circular(8),
@@ -347,7 +345,12 @@ class _ProductionManagementScreenState
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
-              ...summary.entries.map((entry) {
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ...summary.entries.map((entry) {
                 final type = entry.key;
                 final data = entry.value;
                 final total = data['total'] ?? 0;
@@ -374,6 +377,10 @@ class _ProductionManagementScreenState
                   ),
                 );
               }).toList(),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
         );
@@ -408,10 +415,17 @@ class _ProductionManagementScreenState
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const ProcessStepSelector(),
-          const SizedBox(height: 16),
+          ProcessStepSelector(
+            onProcessChanged: (String process) {
+              // 選択された工程に応じてガントチャートを更新
+              setState(() {
+                selectedProcess = process.isEmpty ? null : process;
+              });
+            },
+          ),
+          const SizedBox(height: 8),
           SizedBox(
-            height: 400, // 高さを固定
+            height: 200,
             child: StreamBuilder<List<WorkTypeGanttData>>(
               stream: _firebaseService.getWorkTypeGanttStream(),
               builder: (context, snapshot) {
@@ -428,6 +442,8 @@ class _ProductionManagementScreenState
                   workTypeData: snapshot.data!,
                   startDate: startDate,
                   endDate: endDate,
+                  selectedProcess: selectedProcess,
+                  processSteps: processSteps,
                 );
               },
             ),
