@@ -197,125 +197,188 @@ class FirebaseService {
       List<Map<String, dynamic>> sampleProducts = [
         // 柱
         {
+          'id': '1C-Y1X1',
           'name': '1C-Y1X1',
           'type': '柱',
           'processCategory': '柱',
           'status': 'not_started',
           'startDate': null,
           'endDate': null,
+          'floor': '2F', // 追加
         },
         {
+          'id': '1C-Y1X2',
           'name': '1C-Y1X2',
           'type': '柱',
           'processCategory': '柱',
           'status': 'not_started',
           'startDate': null,
           'endDate': null,
+          'floor': '2F', // 追加
         },
         {
+          'id': '1C-Y1X3',
           'name': '1C-Y1X3',
           'type': '柱',
           'processCategory': '柱',
           'status': 'not_started',
           'startDate': null,
           'endDate': null,
+          'floor': '2F', // 追加
         },
         {
+          'id': '1C-Y2X1',
           'name': '1C-Y2X1',
           'type': '柱',
           'processCategory': '柱',
           'status': 'not_started',
           'startDate': null,
           'endDate': null,
+          'floor': '3F', // 追加
         },
         {
+          'id': '1C-Y2X2',
           'name': '1C-Y2X2',
           'type': '柱',
           'processCategory': '柱',
           'status': 'not_started',
           'startDate': null,
           'endDate': null,
+          'floor': '3F', // 追加
         },
         {
+          'id': '1C-Y2X3',
           'name': '1C-Y2X3',
           'type': '柱',
           'processCategory': '柱',
           'status': 'not_started',
           'startDate': null,
           'endDate': null,
+          'floor': '3F', // 追加
         },
         // 大梁
         {
+          'id': '2G-1',
           'name': '2G-1',
           'type': '大梁',
           'processCategory': '大梁',
           'status': 'not_started',
           'startDate': null,
           'endDate': null,
+          'floor': '2F', // 追加
         },
         {
+          'id': '2G-2',
           'name': '2G-2',
           'type': '大梁',
           'processCategory': '大梁',
           'status': 'not_started',
           'startDate': null,
           'endDate': null,
+          'floor': '2F', // 追加
         },
         {
+          'id': '2G-3',
           'name': '2G-3',
           'type': '大梁',
           'processCategory': '大梁',
           'status': 'not_started',
           'startDate': null,
           'endDate': null,
+          'floor': '3F', // 追加
         },
         {
+          'id': '2G-4',
           'name': '2G-4',
           'type': '大梁',
           'processCategory': '大梁',
           'status': 'not_started',
           'startDate': null,
           'endDate': null,
+          'floor': '3F', // 追加
         },
         {
+          'id': '3G-1',
           'name': '3G-1',
           'type': '大梁',
           'processCategory': '大梁',
           'status': 'not_started',
           'startDate': null,
           'endDate': null,
+          'floor': '4F', // 追加
         },
         {
+          'id': '3G-2',
           'name': '3G-2',
           'type': '大梁',
           'processCategory': '大梁',
           'status': 'not_started',
           'startDate': null,
           'endDate': null,
+          'floor': '4F', // 追加
         },
         {
+          'id': '3G-3',
           'name': '3G-3',
           'type': '大梁',
           'processCategory': '大梁',
           'status': 'not_started',
           'startDate': null,
           'endDate': null,
+          'floor': '5F', // 追加
         },
         {
+          'id': '3G-4',
           'name': '3G-4',
           'type': '大梁',
           'processCategory': '大梁',
           'status': 'not_started',
           'startDate': null,
           'endDate': null,
+          'floor': '5F', // 追加
         },
       ];
 
-      for (var productData in sampleProducts) {
-        await _firestore.collection('products').add(productData);
+      final productsRef = _firestore.collection('products');
+      for (final data in sampleProducts) {
+        // name重複チェック
+        final query = await productsRef
+            .where('name', isEqualTo: data['name'])
+            .get();
+        if (query.docs.isEmpty) {
+          final doc = productsRef.doc(data['id']);
+          await doc.set(data);
+        }
+        // 既に存在する場合はスキップ
       }
     } catch (e) {
-      print('Add sample data error: $e');
+      print('addSampleData error: $e');
+      rethrow;
+    }
+  }
+
+  // サンプル部材データを追加（開発用）
+  Future<void> addSampleParts(String productId) async {
+    try {
+      final partsRef = _firestore
+          .collection('products')
+          .doc(productId)
+          .collection('parts');
+      final sampleParts = [
+        {'partName': 'コア組立', 'floor': '2F'},
+        {'partName': 'コア溶接', 'floor': '2F'},
+        {'partName': 'コアＵＴ', 'floor': '2F'},
+        {'partName': '仕口組立', 'floor': '2F'},
+        {'partName': '仕口検品', 'floor': '2F'},
+        {'partName': '仕口溶接', 'floor': '2F'},
+        {'partName': '仕口仕上げ', 'floor': '2F'},
+        {'partName': '仕口ＵＴ', 'floor': '2F'},
+      ];
+      for (final part in sampleParts) {
+        await partsRef.add(part);
+      }
+    } catch (e) {
+      print('addSampleParts error: $e');
       rethrow;
     }
   }
@@ -327,5 +390,100 @@ class FirebaseService {
   }) async {
     final data = {'status': status, 'updatedAt': Timestamp.fromDate(date)};
     await _firestore.collection('products').doc(productId).update(data);
+  }
+
+  // 製品ID＋工種名ごとの進捗データを保存
+  Future<void> setProductProcessProgress({
+    required String productId,
+    required String processName,
+    required String status,
+    required DateTime date,
+    required String person,
+  }) async {
+    try {
+      await _firestore
+          .collection('products')
+          .doc(productId)
+          .collection('progress')
+          .doc(processName)
+          .set({
+            'status': status,
+            'date': Timestamp.fromDate(date),
+            'person': person,
+          }, SetOptions(merge: true));
+    } catch (e) {
+      print('setProductProcessProgress error: $e');
+      rethrow;
+    }
+  }
+
+  // 製品ID＋工種名ごとの進捗データを取得
+  Future<Map<String, dynamic>?> getProductProcessProgress({
+    required String productId,
+    required String processName,
+  }) async {
+    try {
+      final doc = await _firestore
+          .collection('products')
+          .doc(productId)
+          .collection('progress')
+          .doc(processName)
+          .get();
+      if (doc.exists) {
+        return doc.data();
+      } else {
+        return null;
+      }
+    } catch (e) {
+      print('getProductProcessProgress error: $e');
+      return null;
+    }
+  }
+
+  // 製品IDごとの全工種進捗データを取得（Map<工種名, Map>）
+  Future<Map<String, Map<String, dynamic>>> getAllProductProgress(
+    String productId,
+  ) async {
+    try {
+      final snapshot = await _firestore
+          .collection('products')
+          .doc(productId)
+          .collection('progress')
+          .get();
+      final result = <String, Map<String, dynamic>>{};
+      for (var doc in snapshot.docs) {
+        result[doc.id] = doc.data();
+      }
+      return result;
+    } catch (e) {
+      print('getAllProductProgress error: $e');
+      return {};
+    }
+  }
+
+  // 製品IDの部材サブコレクションを取得
+  Future<QuerySnapshot<Map<String, dynamic>>> getPartsSnapshot(
+    String productId,
+  ) async {
+    return await _firestore
+        .collection('products')
+        .doc(productId)
+        .collection('parts')
+        .get();
+  }
+
+  // 製品IDの部材リストを取得
+  Future<List<Map<String, dynamic>>> fetchParts(String productId) async {
+    try {
+      final snapshot = await _firestore
+          .collection('products')
+          .doc(productId)
+          .collection('parts')
+          .get();
+      return snapshot.docs.map((doc) => doc.data()).toList();
+    } catch (e) {
+      print('fetchParts error: ' + e.toString());
+      return [];
+    }
   }
 }

@@ -4,15 +4,17 @@ import '../services/firebase_service.dart';
 
 class WorkTypeGanttWidget extends StatelessWidget {
   final List<WorkTypeGanttData> workTypeData;
+  final List<String> processList;
   final DateTime startDate;
   final DateTime endDate;
 
   const WorkTypeGanttWidget({
-    Key? key,
+    super.key,
     required this.workTypeData,
+    required this.processList,
     required this.startDate,
     required this.endDate,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -44,8 +46,19 @@ class WorkTypeGanttWidget extends StatelessWidget {
                 child: _buildHeader(totalDays, cellWidth),
               ),
               // 本体
-              ...workTypeData.map(
-                (data) => SizedBox(
+              ...processList.map((processName) {
+                final data = workTypeData.firstWhere(
+                  (d) => d.type == processName,
+                  orElse: () => WorkTypeGanttData(
+                    type: processName,
+                    averageStartDate: null,
+                    averageEndDate: null,
+                    totalCount: 0,
+                    completedCount: 0,
+                    completionRate: 0.0,
+                  ),
+                );
+                return SizedBox(
                   width: chartWidth,
                   height: rowHeight,
                   child: _buildWorkTypeRow(
@@ -54,8 +67,8 @@ class WorkTypeGanttWidget extends StatelessWidget {
                     rowHeight,
                     cellWidth,
                   ),
-                ),
-              ),
+                );
+              }),
             ],
           ),
         ),

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/firebase_service.dart';
 import '../models/product.dart';
+import 'package:provider/provider.dart';
+import '../models/work_type_state.dart';
 
 class BulkProgressInputScreen extends StatefulWidget {
   const BulkProgressInputScreen({super.key});
@@ -16,6 +18,9 @@ class _BulkProgressInputScreenState extends State<BulkProgressInputScreen> {
 
   // 一括選択用チェックボックスの状態管理
   final Set<String> selectedProductIds = {};
+
+  // コメント入力の状態管理（productId -> コメント）
+  final Map<String, String> productComments = {};
 
   // 追加の状態変数
   DateTime selectedDate = DateTime.now();
@@ -33,6 +38,7 @@ class _BulkProgressInputScreenState extends State<BulkProgressInputScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final workTypeState = Provider.of<WorkTypeState>(context);
     return Scaffold(
       appBar: AppBar(
         title: const Text('進捗状況一括入力'),
@@ -133,7 +139,7 @@ class _BulkProgressInputScreenState extends State<BulkProgressInputScreen> {
                       ),
                       const SizedBox(height: 4),
                       DropdownButtonFormField<String>(
-                        value: selectedCategory,
+                        value: workTypeState.selectedCategory,
                         decoration: const InputDecoration(
                           border: OutlineInputBorder(),
                           contentPadding: EdgeInsets.symmetric(
@@ -141,17 +147,18 @@ class _BulkProgressInputScreenState extends State<BulkProgressInputScreen> {
                             vertical: 8,
                           ),
                         ),
-                        items: const [
-                          DropdownMenuItem(value: '一次加工', child: Text('一次加工')),
-                          DropdownMenuItem(value: '柱', child: Text('柱')),
-                          DropdownMenuItem(value: '梁・間柱', child: Text('梁・間柱')),
-                          DropdownMenuItem(value: 'ブレース', child: Text('ブレース')),
-                          DropdownMenuItem(value: '他', child: Text('他')),
-                        ],
+                        items: WorkTypeState.categoryList
+                            .map(
+                              (cat) => DropdownMenuItem(
+                                value: cat,
+                                child: Text(cat),
+                              ),
+                            )
+                            .toList(),
                         onChanged: (String? newValue) {
-                          setState(() {
-                            selectedCategory = newValue ?? '一次加工';
-                          });
+                          if (newValue != null) {
+                            workTypeState.setCategory(newValue);
+                          }
                         },
                       ),
                       const SizedBox(height: 16),
@@ -162,7 +169,9 @@ class _BulkProgressInputScreenState extends State<BulkProgressInputScreen> {
                       ),
                       const SizedBox(height: 4),
                       DropdownButtonFormField<String>(
-                        value: selectedProcess.isEmpty ? null : selectedProcess,
+                        value: workTypeState.selectedProcess.isEmpty
+                            ? null
+                            : workTypeState.selectedProcess,
                         decoration: const InputDecoration(
                           border: OutlineInputBorder(),
                           contentPadding: EdgeInsets.symmetric(
@@ -171,21 +180,16 @@ class _BulkProgressInputScreenState extends State<BulkProgressInputScreen> {
                           ),
                         ),
                         hint: const Text('工種を選択'),
-                        items:
-                            (selectedCategory == '一次加工'
-                                    ? processListIchiji
-                                    : processListDefault)
-                                .map((String process) {
-                                  return DropdownMenuItem<String>(
-                                    value: process,
-                                    child: Text(process),
-                                  );
-                                })
-                                .toList(),
+                        items: workTypeState.processList.map((String process) {
+                          return DropdownMenuItem<String>(
+                            value: process,
+                            child: Text(process),
+                          );
+                        }).toList(),
                         onChanged: (String? newValue) {
-                          setState(() {
-                            selectedProcess = newValue ?? '';
-                          });
+                          if (newValue != null) {
+                            workTypeState.setProcess(newValue);
+                          }
                         },
                       ),
                       const SizedBox(height: 16),
@@ -236,8 +240,31 @@ class _BulkProgressInputScreenState extends State<BulkProgressInputScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () {
+                onPressed: () async {
                   // 一括入力処理
+                  final workTypeState = Provider.of<WorkTypeState>(
+                    context,
+                    listen: false,
+                  );
+                  final selectedProcess = workTypeState.selectedProcess;
+                  final selectedCategory = workTypeState.selectedCategory;
+                  final person = this.selectedPerson;
+                  final date = this.selectedDate;
+                  // 状態は仮で「in_progress」とする（必要に応じて変更）
+                  final status = 'in_progress';
+                  // 対象製品IDリスト
+                  final productIds = selectedProductIds.toList();
+                  for (final productId in productIds) {
+                    if (selectedProcess.isNotEmpty) {
+                      await _firebaseService.setProductProcessProgress(
+                        productId: productId,
+                        processName: selectedProcess,
+                        status: status,
+                        date: date,
+                        person: person,
+                      );
+                    }
+                  }
                   ScaffoldMessenger.of(
                     context,
                   ).showSnackBar(const SnackBar(content: Text('一括入力が完了しました')));
@@ -282,7 +309,7 @@ class _BulkProgressInputScreenState extends State<BulkProgressInputScreen> {
                           }
                           List<Product> products = snapshot.data!;
                           // 分類が「柱」の場合は柱のみ表示
-                          if (selectedCategory == '柱') {
+                          if (workTypeState.selectedCategory == '柱') {
                             products = products
                                 .where((p) => p.processCategory == '柱')
                                 .toList();
@@ -303,7 +330,7 @@ class _BulkProgressInputScreenState extends State<BulkProgressInputScreen> {
                                   4: FixedColumnWidth(80), // 工区
                                   5: FixedColumnWidth(60), // 節
                                   6: FixedColumnWidth(60), // 階
-                                  7: FixedColumnWidth(120), // 状態
+                                  7: FixedColumnWidth(200), // コメント
                                 },
                                 children: [
                                   TableRow(
@@ -370,7 +397,7 @@ class _BulkProgressInputScreenState extends State<BulkProgressInputScreen> {
                                       const Padding(
                                         padding: EdgeInsets.all(8.0),
                                         child: Text(
-                                          '状態',
+                                          'コメント',
                                           style: TextStyle(
                                             fontWeight: FontWeight.bold,
                                           ),
@@ -433,31 +460,27 @@ class _BulkProgressInputScreenState extends State<BulkProgressInputScreen> {
                                         ),
                                         Padding(
                                           padding: const EdgeInsets.all(8.0),
-                                          child: DropdownButton<String>(
-                                            value: product.status,
-                                            items: const [
-                                              DropdownMenuItem(
-                                                value: 'not_started',
-                                                child: Text('未着手'),
-                                              ),
-                                              DropdownMenuItem(
-                                                value: 'in_progress',
-                                                child: Text('作業中'),
-                                              ),
-                                              DropdownMenuItem(
-                                                value: 'completed',
-                                                child: Text('完了'),
-                                              ),
-                                            ],
+                                          child: TextField(
+                                            decoration: const InputDecoration(
+                                              border: OutlineInputBorder(),
+                                              hintText: 'コメントを入力',
+                                              isDense: true,
+                                              contentPadding:
+                                                  EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 8,
+                                                  ),
+                                            ),
+                                            controller: TextEditingController(
+                                              text:
+                                                  productComments[product.id] ??
+                                                  '',
+                                            ),
                                             onChanged: (value) {
-                                              if (value != null) {
-                                                _firebaseService
-                                                    .updateProductStatus(
-                                                      product.id,
-                                                      value,
-                                                    );
-                                                setState(() {});
-                                              }
+                                              setState(() {
+                                                productComments[product.id] =
+                                                    value;
+                                              });
                                             },
                                           ),
                                         ),
