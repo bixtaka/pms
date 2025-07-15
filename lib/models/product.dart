@@ -8,6 +8,12 @@ class Product {
   final String status;
   final DateTime? startDate;
   final DateTime? endDate;
+  // 追加項目
+  final String partName;
+  final String material;
+  final String area;
+  final String setsu;
+  final String floor;
 
   Product({
     required this.id,
@@ -17,6 +23,11 @@ class Product {
     required this.status,
     this.startDate,
     this.endDate,
+    this.partName = '',
+    this.material = '',
+    this.area = '',
+    this.setsu = '',
+    this.floor = '',
   });
 
   factory Product.fromFirestore(DocumentSnapshot doc) {
@@ -33,6 +44,11 @@ class Product {
       endDate: (data['endDate'] != null)
           ? (data['endDate'] as Timestamp).toDate()
           : null,
+      partName: data['partName'] ?? '',
+      material: data['material'] ?? '',
+      area: data['area'] ?? '',
+      setsu: data['setsu'] ?? '',
+      floor: data['floor'] ?? '',
     );
   }
 
@@ -44,6 +60,11 @@ class Product {
       'status': status,
       'startDate': startDate != null ? Timestamp.fromDate(startDate!) : null,
       'endDate': endDate != null ? Timestamp.fromDate(endDate!) : null,
+      'partName': partName,
+      'material': material,
+      'area': area,
+      'setsu': setsu,
+      'floor': floor,
     };
   }
 
@@ -54,6 +75,11 @@ class Product {
     String? status,
     DateTime? startDate,
     DateTime? endDate,
+    String? partName,
+    String? material,
+    String? area,
+    String? setsu,
+    String? floor,
   }) {
     return Product(
       id: id,
@@ -63,6 +89,11 @@ class Product {
       status: status ?? this.status,
       startDate: startDate ?? this.startDate,
       endDate: endDate ?? this.endDate,
+      partName: partName ?? this.partName,
+      material: material ?? this.material,
+      area: area ?? this.area,
+      setsu: setsu ?? this.setsu,
+      floor: floor ?? this.floor,
     );
   }
 }

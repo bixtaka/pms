@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import '../models/product.dart';
 import '../services/firebase_service.dart';
-import '../widgets/gantt_chart_widget.dart';
 import '../widgets/work_type_gantt_widget.dart';
 import 'progress_input_screen.dart';
+import 'bulk_progress_input_screen.dart';
 import '../widgets/process_step_selector.dart';
 
 enum GanttViewMode { day, week, month, quarter, halfYear }
@@ -11,7 +11,7 @@ enum GanttViewMode { day, week, month, quarter, halfYear }
 enum GanttType { product, workType }
 
 class ProductionManagementScreen extends StatefulWidget {
-  const ProductionManagementScreen({Key? key}) : super(key: key);
+  const ProductionManagementScreen({super.key});
 
   @override
   State<ProductionManagementScreen> createState() =>
@@ -25,15 +25,21 @@ class _ProductionManagementScreenState
   GanttType _currentGanttType = GanttType.product;
   late DateTime startDate;
   late DateTime endDate;
-  
+
   // 工程選択状態を管理
   String? selectedProcess;
+
+  // 製品カテゴリ選択状態を追加
+  String selectedCategory = '一次加工';
+
+  // 並び順状態を追加
+  bool isAscending = true;
 
   // 工程データ構造
   final Map<String, List<String>> processSteps = {
     "一次加工": ["材料入荷", "孔あけ", "切断", "開先加工", "ショットブラスト"],
     "組立": ["仮組立", "本組立", "溶接"],
-    "検査": ["外観", "寸法", "超音波検査"]
+    "検査": ["外観", "寸法", "超音波検査"],
   };
 
   @override
@@ -139,9 +145,6 @@ class _ProductionManagementScreenState
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // サンプルデータ追加欄を削除
-            // 工種別進捗サマリー
-            _buildProgressSummary(),
-            const SizedBox(height: 20),
             // ガントチャートタイトル・期間・セレクタ
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -166,38 +169,48 @@ class _ProductionManagementScreenState
               ],
             ),
             const SizedBox(height: 8),
+            // 進捗状況一括入力ボタン
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12.0),
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const BulkProgressInputScreen(),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.add, color: Colors.white),
+                label: const Text(
+                  '進捗状況一括入力',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  elevation: 2,
+                ),
+              ),
+            ),
             // タブ
             _buildGanttTypeTabs(),
             const SizedBox(height: 8),
             // タブの下の中身
             Expanded(
               child: _currentGanttType == GanttType.product
-                  ? SingleChildScrollView(
-                      child: _buildGanttChart(),
-                    )
-                  : Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        ProcessStepSelector(
-                          onProcessChanged: (String process) {
-                            // 選択された工程に応じてガントチャートを更新
-                            setState(() {
-                              selectedProcess = process.isEmpty ? null : process;
-                            });
-                          },
-                        ),
-                        const SizedBox(height: 8),
-                        Expanded(
-                          child: WorkTypeGanttWidget(
-                            workTypeData: [], // 必要に応じてデータを渡す
-                            startDate: startDate,
-                            endDate: endDate,
-                            selectedProcess: selectedProcess,
-                            processSteps: processSteps,
-                          ),
-                        ),
-                      ],
-                    ),
+                  ? _buildProductGanttView()
+                  : _buildWorkTypeGanttView(),
             ),
           ],
         ),
@@ -351,32 +364,34 @@ class _ProductionManagementScreenState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       ...summary.entries.map((entry) {
-                final type = entry.key;
-                final data = entry.value;
-                final total = data['total'] ?? 0;
-                final completed = data['completed'] ?? 0;
-                final inProgress = data['in_progress'] ?? 0;
+                        final type = entry.key;
+                        final data = entry.value;
+                        final total = data['total'] ?? 0;
+                        final completed = data['completed'] ?? 0;
+                        final inProgress = data['in_progress'] ?? 0;
 
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: 60,
-                        child: Text(
-                          type,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      Text('完成$completed/$total'),
-                      const SizedBox(width: 16),
-                      Text('作業中$inProgress'),
-                      const SizedBox(width: 16),
-                      Text('未着手${total - completed - inProgress}'),
-                    ],
-                  ),
-                );
-              }).toList(),
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(
+                            children: [
+                              SizedBox(
+                                width: 60,
+                                child: Text(
+                                  type,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              Text('完成$completed/$total'),
+                              const SizedBox(width: 16),
+                              Text('作業中$inProgress'),
+                              const SizedBox(width: 16),
+                              Text('未着手${total - completed - inProgress}'),
+                            ],
+                          ),
+                        );
+                      }),
                     ],
                   ),
                 ),
@@ -388,68 +403,319 @@ class _ProductionManagementScreenState
     );
   }
 
-  // ガントチャート
-  Widget _buildGanttChart() {
-    if (_currentGanttType == GanttType.product) {
-      return StreamBuilder<List<Product>>(
-        stream: _firebaseService.getProductsStream(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return Center(child: Text('エラー:  [${snapshot.error}'));
-          }
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text('ガントチャート用データがありません'));
-          }
-          return GanttChartWidget(
-            products: snapshot.data!,
-            startDate: startDate,
-            endDate: endDate,
-          );
-        },
-      );
+  // 製品別ガントチャートビュー
+  Widget _buildProductGanttView() {
+    // 仮の工種リスト
+    List<String> processNames;
+    if (selectedCategory == '梁・間柱') {
+      processNames = [
+        '組立',
+        '検品',
+        '溶接',
+        '検査',
+        '塗装',
+        '積込',
+        for (int i = 7; i <= 20; i++) '',
+      ];
+    } else if (selectedCategory == '柱') {
+      processNames = [
+        'コア組立',
+        'コア溶接',
+        'コアＵＴ',
+        '仕口組立',
+        '仕口検品',
+        '仕口溶接',
+        '仕口仕上げ',
+        '仕口ＵＴ',
+        '柱組立',
+        '柱溶接',
+        '柱仕上げ',
+        '柱ＵＴ',
+        '二次部材組立',
+        '二次部材検品',
+        '二次部材溶接',
+        '仕上げ',
+        '柱ＵＴ',
+        '第三者ＵＴ',
+        '塗装',
+        '積込',
+      ];
     } else {
-      // 工種別タブのとき、ProcessStepSelectorを上部に表示
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ProcessStepSelector(
-            onProcessChanged: (String process) {
-              // 選択された工程に応じてガントチャートを更新
-              setState(() {
-                selectedProcess = process.isEmpty ? null : process;
-              });
+      processNames = [for (int i = 1; i <= 20; i++) '工種$i'];
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 製品カテゴリボタン
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12.0),
+          child: Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {
+                    setState(() {
+                      selectedCategory = '一次加工';
+                    });
+                  },
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: selectedCategory == '一次加工'
+                        ? Colors.orange.shade400
+                        : Colors.grey.shade200,
+                    foregroundColor: selectedCategory == '一次加工'
+                        ? Colors.white
+                        : Colors.grey,
+                    side: BorderSide(
+                      color: selectedCategory == '一次加工'
+                          ? Colors.orange.shade400
+                          : Colors.grey.shade400,
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text(
+                    '一次加工',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {
+                    setState(() {
+                      selectedCategory = '柱';
+                    });
+                  },
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: selectedCategory == '柱'
+                        ? Colors.blue.shade400
+                        : Colors.grey.shade200,
+                    foregroundColor: selectedCategory == '柱'
+                        ? Colors.white
+                        : Colors.grey,
+                    side: BorderSide(
+                      color: selectedCategory == '柱'
+                          ? Colors.blue.shade400
+                          : Colors.grey.shade400,
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text(
+                    '柱',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {
+                    setState(() {
+                      selectedCategory = '梁・間柱';
+                    });
+                  },
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: selectedCategory == '梁・間柱'
+                        ? Colors.green.shade400
+                        : Colors.grey.shade200,
+                    foregroundColor: selectedCategory == '梁・間柱'
+                        ? Colors.white
+                        : Colors.grey,
+                    side: BorderSide(
+                      color: selectedCategory == '梁・間柱'
+                          ? Colors.green.shade400
+                          : Colors.grey.shade400,
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text(
+                    '梁・間柱',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        // 並び替えドロップダウン
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8.0),
+          child: Row(
+            children: [
+              const Text('製品名で並び替え：'),
+              const SizedBox(width: 8),
+              DropdownButton<bool>(
+                value: isAscending,
+                items: const [
+                  DropdownMenuItem(value: true, child: Text('昇順')),
+                  DropdownMenuItem(value: false, child: Text('降順')),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() {
+                      isAscending = value;
+                    });
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+        // 製品リスト＋工種名ラベル（表形式）
+        Expanded(
+          child: StreamBuilder<List<Product>>(
+            stream: _firebaseService.getProductsStream(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Center(child: Text('エラー: ${snapshot.error}'));
+              }
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                return const Center(child: Text('製品データがありません'));
+              }
+              final products = snapshot.data!;
+              // カテゴリに応じて製品を絞り込み
+              List<Product> filteredProducts;
+              if (selectedCategory == '柱') {
+                filteredProducts = products
+                    .where((p) => p.processCategory == '柱')
+                    .toList();
+              } else if (selectedCategory == '梁・間柱') {
+                filteredProducts = products
+                    .where(
+                      (p) =>
+                          p.processCategory == '大梁' ||
+                          p.processCategory == '小梁' ||
+                          p.processCategory == '間柱',
+                    )
+                    .toList();
+              } else {
+                filteredProducts = products;
+              }
+              // 並び順でソート
+              filteredProducts.sort(
+                (a, b) => isAscending
+                    ? a.name.compareTo(b.name)
+                    : b.name.compareTo(a.name),
+              );
+              // ラベル行＋データ行を作成
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Table(
+                  border: TableBorder.all(color: Colors.grey),
+                  defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+                  columnWidths: {
+                    0: FixedColumnWidth(120),
+                    for (int i = 1; i <= 20; i++) i: FixedColumnWidth(80),
+                  },
+                  children: [
+                    // ラベル行
+                    TableRow(
+                      decoration: const BoxDecoration(color: Color(0xFFE0E0E0)),
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.all(8.0),
+                          child: Text(
+                            '製品名',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        ...processNames.map(
+                          (p) => Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Text(
+                              p,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    // データ行
+                    ...filteredProducts.map(
+                      (product) => TableRow(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Text(product.name),
+                          ),
+                          ...processNames.map(
+                            (p) => Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: Text(''), // 工種ごとのセル内容は空欄
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
             },
           ),
-          const SizedBox(height: 8),
-          SizedBox(
-            height: 200,
-            child: StreamBuilder<List<WorkTypeGanttData>>(
-              stream: _firebaseService.getWorkTypeGanttStream(),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Center(child: Text('エラー: [ [${snapshot.error}]'));
-                }
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return const Center(child: Text('工種別ガントチャート用データがありません'));
-                }
-                return WorkTypeGanttWidget(
-                  workTypeData: snapshot.data!,
-                  startDate: startDate,
-                  endDate: endDate,
-                  selectedProcess: selectedProcess,
-                  processSteps: processSteps,
-                );
-              },
-            ),
+        ),
+      ],
+    );
+  }
+
+  // 工種別ガントチャートビュー
+  Widget _buildWorkTypeGanttView() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ProcessStepSelector(
+          onProcessChanged: (String process) {
+            // 選択された工程に応じてガントチャートを更新
+            setState(() {
+              selectedProcess = process.isEmpty ? null : process;
+            });
+          },
+        ),
+        const SizedBox(height: 8),
+        Expanded(
+          child: StreamBuilder<List<WorkTypeGanttData>>(
+            stream: _firebaseService.getWorkTypeGanttStream(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Center(child: Text('エラー: ${snapshot.error}'));
+              }
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                return const Center(child: Text('工種別ガントチャート用データがありません'));
+              }
+              return WorkTypeGanttWidget(
+                workTypeData: snapshot.data!,
+                startDate: startDate,
+                endDate: endDate,
+              );
+            },
           ),
-        ],
-      );
+        ),
+      ],
+    );
+  }
+
+  // ガントチャート（旧メソッド - 後方互換性のため残す）
+  Widget _buildGanttChart() {
+    if (_currentGanttType == GanttType.product) {
+      return _buildProductGanttView();
+    } else {
+      return _buildWorkTypeGanttView();
     }
   }
 

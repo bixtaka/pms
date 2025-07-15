@@ -55,9 +55,7 @@ class FirebaseService {
             // 工程カテゴリ（processCategory）でグループ化
             for (var doc in snapshot.docs) {
               Product product = Product.fromFirestore(doc);
-              final category =
-                  (doc.data() as Map<String, dynamic>)['processCategory'] ??
-                  '未分類';
+              final category = (doc.data())['processCategory'] ?? '未分類';
               if (!workTypeGroups.containsKey(category)) {
                 workTypeGroups[category] = [];
               }
@@ -197,96 +195,116 @@ class FirebaseService {
       final startDate = DateTime(now.year, now.month, now.day);
 
       List<Map<String, dynamic>> sampleProducts = [
+        // 柱
         {
-          'name': '柱-001',
+          'name': '1C-Y1X1',
           'type': '柱',
-          'processCategory': '一次加工',
-          'status': 'completed',
-          'startDate': Timestamp.fromDate(
-            startDate.add(const Duration(days: 1)),
-          ),
-          'endDate': Timestamp.fromDate(startDate.add(const Duration(days: 3))),
-        },
-        {
-          'name': '柱-002',
-          'type': '柱',
-          'processCategory': '一次加工',
-          'status': 'in_progress',
-          'startDate': Timestamp.fromDate(
-            startDate.add(const Duration(days: 4)),
-          ),
-          'endDate': null,
-        },
-        {
-          'name': '柱-003',
-          'type': '柱',
-          'processCategory': '一次加工',
+          'processCategory': '柱',
           'status': 'not_started',
           'startDate': null,
           'endDate': null,
         },
         {
-          'name': '大梁-001',
-          'type': '大梁',
-          'processCategory': '組立',
-          'status': 'completed',
-          'startDate': Timestamp.fromDate(
-            startDate.add(const Duration(days: 2)),
-          ),
-          'endDate': Timestamp.fromDate(startDate.add(const Duration(days: 5))),
-        },
-        {
-          'name': '大梁-002',
-          'type': '大梁',
-          'processCategory': '組立',
-          'status': 'in_progress',
-          'startDate': Timestamp.fromDate(
-            startDate.add(const Duration(days: 6)),
-          ),
-          'endDate': null,
-        },
-        {
-          'name': '小梁-001',
-          'type': '小梁',
-          'processCategory': '検査',
-          'status': 'completed',
-          'startDate': Timestamp.fromDate(
-            startDate.add(const Duration(days: 3)),
-          ),
-          'endDate': Timestamp.fromDate(startDate.add(const Duration(days: 4))),
-        },
-        {
-          'name': '小梁-002',
-          'type': '小梁',
-          'processCategory': '検査',
+          'name': '1C-Y1X2',
+          'type': '柱',
+          'processCategory': '柱',
           'status': 'not_started',
           'startDate': null,
           'endDate': null,
         },
         {
-          'name': '小梁-003',
-          'type': '小梁',
-          'processCategory': '検査',
-          'status': 'in_progress',
-          'startDate': Timestamp.fromDate(
-            startDate.add(const Duration(days: 7)),
-          ),
+          'name': '1C-Y1X3',
+          'type': '柱',
+          'processCategory': '柱',
+          'status': 'not_started',
+          'startDate': null,
           'endDate': null,
         },
         {
-          'name': '間柱-001',
-          'type': '間柱',
-          'processCategory': '一次加工',
-          'status': 'completed',
-          'startDate': Timestamp.fromDate(
-            startDate.add(const Duration(days: 5)),
-          ),
-          'endDate': Timestamp.fromDate(startDate.add(const Duration(days: 6))),
+          'name': '1C-Y2X1',
+          'type': '柱',
+          'processCategory': '柱',
+          'status': 'not_started',
+          'startDate': null,
+          'endDate': null,
         },
         {
-          'name': '間柱-002',
-          'type': '間柱',
-          'processCategory': '一次加工',
+          'name': '1C-Y2X2',
+          'type': '柱',
+          'processCategory': '柱',
+          'status': 'not_started',
+          'startDate': null,
+          'endDate': null,
+        },
+        {
+          'name': '1C-Y2X3',
+          'type': '柱',
+          'processCategory': '柱',
+          'status': 'not_started',
+          'startDate': null,
+          'endDate': null,
+        },
+        // 大梁
+        {
+          'name': '2G-1',
+          'type': '大梁',
+          'processCategory': '大梁',
+          'status': 'not_started',
+          'startDate': null,
+          'endDate': null,
+        },
+        {
+          'name': '2G-2',
+          'type': '大梁',
+          'processCategory': '大梁',
+          'status': 'not_started',
+          'startDate': null,
+          'endDate': null,
+        },
+        {
+          'name': '2G-3',
+          'type': '大梁',
+          'processCategory': '大梁',
+          'status': 'not_started',
+          'startDate': null,
+          'endDate': null,
+        },
+        {
+          'name': '2G-4',
+          'type': '大梁',
+          'processCategory': '大梁',
+          'status': 'not_started',
+          'startDate': null,
+          'endDate': null,
+        },
+        {
+          'name': '3G-1',
+          'type': '大梁',
+          'processCategory': '大梁',
+          'status': 'not_started',
+          'startDate': null,
+          'endDate': null,
+        },
+        {
+          'name': '3G-2',
+          'type': '大梁',
+          'processCategory': '大梁',
+          'status': 'not_started',
+          'startDate': null,
+          'endDate': null,
+        },
+        {
+          'name': '3G-3',
+          'type': '大梁',
+          'processCategory': '大梁',
+          'status': 'not_started',
+          'startDate': null,
+          'endDate': null,
+        },
+        {
+          'name': '3G-4',
+          'type': '大梁',
+          'processCategory': '大梁',
           'status': 'not_started',
           'startDate': null,
           'endDate': null,
