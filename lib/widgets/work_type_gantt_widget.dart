@@ -96,6 +96,50 @@ class _WorkTypeGanttWidgetState extends State<WorkTypeGanttWidget> {
         (isOogumiExpanded ? oogumiTypes.length : 0) +
         (isNijiExpanded ? nijiTypes.length : 0);
 
+    final parentTypes = ['コア', '仕口', '大組み', '二次部材'];
+    final childTypeMap = {
+      'コア': ['コア組立', 'コア溶接', 'コアＵＴ'],
+      '仕口': ['仕口組立', '仕口検品', '仕口溶接', '仕口仕上げ', '仕口ＵＴ'],
+      '大組み': ['柱組立', '柱溶接', '柱仕上げ', '柱ＵＴ'],
+      '二次部材': ['二次部材組立', '二次部材検品', '二次部材溶接', '仕上げ'],
+    };
+    final allChildTypes = childTypeMap.values.expand((v) => v).toSet();
+    final singleTypes = widget.processList
+        .where((p) => !allChildTypes.contains(p))
+        .toList();
+
+    // 表示用リストを作成（親子展開状態を考慮）
+    List<Map<String, dynamic>> displayRows = [];
+    for (final parent in parentTypes) {
+      displayRows.add({'type': parent, 'isParent': true});
+      bool expanded = false;
+      switch (parent) {
+        case 'コア':
+          expanded = isCoreExpanded;
+          break;
+        case '仕口':
+          expanded = isShikuchiExpanded;
+          break;
+        case '大組み':
+          expanded = isOogumiExpanded;
+          break;
+        case '二次部材':
+          expanded = isNijiExpanded;
+          break;
+      }
+      if (expanded) {
+        for (final child in childTypeMap[parent] ?? []) {
+          displayRows.add({'type': child, 'isChild': true, 'parent': parent});
+        }
+      }
+    }
+    for (final single in singleTypes) {
+      // 親子でない工種
+      if (!parentTypes.contains(single)) {
+        displayRows.add({'type': single, 'isSingle': true});
+      }
+    }
+
     return Container(
       decoration: BoxDecoration(
         border: Border.all(color: Colors.grey.shade300),
@@ -116,26 +160,25 @@ class _WorkTypeGanttWidgetState extends State<WorkTypeGanttWidget> {
               // 本体（縦スクロール対応）
               Expanded(
                 child: ListView.builder(
-                  itemCount: parentProcessList.length + extraRows,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: displayRows.length,
                   itemBuilder: (context, index) {
-                    int parentIdx = 0;
-                    int runningIdx = index;
-                    // コア子工種展開
-                    if (isCoreExpanded &&
-                        runningIdx > 0 &&
-                        runningIdx <= coreTypes.length) {
-                      final childType = coreTypes[runningIdx - 1];
-                      final data = widget.workTypeData.firstWhere(
-                        (d) => d.type == childType,
-                        orElse: () => WorkTypeGanttData(
-                          type: childType,
-                          averageStartDate: null,
-                          averageEndDate: null,
-                          totalCount: 0,
-                          completedCount: 0,
-                          completionRate: 0.0,
-                        ),
-                      );
+                    final row = displayRows[index];
+                    final type = row['type'] as String;
+                    ensurePlanDates(type);
+                    final data = widget.workTypeData.firstWhere(
+                      (d) => d.type == type,
+                      orElse: () => WorkTypeGanttData(
+                        type: type,
+                        averageStartDate: null,
+                        averageEndDate: null,
+                        totalCount: 0,
+                        completedCount: 0,
+                        completionRate: 0.0,
+                      ),
+                    );
+                    if (row['isParent'] == true) {
+                      // 親工種行（アコーディオン＋計画バー）
                       return SizedBox(
                         width: chartWidth,
                         height: rowHeight,
@@ -158,547 +201,191 @@ class _WorkTypeGanttWidgetState extends State<WorkTypeGanttWidget> {
                                   ),
                                 ),
                               ),
-                              child: Text(
-                                data.type,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              child: _buildWorkTypeRow(
-                                data,
-                                totalDays,
-                                rowHeight,
-                                cellWidth,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-                    if (isCoreExpanded) {
-                      if (runningIdx > coreTypes.length) {
-                        runningIdx -= coreTypes.length;
-                      } else {
-                        // すでにコア子工種を返した
-                        return const SizedBox.shrink();
-                      }
-                    }
-                    // 仕口子工種展開
-                    if (isShikuchiExpanded &&
-                        runningIdx > 1 &&
-                        runningIdx <= 1 + shikuchiTypes.length) {
-                      final childType = shikuchiTypes[runningIdx - 2];
-                      final data = widget.workTypeData.firstWhere(
-                        (d) => d.type == childType,
-                        orElse: () => WorkTypeGanttData(
-                          type: childType,
-                          averageStartDate: null,
-                          averageEndDate: null,
-                          totalCount: 0,
-                          completedCount: 0,
-                          completionRate: 0.0,
-                        ),
-                      );
-                      return SizedBox(
-                        width: chartWidth,
-                        height: rowHeight,
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 150,
-                              height: double.infinity,
-                              alignment: Alignment.centerLeft,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 24,
-                              ),
-                              decoration: BoxDecoration(
-                                border: Border(
-                                  right: BorderSide(
-                                    color: Colors.grey.shade300,
+                              child: Row(
+                                children: [
+                                  Text(
+                                    type,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                  bottom: BorderSide(
-                                    color: Colors.grey.shade200,
-                                  ),
-                                ),
-                              ),
-                              child: Text(
-                                data.type,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              child: _buildWorkTypeRow(
-                                data,
-                                totalDays,
-                                rowHeight,
-                                cellWidth,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-                    if (isShikuchiExpanded &&
-                        runningIdx > 1 + shikuchiTypes.length) {
-                      runningIdx -= shikuchiTypes.length;
-                    }
-                    // 大組み子工種展開
-                    if (isOogumiExpanded &&
-                        runningIdx > 2 &&
-                        runningIdx <= 2 + oogumiTypes.length) {
-                      final childType = oogumiTypes[runningIdx - 3];
-                      final data = widget.workTypeData.firstWhere(
-                        (d) => d.type == childType,
-                        orElse: () => WorkTypeGanttData(
-                          type: childType,
-                          averageStartDate: null,
-                          averageEndDate: null,
-                          totalCount: 0,
-                          completedCount: 0,
-                          completionRate: 0.0,
-                        ),
-                      );
-                      return SizedBox(
-                        width: chartWidth,
-                        height: rowHeight,
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 150,
-                              height: double.infinity,
-                              alignment: Alignment.centerLeft,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 24,
-                              ),
-                              decoration: BoxDecoration(
-                                border: Border(
-                                  right: BorderSide(
-                                    color: Colors.grey.shade300,
-                                  ),
-                                  bottom: BorderSide(
-                                    color: Colors.grey.shade200,
-                                  ),
-                                ),
-                              ),
-                              child: Text(
-                                data.type,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              child: _buildWorkTypeRow(
-                                data,
-                                totalDays,
-                                rowHeight,
-                                cellWidth,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-                    if (isOogumiExpanded &&
-                        runningIdx > 2 + oogumiTypes.length) {
-                      runningIdx -= oogumiTypes.length;
-                    }
-                    // 二次部材子工種展開
-                    if (isNijiExpanded &&
-                        runningIdx > 3 &&
-                        runningIdx <= 3 + nijiTypes.length) {
-                      final childType = nijiTypes[runningIdx - 4];
-                      final data = widget.workTypeData.firstWhere(
-                        (d) => d.type == childType,
-                        orElse: () => WorkTypeGanttData(
-                          type: childType,
-                          averageStartDate: null,
-                          averageEndDate: null,
-                          totalCount: 0,
-                          completedCount: 0,
-                          completionRate: 0.0,
-                        ),
-                      );
-                      return SizedBox(
-                        width: chartWidth,
-                        height: rowHeight,
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 150,
-                              height: double.infinity,
-                              alignment: Alignment.centerLeft,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 24,
-                              ),
-                              decoration: BoxDecoration(
-                                border: Border(
-                                  right: BorderSide(
-                                    color: Colors.grey.shade300,
-                                  ),
-                                  bottom: BorderSide(
-                                    color: Colors.grey.shade200,
-                                  ),
-                                ),
-                              ),
-                              child: Text(
-                                data.type,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              child: _buildWorkTypeRow(
-                                data,
-                                totalDays,
-                                rowHeight,
-                                cellWidth,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-                    if (isNijiExpanded && runningIdx > 3 + nijiTypes.length) {
-                      runningIdx -= nijiTypes.length;
-                    }
-                    parentIdx = runningIdx;
-                    final processName = parentProcessList[parentIdx];
-                    WorkTypeGanttData data;
-                    if (processName == 'コア') {
-                      final coreDataList = widget.workTypeData
-                          .where((d) => coreTypes.contains(d.type))
-                          .toList();
-                      int totalCount = 0;
-                      int completedCount = 0;
-                      double completionRate = 0.0;
-                      DateTime? avgStart;
-                      DateTime? avgEnd;
-                      if (coreDataList.isNotEmpty) {
-                        totalCount = coreDataList.fold(
-                          0,
-                          (sum, d) => sum + d.totalCount,
-                        );
-                        completedCount = coreDataList.fold(
-                          0,
-                          (sum, d) => sum + d.completedCount,
-                        );
-                        completionRate = totalCount > 0
-                            ? (completedCount / totalCount) * 100
-                            : 0.0;
-                        final startDates = coreDataList
-                            .where((d) => d.averageStartDate != null)
-                            .map((d) => d.averageStartDate!)
-                            .toList();
-                        final endDates = coreDataList
-                            .where((d) => d.averageEndDate != null)
-                            .map((d) => d.averageEndDate!)
-                            .toList();
-                        if (startDates.isNotEmpty) {
-                          avgStart = startDates.reduce(
-                            (a, b) => a.isBefore(b) ? a : b,
-                          );
-                        }
-                        if (endDates.isNotEmpty) {
-                          avgEnd = endDates.reduce(
-                            (a, b) => a.isAfter(b) ? a : b,
-                          );
-                        }
-                      }
-                      data = WorkTypeGanttData(
-                        type: 'コア',
-                        averageStartDate: avgStart,
-                        averageEndDate: avgEnd,
-                        totalCount: totalCount,
-                        completedCount: completedCount,
-                        completionRate: completionRate,
-                      );
-                    } else if (processName == '仕口') {
-                      final shikuchiDataList = widget.workTypeData
-                          .where((d) => shikuchiTypes.contains(d.type))
-                          .toList();
-                      int totalCount = 0;
-                      int completedCount = 0;
-                      double completionRate = 0.0;
-                      DateTime? avgStart;
-                      DateTime? avgEnd;
-                      if (shikuchiDataList.isNotEmpty) {
-                        totalCount = shikuchiDataList.fold(
-                          0,
-                          (sum, d) => sum + d.totalCount,
-                        );
-                        completedCount = shikuchiDataList.fold(
-                          0,
-                          (sum, d) => sum + d.completedCount,
-                        );
-                        completionRate = totalCount > 0
-                            ? (completedCount / totalCount) * 100
-                            : 0.0;
-                        final startDates = shikuchiDataList
-                            .where((d) => d.averageStartDate != null)
-                            .map((d) => d.averageStartDate!)
-                            .toList();
-                        final endDates = shikuchiDataList
-                            .where((d) => d.averageEndDate != null)
-                            .map((d) => d.averageEndDate!)
-                            .toList();
-                        if (startDates.isNotEmpty) {
-                          avgStart = startDates.reduce(
-                            (a, b) => a.isBefore(b) ? a : b,
-                          );
-                        }
-                        if (endDates.isNotEmpty) {
-                          avgEnd = endDates.reduce(
-                            (a, b) => a.isAfter(b) ? a : b,
-                          );
-                        }
-                      }
-                      data = WorkTypeGanttData(
-                        type: '仕口',
-                        averageStartDate: avgStart,
-                        averageEndDate: avgEnd,
-                        totalCount: totalCount,
-                        completedCount: completedCount,
-                        completionRate: completionRate,
-                      );
-                    } else if (processName == '大組み') {
-                      final oogumiDataList = widget.workTypeData
-                          .where((d) => oogumiTypes.contains(d.type))
-                          .toList();
-                      int totalCount = 0;
-                      int completedCount = 0;
-                      double completionRate = 0.0;
-                      DateTime? avgStart;
-                      DateTime? avgEnd;
-                      if (oogumiDataList.isNotEmpty) {
-                        totalCount = oogumiDataList.fold(
-                          0,
-                          (sum, d) => sum + d.totalCount,
-                        );
-                        completedCount = oogumiDataList.fold(
-                          0,
-                          (sum, d) => sum + d.completedCount,
-                        );
-                        completionRate = totalCount > 0
-                            ? (completedCount / totalCount) * 100
-                            : 0.0;
-                        final startDates = oogumiDataList
-                            .where((d) => d.averageStartDate != null)
-                            .map((d) => d.averageStartDate!)
-                            .toList();
-                        final endDates = oogumiDataList
-                            .where((d) => d.averageEndDate != null)
-                            .map((d) => d.averageEndDate!)
-                            .toList();
-                        if (startDates.isNotEmpty) {
-                          avgStart = startDates.reduce(
-                            (a, b) => a.isBefore(b) ? a : b,
-                          );
-                        }
-                        if (endDates.isNotEmpty) {
-                          avgEnd = endDates.reduce(
-                            (a, b) => a.isAfter(b) ? a : b,
-                          );
-                        }
-                      }
-                      data = WorkTypeGanttData(
-                        type: '大組み',
-                        averageStartDate: avgStart,
-                        averageEndDate: avgEnd,
-                        totalCount: totalCount,
-                        completedCount: completedCount,
-                        completionRate: completionRate,
-                      );
-                    } else if (processName == '二次部材') {
-                      final nijiDataList = widget.workTypeData
-                          .where((d) => nijiTypes.contains(d.type))
-                          .toList();
-                      int totalCount = 0;
-                      int completedCount = 0;
-                      double completionRate = 0.0;
-                      DateTime? avgStart;
-                      DateTime? avgEnd;
-                      if (nijiDataList.isNotEmpty) {
-                        totalCount = nijiDataList.fold(
-                          0,
-                          (sum, d) => sum + d.totalCount,
-                        );
-                        completedCount = nijiDataList.fold(
-                          0,
-                          (sum, d) => sum + d.completedCount,
-                        );
-                        completionRate = totalCount > 0
-                            ? (completedCount / totalCount) * 100
-                            : 0.0;
-                        final startDates = nijiDataList
-                            .where((d) => d.averageStartDate != null)
-                            .map((d) => d.averageStartDate!)
-                            .toList();
-                        final endDates = nijiDataList
-                            .where((d) => d.averageEndDate != null)
-                            .map((d) => d.averageEndDate!)
-                            .toList();
-                        if (startDates.isNotEmpty) {
-                          avgStart = startDates.reduce(
-                            (a, b) => a.isBefore(b) ? a : b,
-                          );
-                        }
-                        if (endDates.isNotEmpty) {
-                          avgEnd = endDates.reduce(
-                            (a, b) => a.isAfter(b) ? a : b,
-                          );
-                        }
-                      }
-                      data = WorkTypeGanttData(
-                        type: '二次部材',
-                        averageStartDate: avgStart,
-                        averageEndDate: avgEnd,
-                        totalCount: totalCount,
-                        completedCount: completedCount,
-                        completionRate: completionRate,
-                      );
-                    } else {
-                      data = widget.workTypeData.firstWhere(
-                        (d) => d.type == processName,
-                        orElse: () => WorkTypeGanttData(
-                          type: processName,
-                          averageStartDate: null,
-                          averageEndDate: null,
-                          totalCount: 0,
-                          completedCount: 0,
-                          completionRate: 0.0,
-                        ),
-                      );
-                    }
-                    bool isParent =
-                        processName == 'コア' ||
-                        processName == '仕口' ||
-                        processName == '大組み' ||
-                        processName == '二次部材';
-                    if (isParent) {
-                      ensurePlanDates(processName);
-                    }
-                    return SizedBox(
-                      width: chartWidth,
-                      height: rowHeight,
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 150,
-                            height: double.infinity,
-                            alignment: Alignment.centerLeft,
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            decoration: BoxDecoration(
-                              border: Border(
-                                right: BorderSide(color: Colors.grey.shade300),
-                                bottom: BorderSide(color: Colors.grey.shade200),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Text(
-                                  data.type,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                if (processName == 'コア')
                                   IconButton(
                                     icon: Icon(
-                                      isCoreExpanded
-                                          ? Icons.expand_less
-                                          : Icons.expand_more,
+                                      (() {
+                                        switch (type) {
+                                          case 'コア':
+                                            return isCoreExpanded
+                                                ? Icons.expand_less
+                                                : Icons.expand_more;
+                                          case '仕口':
+                                            return isShikuchiExpanded
+                                                ? Icons.expand_less
+                                                : Icons.expand_more;
+                                          case '大組み':
+                                            return isOogumiExpanded
+                                                ? Icons.expand_less
+                                                : Icons.expand_more;
+                                          case '二次部材':
+                                            return isNijiExpanded
+                                                ? Icons.expand_less
+                                                : Icons.expand_more;
+                                          default:
+                                            return Icons.expand_more;
+                                        }
+                                      })(),
                                     ),
                                     iconSize: 18,
                                     onPressed: () {
                                       setState(() {
-                                        isCoreExpanded = !isCoreExpanded;
+                                        switch (type) {
+                                          case 'コア':
+                                            isCoreExpanded = !isCoreExpanded;
+                                            break;
+                                          case '仕口':
+                                            isShikuchiExpanded =
+                                                !isShikuchiExpanded;
+                                            break;
+                                          case '大組み':
+                                            isOogumiExpanded =
+                                                !isOogumiExpanded;
+                                            break;
+                                          case '二次部材':
+                                            isNijiExpanded = !isNijiExpanded;
+                                            break;
+                                        }
                                       });
                                     },
                                   ),
-                                if (processName == '仕口')
-                                  IconButton(
-                                    icon: Icon(
-                                      isShikuchiExpanded
-                                          ? Icons.expand_less
-                                          : Icons.expand_more,
-                                    ),
-                                    iconSize: 18,
-                                    onPressed: () {
-                                      setState(() {
-                                        isShikuchiExpanded =
-                                            !isShikuchiExpanded;
-                                      });
-                                    },
-                                  ),
-                                if (processName == '大組み')
-                                  IconButton(
-                                    icon: Icon(
-                                      isOogumiExpanded
-                                          ? Icons.expand_less
-                                          : Icons.expand_more,
-                                    ),
-                                    iconSize: 18,
-                                    onPressed: () {
-                                      setState(() {
-                                        isOogumiExpanded = !isOogumiExpanded;
-                                      });
-                                    },
-                                  ),
-                                if (processName == '二次部材')
-                                  IconButton(
-                                    icon: Icon(
-                                      isNijiExpanded
-                                          ? Icons.expand_less
-                                          : Icons.expand_more,
-                                    ),
-                                    iconSize: 18,
-                                    onPressed: () {
-                                      setState(() {
-                                        isNijiExpanded = !isNijiExpanded;
-                                      });
-                                    },
-                                  ),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
-                          Expanded(
-                            child: Stack(
-                              children: [
-                                // 計画バー（親工種のみ）
-                                if (isParent)
+                            Flexible(
+                              fit: FlexFit.tight,
+                              child: Stack(
+                                children: [
                                   _buildPlanBar(
-                                    processName,
-                                    planStartDates[processName]!,
-                                    planEndDates[processName]!,
+                                    type,
+                                    planStartDates[type]!,
+                                    planEndDates[type]!,
                                     totalDays,
                                     cellWidth,
                                     rowHeight,
                                   ),
-                                // 実績バー＋グリッド
-                                _buildWorkTypeRow(
-                                  data,
-                                  totalDays,
-                                  rowHeight,
-                                  cellWidth,
-                                ),
-                              ],
+                                  _buildWorkTypeRow(
+                                    data,
+                                    totalDays,
+                                    rowHeight,
+                                    cellWidth,
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                    );
+                          ],
+                        ),
+                      );
+                    } else if (row['isChild'] == true) {
+                      // 子工種行（実績バーのみ）
+                      return SizedBox(
+                        width: chartWidth,
+                        height: rowHeight,
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 150,
+                              height: double.infinity,
+                              alignment: Alignment.centerLeft,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                              ),
+                              decoration: BoxDecoration(
+                                border: Border(
+                                  right: BorderSide(
+                                    color: Colors.grey.shade300,
+                                  ),
+                                  bottom: BorderSide(
+                                    color: Colors.grey.shade200,
+                                  ),
+                                ),
+                              ),
+                              child: Text(
+                                type,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ),
+                            Flexible(
+                              fit: FlexFit.tight,
+                              child: _buildWorkTypeRow(
+                                data,
+                                totalDays,
+                                rowHeight,
+                                cellWidth,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    } else {
+                      // 親子でない工種（単独行：計画バー＋実績バー）
+                      return SizedBox(
+                        width: chartWidth,
+                        height: rowHeight,
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 150,
+                              height: double.infinity,
+                              alignment: Alignment.centerLeft,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                              ),
+                              decoration: BoxDecoration(
+                                border: Border(
+                                  right: BorderSide(
+                                    color: Colors.grey.shade300,
+                                  ),
+                                  bottom: BorderSide(
+                                    color: Colors.grey.shade200,
+                                  ),
+                                ),
+                              ),
+                              child: Text(
+                                type,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ),
+                            Flexible(
+                              fit: FlexFit.tight,
+                              child: Stack(
+                                children: [
+                                  _buildPlanBar(
+                                    type,
+                                    planStartDates[type]!,
+                                    planEndDates[type]!,
+                                    totalDays,
+                                    cellWidth,
+                                    rowHeight,
+                                  ),
+                                  _buildWorkTypeRow(
+                                    data,
+                                    totalDays,
+                                    rowHeight,
+                                    cellWidth,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
                   },
                 ),
               ),
@@ -730,8 +417,9 @@ class _WorkTypeGanttWidgetState extends State<WorkTypeGanttWidget> {
           children: [
             // 左端ハンドル
             GestureDetector(
-              behavior: HitTestBehavior.opaque,
+              behavior: HitTestBehavior.translucent, // translucentに変更
               onHorizontalDragStart: (details) {
+                print('drag start: ' + type + '_left');
                 setState(() {
                   draggingPlan = type + '_left';
                   dragStartX = details.localPosition.dx;
@@ -739,6 +427,7 @@ class _WorkTypeGanttWidgetState extends State<WorkTypeGanttWidget> {
                 });
               },
               onHorizontalDragUpdate: (details) {
+                print('drag update: ' + type + '_left');
                 if (draggingPlan == type + '_left') {
                   final dx = details.localPosition.dx - dragStartX;
                   final dayDelta = (dx / cellWidth).round();
@@ -753,6 +442,7 @@ class _WorkTypeGanttWidgetState extends State<WorkTypeGanttWidget> {
                 }
               },
               onHorizontalDragEnd: (_) {
+                print('drag end: ' + type + '_left');
                 setState(() {
                   draggingPlan = null;
                 });
@@ -779,50 +469,51 @@ class _WorkTypeGanttWidgetState extends State<WorkTypeGanttWidget> {
               ),
             ),
             // バー本体
-            Expanded(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onHorizontalDragStart: (details) {
+            GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onHorizontalDragStart: (details) {
+                print('drag start: ' + type);
+                setState(() {
+                  draggingPlan = type;
+                  dragStartX = details.localPosition.dx;
+                  dragInitialStart = planStartDates[type];
+                  dragInitialEnd = planEndDates[type];
+                });
+              },
+              onHorizontalDragUpdate: (details) {
+                print('drag update: ' + type);
+                if (draggingPlan == type) {
+                  final dx = details.localPosition.dx - dragStartX;
+                  final dayDelta = (dx / cellWidth).round();
                   setState(() {
-                    draggingPlan = type;
-                    dragStartX = details.localPosition.dx;
-                    dragInitialStart = planStartDates[type];
-                    dragInitialEnd = planEndDates[type];
+                    planStartDates[type] = dragInitialStart!.add(
+                      Duration(days: dayDelta),
+                    );
+                    planEndDates[type] = dragInitialEnd!.add(
+                      Duration(days: dayDelta),
+                    );
                   });
-                },
-                onHorizontalDragUpdate: (details) {
-                  if (draggingPlan == type) {
-                    final dx = details.localPosition.dx - dragStartX;
-                    final dayDelta = (dx / cellWidth).round();
-                    setState(() {
-                      planStartDates[type] = dragInitialStart!.add(
-                        Duration(days: dayDelta),
-                      );
-                      planEndDates[type] = dragInitialEnd!.add(
-                        Duration(days: dayDelta),
-                      );
-                    });
-                  }
-                },
-                onHorizontalDragEnd: (_) {
-                  setState(() {
-                    draggingPlan = null;
-                  });
-                },
-                child: Container(
-                  height: rowHeight - 12,
-                  decoration: BoxDecoration(
-                    color: Colors.blue.withOpacity(0.2),
-                    border: Border.all(color: Colors.blue, width: 1),
-                  ),
-                  child: Center(
-                    child: Text(
-                      '計画',
-                      style: const TextStyle(
-                        color: Colors.blue,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
+                }
+              },
+              onHorizontalDragEnd: (_) {
+                print('drag end: ' + type);
+                setState(() {
+                  draggingPlan = null;
+                });
+              },
+              child: Container(
+                height: rowHeight - 12,
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.2),
+                  border: Border.all(color: Colors.blue, width: 1),
+                ),
+                child: Center(
+                  child: Text(
+                    '計画',
+                    style: const TextStyle(
+                      color: Colors.blue,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
@@ -830,8 +521,9 @@ class _WorkTypeGanttWidgetState extends State<WorkTypeGanttWidget> {
             ),
             // 右端ハンドル
             GestureDetector(
-              behavior: HitTestBehavior.opaque,
+              behavior: HitTestBehavior.translucent,
               onHorizontalDragStart: (details) {
+                print('drag start: ' + type + '_right');
                 setState(() {
                   draggingPlan = type + '_right';
                   dragStartX = details.localPosition.dx;
@@ -839,6 +531,7 @@ class _WorkTypeGanttWidgetState extends State<WorkTypeGanttWidget> {
                 });
               },
               onHorizontalDragUpdate: (details) {
+                print('drag update: ' + type + '_right');
                 if (draggingPlan == type + '_right') {
                   final dx = details.localPosition.dx - dragStartX;
                   final dayDelta = (dx / cellWidth).round();
@@ -853,6 +546,7 @@ class _WorkTypeGanttWidgetState extends State<WorkTypeGanttWidget> {
                 }
               },
               onHorizontalDragEnd: (_) {
+                print('drag end: ' + type + '_right');
                 setState(() {
                   draggingPlan = null;
                 });

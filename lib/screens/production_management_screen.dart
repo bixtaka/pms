@@ -681,13 +681,12 @@ class _ProductionManagementScreenState
                         .where((d) => d.type == selectedCategory)
                         .toList()
                   : snapshot.data!;
-              return Expanded(
-                child: WorkTypeGanttWidget(
-                  workTypeData: filteredData,
-                  processList: processList,
-                  startDate: startDate,
-                  endDate: endDate,
-                ),
+
+              return WorkTypeGanttWidget(
+                workTypeData: filteredData,
+                processList: processList,
+                startDate: startDate,
+                endDate: endDate,
               );
             },
           ),
