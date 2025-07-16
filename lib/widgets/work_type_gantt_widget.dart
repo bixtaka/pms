@@ -45,30 +45,36 @@ class WorkTypeGanttWidget extends StatelessWidget {
                 height: 44,
                 child: _buildHeader(totalDays, cellWidth),
               ),
-              // 本体
-              ...processList.map((processName) {
-                final data = workTypeData.firstWhere(
-                  (d) => d.type == processName,
-                  orElse: () => WorkTypeGanttData(
-                    type: processName,
-                    averageStartDate: null,
-                    averageEndDate: null,
-                    totalCount: 0,
-                    completedCount: 0,
-                    completionRate: 0.0,
-                  ),
-                );
-                return SizedBox(
-                  width: chartWidth,
-                  height: rowHeight,
-                  child: _buildWorkTypeRow(
-                    data,
-                    totalDays,
-                    rowHeight,
-                    cellWidth,
-                  ),
-                );
-              }),
+              // 本体（縦スクロール対応）
+              Expanded(
+                child: ListView.builder(
+                  itemCount: processList.length,
+                  itemBuilder: (context, index) {
+                    final processName = processList[index];
+                    final data = workTypeData.firstWhere(
+                      (d) => d.type == processName,
+                      orElse: () => WorkTypeGanttData(
+                        type: processName,
+                        averageStartDate: null,
+                        averageEndDate: null,
+                        totalCount: 0,
+                        completedCount: 0,
+                        completionRate: 0.0,
+                      ),
+                    );
+                    return SizedBox(
+                      width: chartWidth,
+                      height: rowHeight,
+                      child: _buildWorkTypeRow(
+                        data,
+                        totalDays,
+                        rowHeight,
+                        cellWidth,
+                      ),
+                    );
+                  },
+                ),
+              ),
             ],
           ),
         ),

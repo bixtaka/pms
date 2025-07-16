@@ -577,69 +577,70 @@ class _ProductionManagementScreenState
           ),
           const Divider(height: 1),
           // データ行（高さを指定してListView.builderで描画）
-          Container(
-            height: MediaQuery.of(context).size.height - 250,
-            width: 120.0 + 80.0 * processNames.length, // ヘッダーと同じ幅を指定
-            child: ListView.builder(
-              itemCount: filteredProducts.length,
-              itemBuilder: (context, index) {
-                final product = filteredProducts[index];
-                final productProgress = allProgress[product.id] ?? {};
-                return Row(
-                  children: [
-                    Container(
-                      width: 120,
-                      padding: const EdgeInsets.all(8.0),
-                      child: Text(product.name),
-                    ),
-                    ...processNames.map((processName) {
-                      final data = productProgress[processName];
-                      Color bgColor;
-                      if (data == null) {
-                        bgColor = Colors.grey.shade100;
-                      } else {
-                        switch (data['status']) {
-                          case 'completed':
-                            bgColor = Colors.green.shade200;
-                            break;
-                          case 'in_progress':
-                            bgColor = Colors.orange.shade200;
-                            break;
-                          case 'not_started':
-                          default:
-                            bgColor = Colors.grey.shade200;
+          Expanded(
+            child: Container(
+              width: 120.0 + 80.0 * processNames.length, // ヘッダーと同じ幅を指定
+              child: ListView.builder(
+                itemCount: filteredProducts.length,
+                itemBuilder: (context, index) {
+                  final product = filteredProducts[index];
+                  final productProgress = allProgress[product.id] ?? {};
+                  return Row(
+                    children: [
+                      Container(
+                        width: 120,
+                        padding: const EdgeInsets.all(8.0),
+                        child: Text(product.name),
+                      ),
+                      ...processNames.map((processName) {
+                        final data = productProgress[processName];
+                        Color bgColor;
+                        if (data == null) {
+                          bgColor = Colors.grey.shade100;
+                        } else {
+                          switch (data['status']) {
+                            case 'completed':
+                              bgColor = Colors.green.shade200;
+                              break;
+                            case 'in_progress':
+                              bgColor = Colors.orange.shade200;
+                              break;
+                            case 'not_started':
+                            default:
+                              bgColor = Colors.grey.shade200;
+                          }
                         }
-                      }
-                      String dateStr = '';
-                      String person = '';
-                      if (data != null) {
-                        if (data['date'] != null) {
-                          final date = (data['date'] as Timestamp).toDate();
-                          dateStr =
-                              '${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')}';
+                        String dateStr = '';
+                        String person = '';
+                        if (data != null) {
+                          if (data['date'] != null) {
+                            final date = (data['date'] as Timestamp).toDate();
+                            dateStr =
+                                '${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')}';
+                          }
+                          person = data['person'] ?? '';
                         }
-                        person = data['person'] ?? '';
-                      }
-                      return Container(
-                        width: 80,
-                        padding: const EdgeInsets.all(4.0),
-                        decoration: BoxDecoration(
-                          color: bgColor,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            Text(dateStr),
-                            const SizedBox(width: 4),
-                            Text(person),
-                          ],
-                        ),
-                      );
-                    }),
-                  ],
-                );
-              },
+                        return Container(
+                          width: 80,
+                          padding: const EdgeInsets.all(4.0),
+                          decoration: BoxDecoration(
+                            color: bgColor,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Text(dateStr),
+                              const SizedBox(width: 4),
+                              Text(person),
+                            ],
+                          ),
+                        );
+                      }),
+                    ],
+                  );
+                },
+              ),
             ),
           ),
         ],
@@ -666,7 +667,7 @@ class _ProductionManagementScreenState
             stream: _firebaseService.getWorkTypeGanttStream(),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
-                return Center(child: Text('エラー: ${snapshot.error}'));
+                return Center(child: Text('エラー:  {snapshot.error}'));
               }
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
@@ -680,11 +681,13 @@ class _ProductionManagementScreenState
                         .where((d) => d.type == selectedCategory)
                         .toList()
                   : snapshot.data!;
-              return WorkTypeGanttWidget(
-                workTypeData: filteredData,
-                processList: processList,
-                startDate: startDate,
-                endDate: endDate,
+              return Expanded(
+                child: WorkTypeGanttWidget(
+                  workTypeData: filteredData,
+                  processList: processList,
+                  startDate: startDate,
+                  endDate: endDate,
+                ),
               );
             },
           ),
