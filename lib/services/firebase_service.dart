@@ -191,166 +191,7 @@ class FirebaseService {
   // サンプルデータを追加（開発用）
   Future<void> addSampleData() async {
     try {
-      final now = DateTime.now();
-      final startDate = DateTime(now.year, now.month, now.day);
-
-      List<Map<String, dynamic>> sampleProducts = [
-        // 柱
-        {
-          'id': '1C-Y1X1',
-          'name': '1C-Y1X1',
-          'type': '柱',
-          'processCategory': '柱',
-          'status': 'not_started',
-          'startDate': null,
-          'endDate': null,
-          'floor': '2F', // 追加
-        },
-        {
-          'id': '1C-Y1X2',
-          'name': '1C-Y1X2',
-          'type': '柱',
-          'processCategory': '柱',
-          'status': 'not_started',
-          'startDate': null,
-          'endDate': null,
-          'floor': '2F', // 追加
-        },
-        {
-          'id': '1C-Y1X3',
-          'name': '1C-Y1X3',
-          'type': '柱',
-          'processCategory': '柱',
-          'status': 'not_started',
-          'startDate': null,
-          'endDate': null,
-          'floor': '2F', // 追加
-        },
-        {
-          'id': '1C-Y2X1',
-          'name': '1C-Y2X1',
-          'type': '柱',
-          'processCategory': '柱',
-          'status': 'not_started',
-          'startDate': null,
-          'endDate': null,
-          'floor': '3F', // 追加
-        },
-        {
-          'id': '1C-Y2X2',
-          'name': '1C-Y2X2',
-          'type': '柱',
-          'processCategory': '柱',
-          'status': 'not_started',
-          'startDate': null,
-          'endDate': null,
-          'floor': '3F', // 追加
-        },
-        {
-          'id': '1C-Y2X3',
-          'name': '1C-Y2X3',
-          'type': '柱',
-          'processCategory': '柱',
-          'status': 'not_started',
-          'startDate': null,
-          'endDate': null,
-          'floor': '3F', // 追加
-        },
-        // 大梁
-        {
-          'id': '2G-1',
-          'name': '2G-1',
-          'type': '大梁',
-          'processCategory': '大梁',
-          'status': 'not_started',
-          'startDate': null,
-          'endDate': null,
-          'floor': '2F', // 追加
-        },
-        {
-          'id': '2G-2',
-          'name': '2G-2',
-          'type': '大梁',
-          'processCategory': '大梁',
-          'status': 'not_started',
-          'startDate': null,
-          'endDate': null,
-          'floor': '2F', // 追加
-        },
-        {
-          'id': '2G-3',
-          'name': '2G-3',
-          'type': '大梁',
-          'processCategory': '大梁',
-          'status': 'not_started',
-          'startDate': null,
-          'endDate': null,
-          'floor': '3F', // 追加
-        },
-        {
-          'id': '2G-4',
-          'name': '2G-4',
-          'type': '大梁',
-          'processCategory': '大梁',
-          'status': 'not_started',
-          'startDate': null,
-          'endDate': null,
-          'floor': '3F', // 追加
-        },
-        {
-          'id': '3G-1',
-          'name': '3G-1',
-          'type': '大梁',
-          'processCategory': '大梁',
-          'status': 'not_started',
-          'startDate': null,
-          'endDate': null,
-          'floor': '4F', // 追加
-        },
-        {
-          'id': '3G-2',
-          'name': '3G-2',
-          'type': '大梁',
-          'processCategory': '大梁',
-          'status': 'not_started',
-          'startDate': null,
-          'endDate': null,
-          'floor': '4F', // 追加
-        },
-        {
-          'id': '3G-3',
-          'name': '3G-3',
-          'type': '大梁',
-          'processCategory': '大梁',
-          'status': 'not_started',
-          'startDate': null,
-          'endDate': null,
-          'floor': '5F', // 追加
-        },
-        {
-          'id': '3G-4',
-          'name': '3G-4',
-          'type': '大梁',
-          'processCategory': '大梁',
-          'status': 'not_started',
-          'startDate': null,
-          'endDate': null,
-          'floor': '5F', // 追加
-        },
-      ];
-
-      final productsRef = _firestore.collection('products');
-      for (final data in sampleProducts) {
-        // name重複チェック
-        final query = await productsRef
-            .where('name', isEqualTo: data['name'])
-            .get();
-        if (query.docs.isEmpty) {
-          final doc = productsRef.doc(data['id']);
-          await doc.set(data);
-        }
-        // 既に存在する場合はスキップ
-      }
+      // サンプルデータの追加は行わないように変更
     } catch (e) {
       print('addSampleData error: $e');
       rethrow;
@@ -482,8 +323,39 @@ class FirebaseService {
           .get();
       return snapshot.docs.map((doc) => doc.data()).toList();
     } catch (e) {
-      print('fetchParts error: ' + e.toString());
+      print('fetchParts error: $e');
       return [];
+    }
+  }
+
+  // CSVから製品データを追加または更新
+  Future<void> addOrUpdateProductFromCsv({
+    required String id,
+    required String name,
+    required String type,
+    required String area,
+    required String size,
+    required int length,
+    required int quantity,
+    required double totalWeight,
+  }) async {
+    try {
+      final docRef = _firestore.collection('products').doc(id);
+      await docRef.set({
+        'id': id,
+        'name': name,
+        'type': type,
+        'area': area,
+        'partName': size, // 寸法
+        'length': length,
+        'quantity': quantity,
+        'totalWeight': totalWeight,
+        'processCategory': type, // 必要に応じて調整
+        'status': 'not_started',
+      }, SetOptions(merge: true));
+    } catch (e) {
+      print('addOrUpdateProductFromCsv error: $e');
+      rethrow;
     }
   }
 }

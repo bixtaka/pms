@@ -25,8 +25,8 @@ class _BulkProgressInputScreenState extends State<BulkProgressInputScreen> {
   // 追加の状態変数
   DateTime selectedDate = DateTime.now();
   String selectedPerson = '';
-  String selectedCategory = '一次加工';
-  String selectedProcess = '';
+  // 複数工程選択用
+  List<String> selectedProcesses = [];
   String selectedStatus = 'not_started';
 
   // 担当者リスト（サンプル）
@@ -56,7 +56,7 @@ class _BulkProgressInputScreenState extends State<BulkProgressInputScreen> {
             ),
             const SizedBox(height: 16),
 
-            // --- ここからアコーディオンUI ---
+            // --- 進捗一括入力アコーディオン ---
             ExpansionTile(
               title: const Text(
                 '進捗一括入力',
@@ -168,29 +168,32 @@ class _BulkProgressInputScreenState extends State<BulkProgressInputScreen> {
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 4),
-                      DropdownButtonFormField<String>(
-                        value: workTypeState.selectedProcess.isEmpty
-                            ? null
-                            : workTypeState.selectedProcess,
-                        decoration: const InputDecoration(
-                          border: OutlineInputBorder(),
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                        ),
-                        hint: const Text('工種を選択'),
-                        items: workTypeState.processList.map((String process) {
-                          return DropdownMenuItem<String>(
-                            value: process,
-                            child: Text(process),
-                          );
-                        }).toList(),
-                        onChanged: (String? newValue) {
-                          if (newValue != null) {
-                            workTypeState.setProcess(newValue);
-                          }
-                        },
+                      // 複数工程選択用チェックボックスリスト
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: workTypeState.processList
+                            .where((p) => p.isNotEmpty)
+                            .map((process) {
+                              return CheckboxListTile(
+                                title: Text(process),
+                                value: selectedProcesses.contains(process),
+                                onChanged: (bool? value) {
+                                  setState(() {
+                                    if (value == true) {
+                                      selectedProcesses.add(process);
+                                    } else {
+                                      selectedProcesses.remove(process);
+                                    }
+                                  });
+                                },
+                                controlAffinity:
+                                    ListTileControlAffinity.leading,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 0,
+                                ),
+                              );
+                            })
+                            .toList(),
                       ),
                       const SizedBox(height: 16),
                       // 状態
@@ -228,274 +231,302 @@ class _BulkProgressInputScreenState extends State<BulkProgressInputScreen> {
                           });
                         },
                       ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            // 一括入力処理
+                            final workTypeState = Provider.of<WorkTypeState>(
+                              context,
+                              listen: false,
+                            );
+                            final processList = workTypeState.processList;
+                            final processesToSave = selectedProcesses
+                                .where((p) => processList.contains(p))
+                                .toList();
+                            final person = selectedPerson;
+                            final date = selectedDate;
+                            // 状態は仮で「in_progress」とする（必要に応じて変更）
+                            final status = 'in_progress';
+                            // 対象製品IDリスト
+                            final productIds = selectedProductIds.toList();
+                            for (final productId in productIds) {
+                              for (final processName in processesToSave) {
+                                await _firebaseService
+                                    .setProductProcessProgress(
+                                      productId: productId,
+                                      processName: processName, // 必ずヘッダーと同じ名称
+                                      status: status,
+                                      date: date,
+                                      person: person,
+                                    );
+                              }
+                            }
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('一括入力が完了しました')),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                          ),
+                          child: const Text(
+                            '一括入力実行',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
               ],
             ),
-
-            // --- ここまでアコーディオンUI ---
             const SizedBox(height: 16),
-            // 「ここに一括入力機能を実装します」の位置にボタンを移動
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () async {
-                  // 一括入力処理
-                  final workTypeState = Provider.of<WorkTypeState>(
-                    context,
-                    listen: false,
-                  );
-                  final selectedProcess = workTypeState.selectedProcess;
-                  final selectedCategory = workTypeState.selectedCategory;
-                  final person = this.selectedPerson;
-                  final date = this.selectedDate;
-                  // 状態は仮で「in_progress」とする（必要に応じて変更）
-                  final status = 'in_progress';
-                  // 対象製品IDリスト
-                  final productIds = selectedProductIds.toList();
-                  for (final productId in productIds) {
-                    if (selectedProcess.isNotEmpty) {
-                      await _firebaseService.setProductProcessProgress(
-                        productId: productId,
-                        processName: selectedProcess,
-                        status: status,
-                        date: date,
-                        person: person,
-                      );
-                    }
-                  }
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(const SnackBar(content: Text('一括入力が完了しました')));
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-                child: const Text(
-                  '一括入力実行',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ),
-            const SizedBox(height: 32),
-            // 仮の入力フォーム
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      '製品一括入力リスト',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+            // --- 製品リストはアコーディオンの外に常に表示 ---
+            Expanded(
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '製品一括入力リスト',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      height: 400, // 必要に応じて高さを調整
-                      child: StreamBuilder<List<Product>>(
-                        stream: _firebaseService.getProductsStream(),
-                        builder: (context, snapshot) {
-                          if (snapshot.hasError) {
-                            return Text('エラー: [${snapshot.error}]');
-                          }
-                          if (!snapshot.hasData) {
-                            return const CircularProgressIndicator();
-                          }
-                          List<Product> products = snapshot.data!;
-                          // 分類が「柱」の場合は柱のみ表示
-                          if (workTypeState.selectedCategory == '柱') {
-                            products = products
-                                .where((p) => p.processCategory == '柱')
-                                .toList();
-                          }
-                          return SingleChildScrollView(
-                            scrollDirection: Axis.vertical,
-                            child: SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: Table(
-                                border: TableBorder.all(color: Colors.grey),
-                                defaultVerticalAlignment:
-                                    TableCellVerticalAlignment.middle,
-                                columnWidths: const {
-                                  0: FixedColumnWidth(48), // チェックボックス
-                                  1: FixedColumnWidth(150), // 製品名
-                                  2: FixedColumnWidth(120), // 部材名
-                                  3: FixedColumnWidth(100), // 材質
-                                  4: FixedColumnWidth(80), // 工区
-                                  5: FixedColumnWidth(60), // 節
-                                  6: FixedColumnWidth(60), // 階
-                                  7: FixedColumnWidth(200), // コメント
-                                },
-                                children: [
-                                  TableRow(
-                                    decoration: const BoxDecoration(
-                                      color: Color(0xFFE0E0E0),
-                                    ),
+                      const SizedBox(height: 8),
+                      Expanded(
+                        child: SizedBox(
+                          //height: 400, // Expandedで高さ自動調整
+                          child: StreamBuilder<List<Product>>(
+                            stream: _firebaseService.getProductsStream(),
+                            builder: (context, snapshot) {
+                              if (snapshot.hasError) {
+                                return Text('エラー: [${snapshot.error}]');
+                              }
+                              if (!snapshot.hasData) {
+                                return const CircularProgressIndicator();
+                              }
+                              List<Product> products = snapshot.data!;
+                              // 分類が「柱」の場合は本柱のみ表示
+                              if (workTypeState.selectedCategory == '柱') {
+                                products = products
+                                    .where((p) => p.type == '本柱')
+                                    .toList();
+                              }
+                              return SingleChildScrollView(
+                                scrollDirection: Axis.vertical,
+                                child: SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: Table(
+                                    border: TableBorder.all(color: Colors.grey),
+                                    defaultVerticalAlignment:
+                                        TableCellVerticalAlignment.middle,
+                                    columnWidths: const {
+                                      0: FixedColumnWidth(48), // チェックボックス
+                                      1: FixedColumnWidth(150), // 製品名
+                                      2: FixedColumnWidth(120), // 部材名
+                                      3: FixedColumnWidth(100), // 材質
+                                      4: FixedColumnWidth(80), // 工区
+                                      5: FixedColumnWidth(60), // 節
+                                      6: FixedColumnWidth(60), // 階
+                                      7: FixedColumnWidth(200), // コメント
+                                    },
                                     children: [
-                                      // チェックボックス（ヘッダー）
-                                      const SizedBox.shrink(),
-                                      const Padding(
-                                        padding: EdgeInsets.all(8.0),
-                                        child: Text(
-                                          '製品名',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                          ),
+                                      TableRow(
+                                        decoration: const BoxDecoration(
+                                          color: Color(0xFFE0E0E0),
                                         ),
-                                      ),
-                                      const Padding(
-                                        padding: EdgeInsets.all(8.0),
-                                        child: Text(
-                                          '部材名',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
+                                        children: [
+                                          // チェックボックス（ヘッダー）
+                                          const SizedBox.shrink(),
+                                          const Padding(
+                                            padding: EdgeInsets.all(8.0),
+                                            child: Text(
+                                              '製品符号',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
                                           ),
-                                        ),
-                                      ),
-                                      const Padding(
-                                        padding: EdgeInsets.all(8.0),
-                                        child: Text(
-                                          '材質',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
+                                          const Padding(
+                                            padding: EdgeInsets.all(8.0),
+                                            child: Text(
+                                              '寸法',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
                                           ),
-                                        ),
-                                      ),
-                                      const Padding(
-                                        padding: EdgeInsets.all(8.0),
-                                        child: Text(
-                                          '工区',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
+                                          const Padding(
+                                            padding: EdgeInsets.all(8.0),
+                                            child: Text(
+                                              '材質',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
                                           ),
-                                        ),
-                                      ),
-                                      const Padding(
-                                        padding: EdgeInsets.all(8.0),
-                                        child: Text(
-                                          '節',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
+                                          const Padding(
+                                            padding: EdgeInsets.all(8.0),
+                                            child: Text(
+                                              '工区',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
                                           ),
-                                        ),
-                                      ),
-                                      const Padding(
-                                        padding: EdgeInsets.all(8.0),
-                                        child: Text(
-                                          '階',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
+                                          const Padding(
+                                            padding: EdgeInsets.all(8.0),
+                                            child: Text(
+                                              '節',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
                                           ),
-                                        ),
-                                      ),
-                                      const Padding(
-                                        padding: EdgeInsets.all(8.0),
-                                        child: Text(
-                                          'コメント',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
+                                          const Padding(
+                                            padding: EdgeInsets.all(8.0),
+                                            child: Text(
+                                              '階',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
                                           ),
+                                          const Padding(
+                                            padding: EdgeInsets.all(8.0),
+                                            child: Text(
+                                              'コメント',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      ...products.map(
+                                        (product) => TableRow(
+                                          children: [
+                                            // チェックボックス
+                                            Padding(
+                                              padding: const EdgeInsets.all(
+                                                4.0,
+                                              ),
+                                              child: Checkbox(
+                                                value: selectedProductIds
+                                                    .contains(product.id),
+                                                onChanged: (checked) {
+                                                  setState(() {
+                                                    if (checked == true) {
+                                                      selectedProductIds.add(
+                                                        product.id,
+                                                      );
+                                                    } else {
+                                                      selectedProductIds.remove(
+                                                        product.id,
+                                                      );
+                                                    }
+                                                  });
+                                                },
+                                              ),
+                                            ),
+                                            Padding(
+                                              padding: const EdgeInsets.all(
+                                                8.0,
+                                              ),
+                                              child: Text(product.name), // 製品符号
+                                            ),
+                                            Padding(
+                                              padding: const EdgeInsets.all(
+                                                8.0,
+                                              ),
+                                              child: Text(
+                                                product.partName,
+                                              ), // 寸法
+                                            ),
+                                            Padding(
+                                              padding: const EdgeInsets.all(
+                                                8.0,
+                                              ),
+                                              child: Text(
+                                                product.material,
+                                              ), // 材質
+                                            ),
+                                            Padding(
+                                              padding: const EdgeInsets.all(
+                                                8.0,
+                                              ),
+                                              child: Text(product.area), // 工区
+                                            ),
+                                            Padding(
+                                              padding: const EdgeInsets.all(
+                                                8.0,
+                                              ),
+                                              child: Text(product.setsu), // 節
+                                            ),
+                                            Padding(
+                                              padding: const EdgeInsets.all(
+                                                8.0,
+                                              ),
+                                              child: Text(product.floor), // 階
+                                            ),
+                                            Padding(
+                                              padding: const EdgeInsets.all(
+                                                8.0,
+                                              ),
+                                              child: TextField(
+                                                decoration:
+                                                    const InputDecoration(
+                                                      border:
+                                                          OutlineInputBorder(),
+                                                      hintText: 'コメントを入力',
+                                                      isDense: true,
+                                                      contentPadding:
+                                                          EdgeInsets.symmetric(
+                                                            horizontal: 8,
+                                                            vertical: 8,
+                                                          ),
+                                                    ),
+                                                controller:
+                                                    TextEditingController(
+                                                      text:
+                                                          productComments[product
+                                                              .id] ??
+                                                          '',
+                                                    ),
+                                                onChanged: (value) {
+                                                  setState(() {
+                                                    productComments[product
+                                                            .id] =
+                                                        value;
+                                                  });
+                                                },
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
                                     ],
                                   ),
-                                  ...products.map(
-                                    (product) => TableRow(
-                                      children: [
-                                        // チェックボックス
-                                        Padding(
-                                          padding: const EdgeInsets.all(4.0),
-                                          child: Checkbox(
-                                            value: selectedProductIds.contains(
-                                              product.id,
-                                            ),
-                                            onChanged: (checked) {
-                                              setState(() {
-                                                if (checked == true) {
-                                                  selectedProductIds.add(
-                                                    product.id,
-                                                  );
-                                                } else {
-                                                  selectedProductIds.remove(
-                                                    product.id,
-                                                  );
-                                                }
-                                              });
-                                            },
-                                          ),
-                                        ),
-                                        Padding(
-                                          padding: const EdgeInsets.all(8.0),
-                                          child: Text(product.name), // 製品名
-                                        ),
-                                        Padding(
-                                          padding: const EdgeInsets.all(8.0),
-                                          child: Text(
-                                            product.partName ?? '',
-                                          ), // 部材名
-                                        ),
-                                        Padding(
-                                          padding: const EdgeInsets.all(8.0),
-                                          child: Text(
-                                            product.material ?? '',
-                                          ), // 材質
-                                        ),
-                                        Padding(
-                                          padding: const EdgeInsets.all(8.0),
-                                          child: Text(product.area ?? ''), // 工区
-                                        ),
-                                        Padding(
-                                          padding: const EdgeInsets.all(8.0),
-                                          child: Text(product.setsu ?? ''), // 節
-                                        ),
-                                        Padding(
-                                          padding: const EdgeInsets.all(8.0),
-                                          child: Text(product.floor ?? ''), // 階
-                                        ),
-                                        Padding(
-                                          padding: const EdgeInsets.all(8.0),
-                                          child: TextField(
-                                            decoration: const InputDecoration(
-                                              border: OutlineInputBorder(),
-                                              hintText: 'コメントを入力',
-                                              isDense: true,
-                                              contentPadding:
-                                                  EdgeInsets.symmetric(
-                                                    horizontal: 8,
-                                                    vertical: 8,
-                                                  ),
-                                            ),
-                                            controller: TextEditingController(
-                                              text:
-                                                  productComments[product.id] ??
-                                                  '',
-                                            ),
-                                            onChanged: (value) {
-                                              setState(() {
-                                                productComments[product.id] =
-                                                    value;
-                                              });
-                                            },
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
+                                ),
+                              );
+                            },
+                          ),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 24),
-                  ],
+                      const SizedBox(height: 24),
+                    ],
+                  ),
                 ),
               ),
             ),
