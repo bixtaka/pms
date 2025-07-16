@@ -168,32 +168,33 @@ class _BulkProgressInputScreenState extends State<BulkProgressInputScreen> {
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 4),
-                      // 複数工程選択用チェックボックスリスト
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: workTypeState.processList
+                      DropdownButtonFormField<String>(
+                        value: selectedProcesses.isNotEmpty
+                            ? selectedProcesses.first
+                            : null,
+                        decoration: const InputDecoration(
+                          border: OutlineInputBorder(),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                        ),
+                        items: workTypeState.processList
                             .where((p) => p.isNotEmpty)
-                            .map((process) {
-                              return CheckboxListTile(
-                                title: Text(process),
-                                value: selectedProcesses.contains(process),
-                                onChanged: (bool? value) {
-                                  setState(() {
-                                    if (value == true) {
-                                      selectedProcesses.add(process);
-                                    } else {
-                                      selectedProcesses.remove(process);
-                                    }
-                                  });
-                                },
-                                controlAffinity:
-                                    ListTileControlAffinity.leading,
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 0,
-                                ),
-                              );
-                            })
+                            .map(
+                              (process) => DropdownMenuItem(
+                                value: process,
+                                child: Text(process),
+                              ),
+                            )
                             .toList(),
+                        onChanged: (String? newValue) {
+                          setState(() {
+                            selectedProcesses = newValue != null
+                                ? [newValue]
+                                : [];
+                          });
+                        },
                       ),
                       const SizedBox(height: 16),
                       // 状態
