@@ -143,28 +143,6 @@ class _WorkTypeGanttWidgetState extends State<WorkTypeGanttWidget> {
 
     return Column(
       children: [
-        // テスト用ボタン
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          child: ElevatedButton(
-            onPressed: () {
-              print('=== TEST BUTTON CLICKED ===');
-              setState(() {
-                // テスト用：コアの計画バーを移動
-                if (planStartDates.containsKey('コア')) {
-                  planStartDates['コア'] = planStartDates['コア']!.add(
-                    const Duration(days: 1),
-                  );
-                  planEndDates['コア'] = planEndDates['コア']!.add(
-                    const Duration(days: 1),
-                  );
-                }
-              });
-            },
-            child: const Text('テストボタン (計画バー移動)'),
-          ),
-        ),
         // 元のガントチャート
         Expanded(
           child: Container(
