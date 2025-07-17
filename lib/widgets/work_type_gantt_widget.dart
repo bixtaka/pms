@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import '../services/firebase_service.dart';
+import 'package:syncfusion_flutter_datepicker/datepicker.dart';
 
 class WorkTypeGanttWidget extends StatefulWidget {
   final List<WorkTypeGanttData> workTypeData;
@@ -140,259 +141,302 @@ class _WorkTypeGanttWidgetState extends State<WorkTypeGanttWidget> {
       }
     }
 
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: SizedBox(
-          width: chartWidth,
-          child: Column(
-            children: [
-              // ヘッダー
-              SizedBox(
-                width: chartWidth,
-                height: 44,
-                child: _buildHeader(totalDays, cellWidth),
-              ),
-              // 本体（縦スクロール対応）
-              Expanded(
-                child: ListView.builder(
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: displayRows.length,
-                  itemBuilder: (context, index) {
-                    final row = displayRows[index];
-                    final type = row['type'] as String;
-                    ensurePlanDates(type);
-                    final data = widget.workTypeData.firstWhere(
-                      (d) => d.type == type,
-                      orElse: () => WorkTypeGanttData(
-                        type: type,
-                        averageStartDate: null,
-                        averageEndDate: null,
-                        totalCount: 0,
-                        completedCount: 0,
-                        completionRate: 0.0,
-                      ),
-                    );
-                    if (row['isParent'] == true) {
-                      // 親工種行（アコーディオン＋計画バー）
-                      return SizedBox(
-                        width: chartWidth,
-                        height: rowHeight,
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 150,
-                              height: double.infinity,
-                              alignment: Alignment.centerLeft,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 24,
-                              ),
-                              decoration: BoxDecoration(
-                                border: Border(
-                                  right: BorderSide(
-                                    color: Colors.grey.shade300,
-                                  ),
-                                  bottom: BorderSide(
-                                    color: Colors.grey.shade200,
-                                  ),
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Text(
-                                    type,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 12,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  IconButton(
-                                    icon: Icon(
-                                      (() {
-                                        switch (type) {
-                                          case 'コア':
-                                            return isCoreExpanded
-                                                ? Icons.expand_less
-                                                : Icons.expand_more;
-                                          case '仕口':
-                                            return isShikuchiExpanded
-                                                ? Icons.expand_less
-                                                : Icons.expand_more;
-                                          case '大組み':
-                                            return isOogumiExpanded
-                                                ? Icons.expand_less
-                                                : Icons.expand_more;
-                                          case '二次部材':
-                                            return isNijiExpanded
-                                                ? Icons.expand_less
-                                                : Icons.expand_more;
-                                          default:
-                                            return Icons.expand_more;
-                                        }
-                                      })(),
-                                    ),
-                                    iconSize: 18,
-                                    onPressed: () {
-                                      setState(() {
-                                        switch (type) {
-                                          case 'コア':
-                                            isCoreExpanded = !isCoreExpanded;
-                                            break;
-                                          case '仕口':
-                                            isShikuchiExpanded =
-                                                !isShikuchiExpanded;
-                                            break;
-                                          case '大組み':
-                                            isOogumiExpanded =
-                                                !isOogumiExpanded;
-                                            break;
-                                          case '二次部材':
-                                            isNijiExpanded = !isNijiExpanded;
-                                            break;
-                                        }
-                                      });
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Flexible(
-                              fit: FlexFit.tight,
-                              child: Stack(
-                                children: [
-                                  _buildPlanBar(
-                                    type,
-                                    planStartDates[type]!,
-                                    planEndDates[type]!,
-                                    totalDays,
-                                    cellWidth,
-                                    rowHeight,
-                                  ),
-                                  _buildWorkTypeRow(
-                                    data,
-                                    totalDays,
-                                    rowHeight,
-                                    cellWidth,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    } else if (row['isChild'] == true) {
-                      // 子工種行（実績バーのみ）
-                      return SizedBox(
-                        width: chartWidth,
-                        height: rowHeight,
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 150,
-                              height: double.infinity,
-                              alignment: Alignment.centerLeft,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 24,
-                              ),
-                              decoration: BoxDecoration(
-                                border: Border(
-                                  right: BorderSide(
-                                    color: Colors.grey.shade300,
-                                  ),
-                                  bottom: BorderSide(
-                                    color: Colors.grey.shade200,
-                                  ),
-                                ),
-                              ),
-                              child: Text(
-                                type,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            ),
-                            Flexible(
-                              fit: FlexFit.tight,
-                              child: _buildWorkTypeRow(
-                                data,
-                                totalDays,
-                                rowHeight,
-                                cellWidth,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    } else {
-                      // 親子でない工種（単独行：計画バー＋実績バー）
-                      return SizedBox(
-                        width: chartWidth,
-                        height: rowHeight,
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 150,
-                              height: double.infinity,
-                              alignment: Alignment.centerLeft,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 24,
-                              ),
-                              decoration: BoxDecoration(
-                                border: Border(
-                                  right: BorderSide(
-                                    color: Colors.grey.shade300,
-                                  ),
-                                  bottom: BorderSide(
-                                    color: Colors.grey.shade200,
-                                  ),
-                                ),
-                              ),
-                              child: Text(
-                                type,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            ),
-                            Flexible(
-                              fit: FlexFit.tight,
-                              child: Stack(
-                                children: [
-                                  _buildPlanBar(
-                                    type,
-                                    planStartDates[type]!,
-                                    planEndDates[type]!,
-                                    totalDays,
-                                    cellWidth,
-                                    rowHeight,
-                                  ),
-                                  _buildWorkTypeRow(
-                                    data,
-                                    totalDays,
-                                    rowHeight,
-                                    cellWidth,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-                  },
-                ),
-              ),
-            ],
+    return Column(
+      children: [
+        // テスト用ボタン
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          child: ElevatedButton(
+            onPressed: () {
+              print('=== TEST BUTTON CLICKED ===');
+              setState(() {
+                // テスト用：コアの計画バーを移動
+                if (planStartDates.containsKey('コア')) {
+                  planStartDates['コア'] = planStartDates['コア']!.add(
+                    const Duration(days: 1),
+                  );
+                  planEndDates['コア'] = planEndDates['コア']!.add(
+                    const Duration(days: 1),
+                  );
+                }
+              });
+            },
+            child: const Text('テストボタン (計画バー移動)'),
           ),
         ),
-      ),
+        // 元のガントチャート
+        Expanded(
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SizedBox(
+                width: chartWidth,
+                child: Column(
+                  children: [
+                    // ヘッダー
+                    SizedBox(
+                      width: chartWidth,
+                      height: 44,
+                      child: _buildHeader(totalDays, cellWidth),
+                    ),
+                    // 本体（縦スクロール対応）
+                    Expanded(
+                      child: ListView.builder(
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: displayRows.length,
+                        itemBuilder: (context, index) {
+                          final row = displayRows[index];
+                          final type = row['type'] as String;
+                          ensurePlanDates(type);
+                          final data = widget.workTypeData.firstWhere(
+                            (d) => d.type == type,
+                            orElse: () => WorkTypeGanttData(
+                              type: type,
+                              averageStartDate: null,
+                              averageEndDate: null,
+                              totalCount: 0,
+                              completedCount: 0,
+                              completionRate: 0.0,
+                            ),
+                          );
+                          if (row['isParent'] == true) {
+                            // 1. 親工種行
+                            return SizedBox(
+                              width: chartWidth,
+                              height: rowHeight,
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 150,
+                                    height: double.infinity,
+                                    alignment: Alignment.centerLeft,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 24,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      border: Border(
+                                        right: BorderSide(
+                                          color: Colors.grey.shade300,
+                                        ),
+                                        bottom: BorderSide(
+                                          color: Colors.grey.shade200,
+                                        ),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Text(
+                                          type,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 12,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        IconButton(
+                                          icon: Icon(
+                                            (() {
+                                              switch (type) {
+                                                case 'コア':
+                                                  return isCoreExpanded
+                                                      ? Icons.expand_less
+                                                      : Icons.expand_more;
+                                                case '仕口':
+                                                  return isShikuchiExpanded
+                                                      ? Icons.expand_less
+                                                      : Icons.expand_more;
+                                                case '大組み':
+                                                  return isOogumiExpanded
+                                                      ? Icons.expand_less
+                                                      : Icons.expand_more;
+                                                case '二次部材':
+                                                  return isNijiExpanded
+                                                      ? Icons.expand_less
+                                                      : Icons.expand_more;
+                                                default:
+                                                  return Icons.expand_more;
+                                              }
+                                            })(),
+                                          ),
+                                          iconSize: 18,
+                                          onPressed: () {
+                                            setState(() {
+                                              switch (type) {
+                                                case 'コア':
+                                                  isCoreExpanded =
+                                                      !isCoreExpanded;
+                                                  break;
+                                                case '仕口':
+                                                  isShikuchiExpanded =
+                                                      !isShikuchiExpanded;
+                                                  break;
+                                                case '大組み':
+                                                  isOogumiExpanded =
+                                                      !isOogumiExpanded;
+                                                  break;
+                                                case '二次部材':
+                                                  isNijiExpanded =
+                                                      !isNijiExpanded;
+                                                  break;
+                                              }
+                                            });
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Flexible(
+                                    fit: FlexFit.tight,
+                                    child: Stack(
+                                      children: [
+                                        _buildWorkTypeRow(
+                                          data,
+                                          totalDays,
+                                          rowHeight,
+                                          cellWidth,
+                                        ),
+                                        _buildPlanBar(
+                                          type,
+                                          planStartDates[type]!,
+                                          planEndDates[type]!,
+                                          totalDays,
+                                          cellWidth,
+                                          rowHeight,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          } else if (row['isChild'] == true) {
+                            // 2. 親子でない工種行
+                            return SizedBox(
+                              width: chartWidth,
+                              height: rowHeight,
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 150,
+                                    height: double.infinity,
+                                    alignment: Alignment.centerLeft,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 24,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      border: Border(
+                                        right: BorderSide(
+                                          color: Colors.grey.shade300,
+                                        ),
+                                        bottom: BorderSide(
+                                          color: Colors.grey.shade200,
+                                        ),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      type,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                  ),
+                                  Flexible(
+                                    fit: FlexFit.tight,
+                                    child: Stack(
+                                      children: [
+                                        _buildWorkTypeRow(
+                                          data,
+                                          totalDays,
+                                          rowHeight,
+                                          cellWidth,
+                                        ),
+                                        _buildPlanBar(
+                                          type,
+                                          planStartDates[type]!,
+                                          planEndDates[type]!,
+                                          totalDays,
+                                          cellWidth,
+                                          rowHeight,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          } else {
+                            // 3. 親子でない工種（単独行：計画バー＋実績バー）
+                            return SizedBox(
+                              width: chartWidth,
+                              height: rowHeight,
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 150,
+                                    height: double.infinity,
+                                    alignment: Alignment.centerLeft,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 24,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      border: Border(
+                                        right: BorderSide(
+                                          color: Colors.grey.shade300,
+                                        ),
+                                        bottom: BorderSide(
+                                          color: Colors.grey.shade200,
+                                        ),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      type,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                  ),
+                                  Flexible(
+                                    fit: FlexFit.tight,
+                                    child: Stack(
+                                      children: [
+                                        _buildWorkTypeRow(
+                                          data,
+                                          totalDays,
+                                          rowHeight,
+                                          cellWidth,
+                                        ),
+                                        _buildPlanBar(
+                                          type,
+                                          planStartDates[type]!,
+                                          planEndDates[type]!,
+                                          totalDays,
+                                          cellWidth,
+                                          rowHeight,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -405,176 +449,140 @@ class _WorkTypeGanttWidgetState extends State<WorkTypeGanttWidget> {
     double cellWidth,
     double rowHeight,
   ) {
-    final barStart = start.difference(widget.startDate).inDays * cellWidth;
-    final barWidth = (end.difference(start).inDays + 1) * cellWidth;
-    return Positioned(
-      left: barStart,
-      top: 6,
-      child: SizedBox(
-        width: barWidth,
-        height: rowHeight - 12,
-        child: Row(
-          children: [
-            // 左端ハンドル
-            GestureDetector(
-              behavior: HitTestBehavior.translucent, // translucentに変更
-              onHorizontalDragStart: (details) {
-                print('drag start: ' + type + '_left');
-                setState(() {
-                  draggingPlan = type + '_left';
-                  dragStartX = details.localPosition.dx;
-                  dragInitialStart = planStartDates[type];
-                });
-              },
-              onHorizontalDragUpdate: (details) {
-                print('drag update: ' + type + '_left');
-                if (draggingPlan == type + '_left') {
-                  final dx = details.localPosition.dx - dragStartX;
-                  final dayDelta = (dx / cellWidth).round();
-                  setState(() {
-                    final newStart = dragInitialStart!.add(
-                      Duration(days: dayDelta),
-                    );
-                    if (newStart.isBefore(planEndDates[type]!)) {
-                      planStartDates[type] = newStart;
-                    }
-                  });
-                }
-              },
-              onHorizontalDragEnd: (_) {
-                print('drag end: ' + type + '_left');
-                setState(() {
-                  draggingPlan = null;
-                });
-              },
-              child: MouseRegion(
-                cursor: SystemMouseCursors.resizeLeftRight,
-                child: Container(
-                  width: 16,
-                  height: rowHeight - 12,
-                  decoration: BoxDecoration(
+    final barStart =
+        planStartDates[type]!.difference(widget.startDate).inDays * cellWidth;
+    final barWidth =
+        (planEndDates[type]!.difference(planStartDates[type]!).inDays + 1) *
+        cellWidth;
+
+    return Stack(
+      children: [
+        // 計画バー本体
+        Positioned(
+          left: barStart,
+          top: 6,
+          child: GestureDetector(
+            onTap: () {
+              _showSfDateRangePicker(context, type);
+            },
+            child: Container(
+              width: barWidth,
+              height: rowHeight - 12,
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.2),
+                border: Border.all(color: Colors.blue, width: 1),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Center(
+                child: Text(
+                  '計画',
+                  style: const TextStyle(
                     color: Colors.blue,
-                    borderRadius: const BorderRadius.horizontal(
-                      left: Radius.circular(4),
-                    ),
-                  ),
-                  child: const Center(
-                    child: Icon(
-                      Icons.drag_handle,
-                      color: Colors.white,
-                      size: 12,
-                    ),
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
             ),
-            // バー本体
-            GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onHorizontalDragStart: (details) {
-                print('drag start: ' + type);
-                setState(() {
-                  draggingPlan = type;
-                  dragStartX = details.localPosition.dx;
-                  dragInitialStart = planStartDates[type];
-                  dragInitialEnd = planEndDates[type];
-                });
-              },
-              onHorizontalDragUpdate: (details) {
-                print('drag update: ' + type);
-                if (draggingPlan == type) {
-                  final dx = details.localPosition.dx - dragStartX;
-                  final dayDelta = (dx / cellWidth).round();
-                  setState(() {
-                    planStartDates[type] = dragInitialStart!.add(
-                      Duration(days: dayDelta),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // コンパクトな日付選択ダイアログ
+  void _showCompactDatePicker(BuildContext context, String type) {
+    DateTime selectedStart = planStartDates[type]!;
+    DateTime selectedEnd = planEndDates[type]!;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('$type の計画期間を設定'),
+          content: SizedBox(
+            width: 300,
+            height: 200,
+            child: Column(
+              children: [
+                // 開始日選択
+                ListTile(
+                  title: const Text('開始日'),
+                  subtitle: Text(
+                    '${selectedStart.year}/${selectedStart.month}/${selectedStart.day}',
+                  ),
+                  trailing: const Icon(Icons.calendar_today),
+                  onTap: () async {
+                    final DateTime? picked = await showDatePicker(
+                      context: context,
+                      initialDate: selectedStart,
+                      firstDate: widget.startDate,
+                      lastDate: widget.endDate,
                     );
-                    planEndDates[type] = dragInitialEnd!.add(
-                      Duration(days: dayDelta),
-                    );
-                  });
-                }
-              },
-              onHorizontalDragEnd: (_) {
-                print('drag end: ' + type);
-                setState(() {
-                  draggingPlan = null;
-                });
-              },
-              child: Container(
-                height: rowHeight - 12,
-                decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.2),
-                  border: Border.all(color: Colors.blue, width: 1),
+                    if (picked != null) {
+                      selectedStart = picked;
+                      if (selectedStart.isAfter(selectedEnd)) {
+                        selectedEnd = selectedStart;
+                      }
+                    }
+                  },
                 ),
-                child: Center(
+                // 終了日選択
+                ListTile(
+                  title: const Text('終了日'),
+                  subtitle: Text(
+                    '${selectedEnd.year}/${selectedEnd.month}/${selectedEnd.day}',
+                  ),
+                  trailing: const Icon(Icons.calendar_today),
+                  onTap: () async {
+                    final DateTime? picked = await showDatePicker(
+                      context: context,
+                      initialDate: selectedEnd,
+                      firstDate: selectedStart,
+                      lastDate: widget.endDate,
+                    );
+                    if (picked != null) {
+                      selectedEnd = picked;
+                    }
+                  },
+                ),
+                const SizedBox(height: 20),
+                // 期間表示
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
                   child: Text(
-                    '計画',
-                    style: const TextStyle(
-                      color: Colors.blue,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    '期間: ${selectedEnd.difference(selectedStart).inDays + 1}日間',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
-              ),
+              ],
             ),
-            // 右端ハンドル
-            GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onHorizontalDragStart: (details) {
-                print('drag start: ' + type + '_right');
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('キャンセル'),
+            ),
+            ElevatedButton(
+              onPressed: () {
                 setState(() {
-                  draggingPlan = type + '_right';
-                  dragStartX = details.localPosition.dx;
-                  dragInitialEnd = planEndDates[type];
+                  planStartDates[type] = selectedStart;
+                  planEndDates[type] = selectedEnd;
+                  print(
+                    'New plan: start: ${planStartDates[type]}, end: ${planEndDates[type]}',
+                  );
                 });
+                Navigator.of(context).pop();
               },
-              onHorizontalDragUpdate: (details) {
-                print('drag update: ' + type + '_right');
-                if (draggingPlan == type + '_right') {
-                  final dx = details.localPosition.dx - dragStartX;
-                  final dayDelta = (dx / cellWidth).round();
-                  setState(() {
-                    final newEnd = dragInitialEnd!.add(
-                      Duration(days: dayDelta),
-                    );
-                    if (newEnd.isAfter(planStartDates[type]!)) {
-                      planEndDates[type] = newEnd;
-                    }
-                  });
-                }
-              },
-              onHorizontalDragEnd: (_) {
-                print('drag end: ' + type + '_right');
-                setState(() {
-                  draggingPlan = null;
-                });
-              },
-              child: MouseRegion(
-                cursor: SystemMouseCursors.resizeLeftRight,
-                child: Container(
-                  width: 16,
-                  height: rowHeight - 12,
-                  decoration: BoxDecoration(
-                    color: Colors.blue,
-                    borderRadius: const BorderRadius.horizontal(
-                      right: Radius.circular(4),
-                    ),
-                  ),
-                  child: const Center(
-                    child: Icon(
-                      Icons.drag_handle,
-                      color: Colors.white,
-                      size: 12,
-                    ),
-                  ),
-                ),
-              ),
+              child: const Text('確定'),
             ),
           ],
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -810,6 +818,70 @@ class _WorkTypeGanttWidgetState extends State<WorkTypeGanttWidget> {
           ],
         ),
       ],
+    );
+  }
+
+  // 日付のみを返すユーティリティ関数
+  DateTime _toDateOnly(DateTime dt) => DateTime(dt.year, dt.month, dt.day);
+
+  void _showSfDateRangePicker(BuildContext context, String type) {
+    DateTimeRange? tempRange = DateTimeRange(
+      start: planStartDates[type]!,
+      end: planEndDates[type]!,
+    );
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('$type の計画期間を設定'),
+          content: SizedBox(
+            width: 320,
+            height: 350,
+            child: SfDateRangePicker(
+              selectionMode: DateRangePickerSelectionMode.range,
+              initialSelectedRange: PickerDateRange(
+                planStartDates[type]!,
+                planEndDates[type]!,
+              ),
+              minDate: widget.startDate,
+              maxDate: widget.endDate,
+              onSelectionChanged: (DateRangePickerSelectionChangedArgs args) {
+                if (args.value is PickerDateRange) {
+                  final range = args.value as PickerDateRange;
+                  if (range.startDate != null && range.endDate != null) {
+                    tempRange = DateTimeRange(
+                      start: _toDateOnly(range.startDate!),
+                      end: _toDateOnly(range.endDate!),
+                    );
+                  }
+                }
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('キャンセル'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (tempRange != null) {
+                  setState(() {
+                    planStartDates[type] = _toDateOnly(
+                      tempRange!.start.add(const Duration(days: 1)),
+                    );
+                    planEndDates[type] = _toDateOnly(
+                      tempRange!.end.add(const Duration(days: 1)),
+                    );
+                  });
+                }
+                Navigator.of(context).pop();
+              },
+              child: const Text('確定'),
+            ),
+          ],
+        );
+      },
     );
   }
 }
