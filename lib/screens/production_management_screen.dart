@@ -8,7 +8,7 @@ import '../widgets/process_step_selector.dart';
 import 'package:provider/provider.dart';
 import '../models/work_type_state.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:file_picker/file_picker.dart';
+// import 'package:file_picker/file_picker.dart';
 import 'dart:io';
 import 'package:csv/csv.dart';
 import 'dart:convert'; // 追加
@@ -113,68 +113,11 @@ class _ProductionManagementScreenState
           ElevatedButton.icon(
             onPressed: _isAddingSample
                 ? null
-                : () async {
-                    setState(() => _isAddingSample = true);
-                    try {
-                      FilePickerResult? result = await FilePicker.platform
-                          .pickFiles(
-                            type: FileType.custom,
-                            allowedExtensions: ['csv'],
-                          );
-                      if (result != null) {
-                        String csvString;
-                        if (result.files.single.bytes != null) {
-                          // Webの場合
-                          csvString = utf8.decode(result.files.single.bytes!);
-                        } else if (result.files.single.path != null) {
-                          // モバイル/デスクトップの場合
-                          final file = File(result.files.single.path!);
-                          csvString = await file.readAsString();
-                        } else {
-                          throw Exception('ファイルが読み込めませんでした');
-                        }
-                        final csvTable = CsvToListConverter(
-                          eol: '\n',
-                        ).convert(csvString);
-                        // 1行目はヘッダー
-                        for (int i = 1; i < csvTable.length; i++) {
-                          final row = csvTable[i];
-                          if (row.length < 7) continue;
-                          final area = row[0]?.toString() ?? '';
-                          final type = row[1]?.toString() ?? '';
-                          final name = row[2]?.toString() ?? '';
-                          final size = row[3]?.toString() ?? '';
-                          final length =
-                              int.tryParse(row[4]?.toString() ?? '') ?? 0;
-                          final quantity =
-                              int.tryParse(row[5]?.toString() ?? '') ?? 0;
-                          final totalWeight =
-                              double.tryParse(row[6]?.toString() ?? '') ?? 0.0;
-                          // Firestoreに保存
-                          await _firebaseService.addOrUpdateProductFromCsv(
-                            id: name,
-                            name: name,
-                            type: type,
-                            area: area,
-                            size: size,
-                            length: length,
-                            quantity: quantity,
-                            totalWeight: totalWeight,
-                          );
-                        }
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('CSV取り込みが完了しました')),
-                        );
-                        setState(() {}); // リスト即時反映
-                      }
-                    } catch (e) {
-                      print('CSV取込エラー: $e');
-                      ScaffoldMessenger.of(
-                        context,
-                      ).showSnackBar(SnackBar(content: Text('CSV取込エラー: $e')));
-                    } finally {
-                      setState(() => _isAddingSample = false);
-                    }
+                : () {
+                    // TODO: file_pickerプラグインの互換性問題により一時的に無効化
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('CSV取り込み機能は現在無効です')),
+                    );
                   },
             icon: const Icon(Icons.upload_file, color: Colors.white),
             label: const Text('CSV取り込み', style: TextStyle(color: Colors.white)),
