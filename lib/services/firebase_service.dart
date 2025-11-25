@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import '../models/product.dart';
 
 class WorkTypeGanttData {
@@ -34,11 +35,11 @@ class FirebaseService {
                 snapshot.docs.map((doc) => Product.fromFirestore(doc)).toList(),
           )
           .handleError((error) {
-            print('Firestore error: $error');
+            debugPrint('Firestore error: $error');
             return <Product>[];
           });
     } catch (e) {
-      print('Firebase service error: $e');
+      debugPrint('Firebase service error: $e');
       return Stream.value(<Product>[]);
     }
   }
@@ -119,11 +120,11 @@ class FirebaseService {
             return workTypeData;
           })
           .handleError((error) {
-            print('WorkType gantt error: $error');
+            debugPrint('WorkType gantt error: $error');
             return <WorkTypeGanttData>[];
           });
     } catch (e) {
-      print('WorkType gantt service error: $e');
+      debugPrint('WorkType gantt service error: $e');
       return Stream.value(<WorkTypeGanttData>[]);
     }
   }
@@ -144,7 +145,7 @@ class FirebaseService {
 
       await _firestore.collection('products').doc(productId).update(updateData);
     } catch (e) {
-      print('Update product status error: $e');
+      debugPrint('Update product status error: $e');
       rethrow;
     }
   }
@@ -179,11 +180,11 @@ class FirebaseService {
             return summary;
           })
           .handleError((error) {
-            print('Firestore summary error: $error');
+            debugPrint('Firestore summary error: $error');
             return <String, Map<String, int>>{};
           });
     } catch (e) {
-      print('Firebase summary service error: $e');
+      debugPrint('Firebase summary service error: $e');
       return Stream.value(<String, Map<String, int>>{});
     }
   }
@@ -193,7 +194,7 @@ class FirebaseService {
     try {
       // サンプルデータの追加は行わないように変更
     } catch (e) {
-      print('addSampleData error: $e');
+      debugPrint('addSampleData error: $e');
       rethrow;
     }
   }
@@ -219,7 +220,7 @@ class FirebaseService {
         await partsRef.add(part);
       }
     } catch (e) {
-      print('addSampleParts error: $e');
+      debugPrint('addSampleParts error: $e');
       rethrow;
     }
   }
@@ -253,7 +254,7 @@ class FirebaseService {
             'person': person,
           }, SetOptions(merge: true));
     } catch (e) {
-      print('setProductProcessProgress error: $e');
+      debugPrint('setProductProcessProgress error: $e');
       rethrow;
     }
   }
@@ -276,7 +277,7 @@ class FirebaseService {
         return null;
       }
     } catch (e) {
-      print('getProductProcessProgress error: $e');
+      debugPrint('getProductProcessProgress error: $e');
       return null;
     }
   }
@@ -297,7 +298,7 @@ class FirebaseService {
       }
       return result;
     } catch (e) {
-      print('getAllProductProgress error: $e');
+      debugPrint('getAllProductProgress error: $e');
       return {};
     }
   }
@@ -323,7 +324,7 @@ class FirebaseService {
           .get();
       return snapshot.docs.map((doc) => doc.data()).toList();
     } catch (e) {
-      print('fetchParts error: $e');
+      debugPrint('fetchParts error: $e');
       return [];
     }
   }
@@ -354,7 +355,7 @@ class FirebaseService {
         'status': 'not_started',
       }, SetOptions(merge: true));
     } catch (e) {
-      print('addOrUpdateProductFromCsv error: $e');
+      debugPrint('addOrUpdateProductFromCsv error: $e');
       rethrow;
     }
   }

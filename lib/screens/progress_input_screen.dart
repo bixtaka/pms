@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/firebase_service.dart';
 
 class ProgressInputScreen extends StatefulWidget {
-  const ProgressInputScreen({Key? key}) : super(key: key);
+  const ProgressInputScreen({super.key});
 
   @override
   State<ProgressInputScreen> createState() => _ProgressInputScreenState();
@@ -110,14 +110,14 @@ class _ProgressInputScreenState extends State<ProgressInputScreen> {
                         selectedStatus != null &&
                         selectedDate != null)
                     ? () async {
+                        final messenger = ScaffoldMessenger.of(context);
                         await FirebaseService().updateProductProgress(
                           productId: selectedProductId!,
                           status: selectedStatus!,
                           date: selectedDate!,
                         );
-                        ScaffoldMessenger.of(
-                          context,
-                        ).showSnackBar(const SnackBar(content: Text('保存しました')));
+                        messenger
+                            .showSnackBar(const SnackBar(content: Text('保存しました')));
                       }
                     : null,
                 child: const Text('保存'),

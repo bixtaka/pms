@@ -9,9 +9,8 @@ import 'package:provider/provider.dart';
 import '../models/work_type_state.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 // import 'package:file_picker/file_picker.dart';
-import 'dart:io';
-import 'package:csv/csv.dart';
-import 'dart:convert'; // 追加
+
+// ignore_for_file: unused_element
 
 enum GanttViewMode { day, week, month, quarter, halfYear }
 
@@ -33,7 +32,7 @@ class _ProductionManagementScreenState
   late DateTime startDate;
   late DateTime endDate;
 
-  bool _isAddingSample = false;
+  final bool _isAddingSample = false;
 
   // 工程選択状態を管理
   String? selectedProcess;
@@ -521,7 +520,7 @@ class _ProductionManagementScreenState
           const Divider(height: 1),
           // データ行（高さを指定してListView.builderで描画）
           Expanded(
-            child: Container(
+            child: SizedBox(
               width: 120.0 + 80.0 * processNames.length, // ヘッダーと同じ幅を指定
               child: ListView.builder(
                 itemCount: filteredProducts.length,
@@ -767,13 +766,13 @@ class _ProductionManagementScreenState
   void _addSampleData() async {
     try {
       await _firebaseService.addSampleData();
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('サンプルデータを追加しました')));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('サンプルデータを追加しました')));
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('エラー: $e')));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('エラー: $e')));
     }
   }
 

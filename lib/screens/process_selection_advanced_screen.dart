@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class ProcessSelectionAdvancedScreen extends StatefulWidget {
-  const ProcessSelectionAdvancedScreen({Key? key}) : super(key: key);
+  const ProcessSelectionAdvancedScreen({super.key});
 
   @override
   State<ProcessSelectionAdvancedScreen> createState() => _ProcessSelectionAdvancedScreenState();

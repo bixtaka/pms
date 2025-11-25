@@ -1,7 +1,8 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import '../services/firebase_service.dart';
 import 'package:syncfusion_flutter_datepicker/datepicker.dart';
+
+// ignore_for_file: unused_local_variable
 
 class WorkTypeGanttWidget extends StatefulWidget {
   final List<WorkTypeGanttData> workTypeData;
@@ -447,7 +448,7 @@ class _WorkTypeGanttWidgetState extends State<WorkTypeGanttWidget> {
               width: barWidth,
               height: rowHeight - 12,
               decoration: BoxDecoration(
-                color: Colors.blue.withOpacity(0.2),
+                color: Colors.blue.withAlpha((0.2 * 255).round()),
                 border: Border.all(color: Colors.blue, width: 1),
                 borderRadius: BorderRadius.circular(4),
               ),
@@ -469,6 +470,7 @@ class _WorkTypeGanttWidgetState extends State<WorkTypeGanttWidget> {
   }
 
   // コンパクトな日付選択ダイアログ
+  // ignore: unused_element
   void _showCompactDatePicker(BuildContext context, String type) {
     DateTime selectedStart = planStartDates[type]!;
     DateTime selectedEnd = planEndDates[type]!;
@@ -550,7 +552,7 @@ class _WorkTypeGanttWidgetState extends State<WorkTypeGanttWidget> {
                 setState(() {
                   planStartDates[type] = selectedStart;
                   planEndDates[type] = selectedEnd;
-                  print(
+                  debugPrint(
                     'New plan: start: ${planStartDates[type]}, end: ${planEndDates[type]}',
                   );
                 });
@@ -755,7 +757,7 @@ class _WorkTypeGanttWidgetState extends State<WorkTypeGanttWidget> {
                     borderRadius: BorderRadius.circular(4),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.08),
+                        color: Colors.black.withAlpha((0.08 * 255).round()),
                         blurRadius: 2,
                         offset: const Offset(0, 1),
                       ),

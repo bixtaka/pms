@@ -238,10 +238,11 @@ class _BulkProgressInputScreenState extends State<BulkProgressInputScreen> {
                         child: ElevatedButton(
                           onPressed: () async {
                             // 一括入力処理
-                            final workTypeState = Provider.of<WorkTypeState>(
-                              context,
-                              listen: false,
-                            );
+                          final workTypeState = Provider.of<WorkTypeState>(
+                            context,
+                            listen: false,
+                          );
+                          final messenger = ScaffoldMessenger.of(context);
                             final processList = workTypeState.processList;
                             final processesToSave = selectedProcesses
                                 .where((p) => processList.contains(p))
@@ -264,8 +265,7 @@ class _BulkProgressInputScreenState extends State<BulkProgressInputScreen> {
                                     );
                               }
                             }
-                            if (!mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            messenger.showSnackBar(
                               const SnackBar(content: Text('一括入力が完了しました')),
                             );
                           },
