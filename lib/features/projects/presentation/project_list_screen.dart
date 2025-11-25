@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../providers/project_providers.dart';
 import '../../products/presentation/product_list_screen.dart';
+import '../../gantt/presentation/gantt_screen.dart';
 import '../../../models/project.dart';
 
 /// プロジェクト一覧画面
@@ -15,10 +16,24 @@ class ProjectListScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('プロジェクト一覧')),
       body: projectsAsync.when(
-        data: (projects) => ListView.builder(
-          itemCount: projects.length,
-          itemBuilder: (_, i) => _ProjectTile(project: projects[i]),
-        ),
+        data: (projects) {
+          if (projects.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: const [
+                  Text('プロジェクトがありません'),
+                  SizedBox(height: 8),
+                  Text('Firestore の projects コレクションにドキュメントを追加してください'),
+                ],
+              ),
+            );
+          }
+          return ListView.builder(
+            itemCount: projects.length,
+            itemBuilder: (_, i) => _ProjectTile(project: projects[i]),
+          );
+        },
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('エラー: $e')),
       ),
@@ -35,12 +50,31 @@ class _ProjectTile extends StatelessWidget {
     return ListTile(
       title: Text(project.name),
       subtitle: Text(project.areaCode),
-      trailing: const Icon(Icons.chevron_right),
+      trailing: IconButton(
+        icon: const Icon(Icons.bar_chart),
+        tooltip: 'ガントチャート',
+        onPressed: () {
+          // ガントチャート画面へ
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => GanttScreen(
+                projectId: project.id,
+                projectName: project.name,
+              ),
+            ),
+          );
+        },
+      ),
       onTap: () {
+        // 製品一覧へ
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => ProductListScreen(projectId: project.id),
+            builder: (_) => ProductListScreen(
+              projectId: project.id,
+              projectName: project.name,
+            ),
           ),
         );
       },

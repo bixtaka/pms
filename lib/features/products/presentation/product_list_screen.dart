@@ -7,14 +7,19 @@ import '../../process_progress/presentation/process_progress_screen.dart';
 /// 製品一覧画面
 class ProductListScreen extends ConsumerWidget {
   final String projectId;
-  const ProductListScreen({super.key, required this.projectId});
+  final String projectName;
+  const ProductListScreen({
+    super.key,
+    required this.projectId,
+    required this.projectName,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final productsAsync = ref.watch(productsByProjectProvider(projectId));
 
     return Scaffold(
-      appBar: AppBar(title: Text('製品一覧 ($projectId)')),
+      appBar: AppBar(title: Text('$projectName の製品一覧')),
       body: productsAsync.when(
         data: (products) => ListView.builder(
           itemCount: products.length,
@@ -38,8 +43,10 @@ class _ProductTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      title: Text(product.productCode.isNotEmpty ? product.productCode : product.name),
-      subtitle: Text('${product.memberType.isNotEmpty ? product.memberType : product.type} / ${product.overallStatus}'),
+      title:
+          Text(product.productCode.isNotEmpty ? product.productCode : product.name),
+      subtitle: Text(
+          '${product.memberType.isNotEmpty ? product.memberType : product.type} / ${product.overallStatus}'),
       trailing: const Icon(Icons.chevron_right),
       onTap: () {
         Navigator.push(
