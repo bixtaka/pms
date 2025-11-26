@@ -32,13 +32,6 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
     _storyCtrl = TextEditingController(text: filter.storyOrSet ?? '');
     _gridCtrl = TextEditingController(text: filter.grid ?? '');
     _keywordCtrl = TextEditingController(text: filter.keyword);
-    // フィルタがクリアされたときにテキストも同期
-    ref.listen<ProductFilterState>(productFilterProvider, (prev, next) {
-      if (prev == next) return;
-      _storyCtrl.text = next.storyOrSet ?? '';
-      _gridCtrl.text = next.grid ?? '';
-      _keywordCtrl.text = next.keyword;
-    });
   }
 
   @override
@@ -70,6 +63,12 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
               gridCtrl: _gridCtrl,
               keywordCtrl: _keywordCtrl,
               notifier: notifier,
+              onClear: () {
+                notifier.clearAll();
+                _storyCtrl.text = '';
+                _gridCtrl.text = '';
+                _keywordCtrl.text = '';
+              },
             ),
             const Divider(height: 0),
             Expanded(
@@ -95,6 +94,7 @@ class _ProductFilterPanel extends StatelessWidget {
   final TextEditingController gridCtrl;
   final TextEditingController keywordCtrl;
   final ProductFilterNotifier notifier;
+  final VoidCallback onClear;
 
   const _ProductFilterPanel({
     required this.filter,
@@ -102,6 +102,7 @@ class _ProductFilterPanel extends StatelessWidget {
     required this.gridCtrl,
     required this.keywordCtrl,
     required this.notifier,
+    required this.onClear,
   });
 
   @override
@@ -191,9 +192,7 @@ class _ProductFilterPanel extends StatelessWidget {
             Align(
               alignment: Alignment.centerRight,
               child: TextButton.icon(
-                onPressed: () {
-                  notifier.clearAll();
-                },
+                onPressed: onClear,
                 icon: const Icon(Icons.clear),
                 label: const Text('クリア'),
               ),
