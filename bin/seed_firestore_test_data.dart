@@ -69,7 +69,8 @@ Future<void> main() async {
     final projectName = createdProject.name!;
 
     // products サブコレクションのパス
-    final productsParent = '$projectName/products';
+    // サブコレクション作成時の parent は「ドキュメントパス」まででOK
+    final productsParent = projectName; // e.g. projects/{pid}/databases/(default)/documents/projects/{docId}
 
     // 製品 #1
     final product1 = fs.Document(fields: {
@@ -91,7 +92,7 @@ Future<void> main() async {
     await api.projects.databases.documents.createDocument(
       product1,
       productsParent,
-      'products',
+      'products', // collectionId
       documentId: 'p1',
     );
 
@@ -115,7 +116,7 @@ Future<void> main() async {
     await api.projects.databases.documents.createDocument(
       product2,
       productsParent,
-      'products',
+      'products', // collectionId
       documentId: 'p2',
     );
 
