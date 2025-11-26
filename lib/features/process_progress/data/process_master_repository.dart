@@ -5,19 +5,12 @@ import '../../../models/process_master.dart';
 class ProcessMasterRepository {
   final _col = FirebaseFirestore.instance.collection('processMasters');
 
-  Stream<List<ProcessMaster>> streamAll() => _col
-      .orderBy('memberType')
-      .orderBy('stage')
-      .orderBy('orderInStage')
-      .snapshots()
-      .map(
+  Stream<List<ProcessMaster>> streamAll() => _col.snapshots().map(
         (s) => s.docs.map((d) => ProcessMaster.fromJson(d.data(), d.id)).toList(),
       );
 
   Stream<List<ProcessMaster>> streamByMemberType(String memberType) => _col
       .where('memberType', isEqualTo: memberType)
-      .orderBy('stage')
-      .orderBy('orderInStage')
       .snapshots()
       .map(
         (s) => s.docs.map((d) => ProcessMaster.fromJson(d.data(), d.id)).toList(),
