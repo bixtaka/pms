@@ -226,6 +226,7 @@ class _ProductTile extends StatelessWidget {
             builder: (_) => ProcessProgressScreen(
               projectId: projectId,
               productId: product.id,
+              productCode: product.productCode,
             ),
           ),
         );

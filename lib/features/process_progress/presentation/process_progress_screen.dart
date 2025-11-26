@@ -1,165 +1,282 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../providers/process_progress_providers.dart';
 import '../../../models/process_master.dart';
 import '../../../models/process_progress.dart';
 import '../../../models/product.dart';
+import '../../../providers/process_progress_providers.dart';
 
-/// 製品 × 工程の進捗画面
-class ProcessProgressScreen extends ConsumerWidget {
+/// 製品ごとの工程一覧 + 進捗入力画面
+/// - processMasters（対象の部材種 + COMMON）を取得
+/// - 既存の processProgress をマージして表示
+/// - ステータス / 開始日 / 終了日 / 備考を編集し、まとめて保存
+class ProcessProgressScreen extends ConsumerStatefulWidget {
   final String projectId;
   final String productId;
+  final String? productCode;
   const ProcessProgressScreen({
     super.key,
     required this.projectId,
     required this.productId,
+    this.productCode,
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // 製品取得
-    final productAsync = ref.watch(
-      productProvider((projectId: projectId, productId: productId)),
-    );
-
-    return Scaffold(
-      appBar: AppBar(title: const Text('工程進捗')),
-      body: productAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('エラー: $e')),
-        data: (product) => _ProcessProgressBody(
-          projectId: projectId,
-          product: product,
-        ),
-      ),
-    );
-  }
+  ConsumerState<ProcessProgressScreen> createState() =>
+      _ProcessProgressScreenState();
 }
 
-class _ProcessProgressBody extends ConsumerWidget {
-  final String projectId;
-  final Product product;
-  const _ProcessProgressBody({
-    required this.projectId,
-    required this.product,
-  });
+class _ProcessProgressScreenState
+    extends ConsumerState<ProcessProgressScreen> {
+  // 編集中の工程進捗マップ: key = processId
+  Map<String, ProcessProgress> _edited = {};
+  bool _initialized = false;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // ProcessMaster
-    final mastersAsync =
-        ref.watch(processMastersByMemberTypeProvider(product.memberType));
-    // ProcessProgress
-    final progressAsync = ref.watch(
-      processProgressByProductProvider(
-        (projectId: projectId, productId: product.id),
+  Widget build(BuildContext context) {
+    final productAsync = ref.watch(
+      productProvider(
+        (projectId: widget.projectId, productId: widget.productId),
       ),
     );
 
-    return mastersAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('エラー: $e')),
-      data: (masters) {
-        return progressAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(child: Text('エラー: $e')),
-          data: (progressList) {
-            // processId -> progress のマップを構築
-            final progressMap = {
-              for (final p in progressList) p.processId: p
-            };
-            // ステージ順 + orderInStage 順で表示
-            final sortedMasters = [...masters]
-              ..sort((a, b) {
-                final s = a.stage.compareTo(b.stage);
-                if (s != 0) return s;
-                return a.orderInStage.compareTo(b.orderInStage);
-              });
+    return productAsync.when(
+      loading: () => const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      ),
+      error: (e, _) => Scaffold(body: Center(child: Text('エラー: $e'))),
+      data: (product) {
+        final mastersAsync =
+            ref.watch(processMastersByMemberTypeProvider(product.memberType));
+        final progressAsync = ref.watch(
+          processProgressByProductProvider(
+            (projectId: widget.projectId, productId: widget.productId),
+          ),
+        );
 
-            return ListView.builder(
-              itemCount: sortedMasters.length,
-              itemBuilder: (_, i) {
-                final m = sortedMasters[i];
-                final pg = progressMap[m.id] ??
-                    ProcessProgress(
-                      processId: m.id,
-                      status: 'not_started',
-                      totalQuantity: product.quantity,
-                      completedQuantity: 0,
-                      updatedAt: null,
-                      updatedBy: '',
+        return mastersAsync.when(
+          loading: () => const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          ),
+          error: (e, _) => Scaffold(body: Center(child: Text('エラー: $e'))),
+          data: (masters) => progressAsync.when(
+            loading: () => const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            ),
+            error: (e, _) => Scaffold(body: Center(child: Text('エラー: $e'))),
+            data: (progressList) {
+              _ensureInitialized(
+                masters: masters,
+                progressList: progressList,
+                product: product,
+              );
+
+              final sortedMasters = [...masters]
+                ..sort((a, b) {
+                  final stage = a.stage.compareTo(b.stage);
+                  if (stage != 0) return stage;
+                  return a.orderInStage.compareTo(b.orderInStage);
+                });
+
+              return Scaffold(
+                appBar: AppBar(
+                  title: Text(
+                    '工程進捗: ${product.productCode.isNotEmpty ? product.productCode : (widget.productCode ?? '')}',
+                  ),
+                  actions: [
+                    IconButton(
+                      icon: const Icon(Icons.save),
+                      onPressed: () => _saveAll(context),
+                    ),
+                  ],
+                ),
+                body: ListView.builder(
+                  itemCount: sortedMasters.length,
+                  itemBuilder: (_, i) {
+                    final m = sortedMasters[i];
+                    final pg = _edited[m.id]!;
+                    return _ProcessRow(
+                      master: m,
+                      progress: pg,
+                      onChanged: (updated) {
+                        setState(() {
+                          _edited[m.id] = updated;
+                        });
+                      },
                     );
-                return _ProcessRow(
-                  projectId: projectId,
-                  productId: product.id,
-                  productQuantity: product.quantity,
-                  master: m,
-                  progress: pg,
-                );
-              },
-            );
-          },
+                  },
+                ),
+              );
+            },
+          ),
         );
       },
     );
   }
+
+  /// 初期化: masters と progress をマージして _edited を作る
+  void _ensureInitialized({
+    required List<ProcessMaster> masters,
+    required List<ProcessProgress> progressList,
+    required Product product,
+  }) {
+    if (_initialized) return;
+    final map = <String, ProcessProgress>{};
+    final progressMap = {for (final p in progressList) p.processId: p};
+    for (final m in masters) {
+      final existing = progressMap[m.id];
+      map[m.id] = existing ??
+          ProcessProgress(
+            processId: m.id,
+            status: 'not_started',
+            totalQuantity: product.quantity,
+            completedQuantity: 0,
+            startDate: null,
+            endDate: null,
+            remarks: '',
+            updatedAt: null,
+            updatedBy: '',
+          );
+    }
+    _edited = map;
+    _initialized = true;
+  }
+
+  Future<void> _saveAll(BuildContext context) async {
+    final repo = ref.read(processProgressRepoProvider);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      for (final entry in _edited.entries) {
+        await repo.setProgress(
+          projectId: widget.projectId,
+          productId: widget.productId,
+          progress: entry.value.copyWith(
+            updatedAt: DateTime.now(),
+          ),
+        );
+      }
+      messenger.showSnackBar(
+        const SnackBar(content: Text('保存しました')),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('保存に失敗しました: $e')),
+      );
+    }
+  }
 }
 
-class _ProcessRow extends ConsumerWidget {
-  final String projectId;
-  final String productId;
-  final int productQuantity;
+/// 1工程分の編集 UI
+class _ProcessRow extends StatelessWidget {
   final ProcessMaster master;
   final ProcessProgress progress;
+  final ValueChanged<ProcessProgress> onChanged;
+
   const _ProcessRow({
-    required this.projectId,
-    required this.productId,
-    required this.productQuantity,
     required this.master,
     required this.progress,
+    required this.onChanged,
   });
 
+  static const _statusOptions = [
+    'not_started',
+    'in_progress',
+    'completed',
+    'partial',
+  ];
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final repo = ref.watch(processProgressRepoProvider);
-
-    final ratio = progress.totalQuantity == 0
-        ? 0.0
-        : (progress.completedQuantity / progress.totalQuantity)
-            .clamp(0, 1)
-            .toDouble();
-
+  Widget build(BuildContext context) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: ListTile(
-        title: Text(master.name),
-        subtitle: Column(
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('ステージ: ${master.stage}'),
-            LinearProgressIndicator(value: ratio),
             Text(
-              'status: ${progress.status}  ${progress.completedQuantity}/${progress.totalQuantity}',
+              master.name,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            Text('ステージ: ${master.stage}'),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    value: progress.status,
+                    decoration: const InputDecoration(labelText: 'ステータス'),
+                    items: _statusOptions
+                        .map((s) =>
+                            DropdownMenuItem(value: s, child: Text(s)))
+                        .toList(),
+                    onChanged: (v) {
+                      if (v == null) return;
+                      onChanged(progress.copyWith(status: v));
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                _DateField(
+                  label: '開始日',
+                  value: progress.startDate,
+                  onPicked: (date) =>
+                      onChanged(progress.copyWith(startDate: date)),
+                ),
+                const SizedBox(width: 12),
+                _DateField(
+                  label: '終了日',
+                  value: progress.endDate,
+                  onPicked: (date) =>
+                      onChanged(progress.copyWith(endDate: date)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              initialValue: progress.remarks,
+              decoration: const InputDecoration(labelText: '備考'),
+              onChanged: (v) => onChanged(progress.copyWith(remarks: v)),
             ),
           ],
         ),
-        trailing: IconButton(
-          icon: const Icon(Icons.add),
-          onPressed: () async {
-            final newCompleted = progress.completedQuantity + 1;
-            await repo.setProgress(
-              projectId: projectId,
-              productId: productId,
-              progress: progress.copyWith(
-                totalQuantity: productQuantity,
-                completedQuantity: newCompleted,
-                status: newCompleted >= productQuantity
-                    ? 'completed'
-                    : 'in_progress',
-                updatedAt: DateTime.now(),
-              ),
-            );
-          },
+      ),
+    );
+  }
+}
+
+/// 日付入力用ウィジェット
+class _DateField extends StatelessWidget {
+  final String label;
+  final DateTime? value;
+  final ValueChanged<DateTime?> onPicked;
+
+  const _DateField({
+    required this.label,
+    required this.value,
+    required this.onPicked,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final text = value != null
+        ? '${value!.year}/${value!.month}/${value!.day}'
+        : '未設定';
+    return Expanded(
+      child: OutlinedButton(
+        onPressed: () async {
+          final now = DateTime.now();
+          final picked = await showDatePicker(
+            context: context,
+            initialDate: value ?? now,
+            firstDate: DateTime(now.year - 5),
+            lastDate: DateTime(now.year + 5),
+          );
+          onPicked(picked);
+        },
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Text('$label: $text'),
         ),
       ),
     );

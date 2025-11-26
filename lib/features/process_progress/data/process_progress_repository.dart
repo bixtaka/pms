@@ -31,10 +31,11 @@ class ProcessProgressRepository {
     required String projectId,
     required String productId,
     required ProcessProgress progress,
-  }) =>
-      _col(projectId, productId)
-          .doc(progress.processId)
-          .set(progress.toJson(), SetOptions(merge: true));
+  }) async {
+    await _col(projectId, productId)
+        .doc(progress.processId)
+        .set(progress.toJson(), SetOptions(merge: true));
+  }
 
   Future<void> delete({
     required String projectId,
