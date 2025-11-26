@@ -59,8 +59,7 @@ class _ProjectTile extends StatelessWidget {
             context,
             MaterialPageRoute(
               builder: (_) => GanttScreen(
-                projectId: project.id,
-                projectName: project.name,
+                project: project,
               ),
             ),
           );
