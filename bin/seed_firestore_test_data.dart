@@ -44,8 +44,22 @@ Future<void> main() async {
     fs.Value tsVal(String iso) => fs.Value(timestampValue: iso);
     fs.Value nullVal() => fs.Value(nullValue: 'NULL_VALUE');
 
+    // 1件に固定するためドキュメントIDを固定し、既存を削除してから作成
+    const projectDocId = 'test_project';
+    final projectDocName =
+        '$dbParent/projects/$projectDocId'; // projects/{pid}/databases/(default)/documents/projects/test_project
+    final product1Name = '$projectDocName/products/p1';
+    final product2Name = '$projectDocName/products/p2';
+
+    for (final docName in [product1Name, product2Name, projectDocName]) {
+      try {
+        await api.projects.databases.documents.delete(docName);
+      } catch (_) {
+        // 存在しない場合は無視
+      }
+    }
+
     // プロジェクトドキュメント作成
-    final projectDocId = 'test_project_${DateTime.now().millisecondsSinceEpoch}';
     final projectDoc = fs.Document(fields: {
       'name': strVal('テスト工事'),
       'architect': strVal('○○設計事務所'),
