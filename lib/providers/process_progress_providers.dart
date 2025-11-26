@@ -26,11 +26,11 @@ final productProvider =
   },
 );
 
-// ProcessMaster 一覧（指定の memberType と COMMON をまとめて取得）
+// ProcessMaster 一覧（指定の memberType のみ）
 final processMastersByMemberTypeProvider =
     StreamProvider.family<List<ProcessMaster>, String>((ref, memberType) {
   final repo = ref.watch(processMasterRepoProvider);
-  return repo.streamByMemberTypeWithCommon(memberType);
+  return repo.streamByMemberType(memberType);
 });
 
 // ProcessProgress 一覧
