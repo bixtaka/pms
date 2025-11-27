@@ -1,9 +1,15 @@
-import 'package:flutter/material.dart';
+import 'package:collection/collection.dart';
+import '../../../models/process_master.dart';
 import '../../../models/process_progress.dart';
-import '../../products/data/product_repository.dart';
+import '../../../models/product.dart';
+import '../../process_progress/data/process_master_repository.dart';
 import '../../process_progress/data/process_progress_repository.dart';
+import '../../products/data/product_repository.dart';
+import '../domain/gantt_repository.dart';
+import '../presentation/gantt_screen.dart'
+    show GanttProduct, GanttTask, ProcessType;
 
-/// ガントチャート表示用の集約モデル
+/// 旧 UI（widgets/gantt_chart.dart など）が参照する簡易モデル
 class GanttItem {
   final String productId;
   final String productCode;
@@ -20,58 +26,144 @@ class GanttItem {
   });
 }
 
-/// ガント用データをまとめて取得するリポジトリ
-class GanttRepository {
-  final ProductRepository _productRepo = ProductRepository();
-  final ProcessProgressRepository _progressRepo = ProcessProgressRepository();
+/// Firestore から製品＋工程進捗を集約してガント用モデルへ変換する実装
+class FirestoreGanttRepository implements GanttRepository {
+  final ProductRepository _productRepo;
+  final ProcessProgressRepository _progressRepo;
+  final ProcessMasterRepository _masterRepo;
 
-  /// 指定 projectId の全製品と進捗をまとめて取得
-  Future<List<GanttItem>> fetchGanttItems(String projectId) async {
+  FirestoreGanttRepository({
+    ProductRepository? productRepo,
+    ProcessProgressRepository? progressRepo,
+    ProcessMasterRepository? masterRepo,
+  }) : _productRepo = productRepo ?? ProductRepository(),
+       _progressRepo = progressRepo ?? ProcessProgressRepository(),
+       _masterRepo = masterRepo ?? ProcessMasterRepository();
+
+  @override
+  Future<List<GanttProduct>> fetchGanttProductsByProjectId(
+    String projectId,
+  ) async {
+    // まとめて取得（単発読み込み）
     final products = await _productRepo.streamByProject(projectId).first;
-    final List<GanttItem> items = [];
-    for (final p in products) {
-      final progresses =
-          await _progressRepo.streamAll(projectId, p.id).first;
-      final map = {for (final pg in progresses) pg.processId: pg};
-      items.add(
-        GanttItem(
-          productId: p.id,
-          productCode: p.productCode.isNotEmpty ? p.productCode : p.name,
-          overallStartDate: p.overallStartDate ?? p.startDate,
-          overallEndDate: p.overallEndDate ?? p.endDate,
-          processes: map,
+    final masters = await _masterRepo.streamAll().first;
+
+    final List<GanttProduct> result = [];
+    for (final product in products) {
+      final progresses = await _progressRepo
+          .streamAll(projectId, product.id)
+          .first;
+      final masterForProduct = _pickMastersForProduct(masters, product);
+      final taskList = _buildTasks(product, masterForProduct, progresses);
+
+      final avgProgress = taskList.isEmpty
+          ? 0.0
+          : taskList.map((t) => t.progress).average;
+
+      result.add(
+        GanttProduct(
+          id: product.id,
+          code: product.productCode.isNotEmpty
+              ? product.productCode
+              : product.name,
+          name: product.name.isNotEmpty ? product.name : product.productCode,
+          progress: avgProgress.isNaN ? 0.0 : avgProgress,
+          tasks: taskList,
         ),
       );
     }
-    return items;
+    return result;
   }
 
-  /// ガントアイテムから表示範囲の最小開始日・最大終了日を算出
-  DateTimeRange computeDateRange(List<GanttItem> items) {
-    if (items.isEmpty) {
-      final now = DateTime.now();
-      return DateTimeRange(
-        start: DateTime(now.year, now.month, now.day),
-        end: DateTime(now.year, now.month, now.day + 7),
+  List<ProcessMaster> _pickMastersForProduct(
+    List<ProcessMaster> masters,
+    Product product,
+  ) {
+    final filtered = masters
+        .where(
+          (m) =>
+              m.memberType.toUpperCase() == product.memberType.toUpperCase() ||
+              m.memberType.toUpperCase() == 'COMMON',
+        )
+        .toList();
+    return filtered.isEmpty ? masters : filtered;
+  }
+
+  List<GanttTask> _buildTasks(
+    Product product,
+    List<ProcessMaster> masters,
+    List<ProcessProgress> progresses,
+  ) {
+    final progressMap = {for (final pg in progresses) pg.processId: pg};
+    // master と progress のユニオンでタスクを生成
+    final ids = <String>{...masters.map((m) => m.id), ...progressMap.keys};
+
+    final tasks = <GanttTask>[];
+    for (final id in ids) {
+      final pm = masters.firstWhereOrNull((m) => m.id == id);
+      final pg = progressMap[id];
+      final name = pm?.name ?? id;
+      final type = _mapProcessType(pm, pg);
+
+      final start =
+          pg?.startDate ?? product.overallStartDate ?? product.startDate;
+      final end =
+          pg?.endDate ?? product.overallEndDate ?? product.endDate ?? start;
+      final safeStart = start ?? DateTime.now();
+      final safeEnd = end == null
+          ? safeStart
+          : (end.isBefore(safeStart) ? safeStart : end);
+
+      final progressRatio = _calcProgress(pg);
+
+      tasks.add(
+        GanttTask(
+          id: id,
+          name: name,
+          type: type,
+          start: safeStart,
+          end: safeEnd,
+          progress: progressRatio,
+        ),
       );
     }
-    DateTime? minStart;
-    DateTime? maxEnd;
-    for (final item in items) {
-      final s = item.overallStartDate;
-      final e = item.overallEndDate;
-      if (s != null) {
-        minStart = (minStart == null || s.isBefore(minStart)) ? s : minStart;
-      }
-      if (e != null) {
-        maxEnd = (maxEnd == null || e.isAfter(maxEnd)) ? e : maxEnd;
-      }
+
+    // 表示順を master の orderInStage に寄せる
+    tasks.sort((a, b) {
+      final orderA =
+          masters.firstWhereOrNull((m) => m.id == a.id)?.orderInStage ?? 999;
+      final orderB =
+          masters.firstWhereOrNull((m) => m.id == b.id)?.orderInStage ?? 999;
+      return orderA.compareTo(orderB);
+    });
+
+    return tasks;
+  }
+
+  ProcessType _mapProcessType(ProcessMaster? pm, ProcessProgress? pg) {
+    final key = (pm?.name ?? pg?.processId ?? '').toLowerCase();
+    if (key.contains('コア') && key.contains('組'))
+      return ProcessType.coreAssembly;
+    if (key.contains('コア') && key.contains('溶')) return ProcessType.coreWeld;
+    if (key.contains('仕口') && key.contains('組')) {
+      return ProcessType.jointAssembly;
     }
-    final today = DateTime.now();
-    final start = DateTime(
-        (minStart ?? today).year, (minStart ?? today).month, (minStart ?? today).day);
-    final endBase = maxEnd ?? start.add(const Duration(days: 7));
-    final end = DateTime(endBase.year, endBase.month, endBase.day);
-    return DateTimeRange(start: start, end: end);
+    if (key.contains('仕口') && key.contains('溶')) return ProcessType.jointWeld;
+    return ProcessType.other;
+  }
+
+  double _calcProgress(ProcessProgress? pg) {
+    if (pg == null) return 0.0;
+    if (pg.totalQuantity > 0) {
+      return (pg.completedQuantity / pg.totalQuantity).clamp(0.0, 1.0);
+    }
+    switch (pg.status) {
+      case 'completed':
+        return 1.0;
+      case 'in_progress':
+        return 0.5;
+      default:
+        return 0.0;
+    }
   }
 }
