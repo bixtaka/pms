@@ -3,6 +3,7 @@ import '../services/firebase_service.dart';
 import '../models/product.dart';
 import 'package:provider/provider.dart';
 import '../models/work_type_state.dart';
+import '../features/process_spec/data/process_progress_daily_repository.dart';
 
 class BulkProgressInputScreen extends StatefulWidget {
   const BulkProgressInputScreen({super.key});
@@ -15,12 +16,16 @@ class BulkProgressInputScreen extends StatefulWidget {
 class _BulkProgressInputScreenState extends State<BulkProgressInputScreen> {
   String? selectedProductId;
   final FirebaseService _firebaseService = FirebaseService();
+  final ProcessProgressDailyRepository _dailyRepo =
+      ProcessProgressDailyRepository();
 
   // 一括選択用チェックボックスの状態管理
   final Set<String> selectedProductIds = {};
 
   // コメント入力の状態管理（productId -> コメント）
   final Map<String, String> productComments = {};
+  // 製品ID -> projectId の対応（progress 保存に利用）
+  final Map<String, String> productProjectIds = {};
 
   // 追加の状態変数
   DateTime selectedDate = DateTime.now();
@@ -238,31 +243,41 @@ class _BulkProgressInputScreenState extends State<BulkProgressInputScreen> {
                         child: ElevatedButton(
                           onPressed: () async {
                             // 一括入力処理
-                          final workTypeState = Provider.of<WorkTypeState>(
-                            context,
-                            listen: false,
-                          );
-                          final messenger = ScaffoldMessenger.of(context);
+                            final workTypeState = Provider.of<WorkTypeState>(
+                              context,
+                              listen: false,
+                            );
+                            final messenger = ScaffoldMessenger.of(context);
                             final processList = workTypeState.processList;
                             final processesToSave = selectedProcesses
                                 .where((p) => processList.contains(p))
                                 .toList();
                             final person = selectedPerson;
                             final date = selectedDate;
-                            // 状態は仮で「in_progress」とする（必要に応じて変更）
-                            final status = 'in_progress';
                             // 対象製品IDリスト
                             final productIds = selectedProductIds.toList();
+                            // 保存処理: 必ず upsertDaily を経由し、同一 productId+stepId+date で増殖しないようにする
                             for (final productId in productIds) {
+                              final projectId =
+                                  productProjectIds[productId] ?? '';
                               for (final processName in processesToSave) {
-                                await _firebaseService
-                                    .setProductProcessProgress(
-                                      productId: productId,
-                                      processName: processName, // 必ずヘッダーと同じ名称
-                                      status: status,
-                                      date: date,
-                                      person: person,
-                                    );
+                                if (projectId.isEmpty) {
+                                  // projectId が取れない旧データは一旦スキップ（仕様確認が必要）
+                                  continue;
+                                }
+                                // upsertDaily を直接呼ぶ（SPEC/Firestore構造は変更しない）
+                                await _dailyRepo.upsertDaily(
+                                  projectId: projectId,
+                                  productId: productId,
+                                  stepId: processName,
+                                  date: DateTime(
+                                    date.year,
+                                    date.month,
+                                    date.day,
+                                  ),
+                                  doneQty: 1, // 一括入力は数量1を仮置き（必要に応じて調整）
+                                  note: person,
+                                );
                               }
                             }
                             messenger.showSnackBar(
@@ -318,6 +333,11 @@ class _BulkProgressInputScreenState extends State<BulkProgressInputScreen> {
                                 return const CircularProgressIndicator();
                               }
                               List<Product> products = snapshot.data!;
+                              // 製品ID -> projectId を更新
+                              productProjectIds.clear();
+                              for (final p in products) {
+                                productProjectIds[p.id] = p.projectId;
+                              }
                               // 分類が「柱」の場合は本柱のみ表示
                               if (workTypeState.selectedCategory == '柱') {
                                 products = products

@@ -4,6 +4,8 @@ import '../../../models/process_master.dart';
 import '../../../models/process_progress.dart';
 import '../../../models/product.dart';
 import '../../../providers/process_progress_providers.dart';
+import '../../process_spec/data/process_progress_save_service.dart';
+import 'daily_process_progress_screen.dart';
 
 /// 製品ごとの工程一覧 + 進捗入力画面
 /// - processMasters（対象の部材種 + COMMON）を取得
@@ -84,6 +86,31 @@ class _ProcessProgressScreenState
                   ),
                   actions: [
                     IconButton(
+                      icon: const Icon(Icons.calendar_today),
+                      tooltip: '日別進捗入力',
+                      onPressed: () {
+                        // まず SnackBar で遷移することを通知
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('日別進捗入力画面を開きます'),
+                          ),
+                        );
+                        // 対象工事・製品の 日別進捗入力画面 へ遷移
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => DailyProcessProgressScreen(
+                              projectId: widget.projectId,
+                              productId: widget.productId,
+                              productCode: product.productCode.isNotEmpty
+                                  ? product.productCode
+                                  : (widget.productCode ?? ''),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    IconButton(
                       icon: const Icon(Icons.save),
                       onPressed: () => _saveAll(context),
                     ),
@@ -142,16 +169,20 @@ class _ProcessProgressScreenState
   }
 
   Future<void> _saveAll(BuildContext context) async {
-    final repo = ref.read(processProgressRepoProvider);
+    final saveService = ProcessProgressSaveService();
     final messenger = ScaffoldMessenger.of(context);
+    // 保存時は必ず日別 upsert を通し、同一 productId+stepId+date でレコードが増えないようにする
     try {
       for (final entry in _edited.entries) {
-        await repo.setProgress(
+        final p = entry.value;
+        final date = p.endDate ?? p.startDate ?? DateTime.now();
+        await saveService.upsertDaily(
           projectId: widget.projectId,
           productId: widget.productId,
-          progress: entry.value.copyWith(
-            updatedAt: DateTime.now(),
-          ),
+          stepId: p.processId,
+          date: DateTime(date.year, date.month, date.day),
+          doneQty: p.completedQuantity,
+          note: p.remarks,
         );
       }
       messenger.showSnackBar(

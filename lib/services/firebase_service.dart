@@ -235,29 +235,10 @@ class FirebaseService {
   }
 
   // 製品ID＋工種名ごとの進捗データを保存
-  Future<void> setProductProcessProgress({
-    required String productId,
-    required String processName,
-    required String status,
-    required DateTime date,
-    required String person,
-  }) async {
-    try {
-      await _firestore
-          .collection('products')
-          .doc(productId)
-          .collection('progress')
-          .doc(processName)
-          .set({
-            'status': status,
-            'date': Timestamp.fromDate(date),
-            'person': person,
-          }, SetOptions(merge: true));
-    } catch (e) {
-      debugPrint('setProductProcessProgress error: $e');
-      rethrow;
-    }
-  }
+  // 旧API（progress サブコレクションへの書き込み）は今後使用しない方針。
+  // upsertDaily を利用するため、このメソッドは呼び出し元が存在する場合でも使わず、
+  // バルク入力などでは ProcessProgressDailyRepository.upsertDaily を直接呼ぶよう統一する。
+  // TODO: 互換目的で残すが、呼び出し箇所がなければ削除検討。
 
   // 製品ID＋工種名ごとの進捗データを取得
   Future<Map<String, dynamic>?> getProductProcessProgress({
