@@ -43,3 +43,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+pms1-89339-firebase-adminsdk-fbsvc-d640a72c90.json
+

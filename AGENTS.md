@@ -1,5 +1,10 @@
 # AGENTS.md
 
+
+Codex must always follow SPEC.md located in the project root.
+Do not modify SPEC.md. Use it as the source of truth.
+
+
 **Rule:** In each command, define → use.
 Do not escape $.
 Use generic 'path/to/file.ext'.
