@@ -132,11 +132,14 @@ class FirestoreGanttRepository implements GanttRepository {
         byLabel[label] = _AggregatedTask(
           label: label,
           stepId: stepId,
+          stepKey: step?.key,
+          stepLabel: step?.label ?? label,
           start: start,
           end: end,
           doneQty: doneSum,
           totalQty: totalQty,
           sortOrder: step?.sortOrder ?? 999,
+          stepSort: step?.sortOrder,
           processGroupId: group?.id,
           processGroupKey: group?.key,
           processGroupLabel: group?.label,
@@ -164,14 +167,20 @@ class FirestoreGanttRepository implements GanttRepository {
             end: agg.end,
             progress: progress.isNaN ? 0.0 : progress,
             plannedEnd: plannedEnd,
+            stepId: agg.stepId,
+            stepKey: agg.stepKey,
+            stepLabel: agg.stepLabel ?? agg.label,
+            stepSort: agg.stepSort ?? agg.sortOrder,
             processGroupId: agg.processGroupId,
-            processGroupKey: agg.processGroupKey,
-            processGroupLabel: agg.processGroupLabel,
-            processGroupSort: agg.processGroupSort,
-          );
+             processGroupKey: agg.processGroupKey,
+             processGroupLabel: agg.processGroupLabel,
+             processGroupSort: agg.processGroupSort,
+           );
         }).toList()..sort((a, b) {
-          final orderA = byLabel[a.name]?.sortOrder ?? 999;
-          final orderB = byLabel[b.name]?.sortOrder ?? 999;
+          final orderA =
+              byLabel[a.name]?.stepSort ?? byLabel[a.name]?.sortOrder ?? 999;
+          final orderB =
+              byLabel[b.name]?.stepSort ?? byLabel[b.name]?.sortOrder ?? 999;
           return orderA.compareTo(orderB);
         });
 
@@ -204,11 +213,14 @@ class FirestoreGanttRepository implements GanttRepository {
 class _AggregatedTask {
   final String label;
   final String stepId;
+  final String? stepKey;
+  final String? stepLabel;
   final DateTime start;
   final DateTime end;
   final int doneQty;
   final int totalQty;
   final int sortOrder;
+  final int? stepSort;
   final String? processGroupId;
   final String? processGroupKey;
   final String? processGroupLabel;
@@ -217,11 +229,14 @@ class _AggregatedTask {
   const _AggregatedTask({
     required this.label,
     required this.stepId,
+    this.stepKey,
+    this.stepLabel,
     required this.start,
     required this.end,
     required this.doneQty,
     required this.totalQty,
     required this.sortOrder,
+    this.stepSort,
     this.processGroupId,
     this.processGroupKey,
     this.processGroupLabel,
@@ -243,11 +258,14 @@ class _AggregatedTask {
     return _AggregatedTask(
       label: label,
       stepId: stepId,
+      stepKey: stepKey,
+      stepLabel: stepLabel,
       start: mergedStart,
       end: mergedEnd,
       doneQty: mergedDone,
       totalQty: totalQty,
       sortOrder: mergedSort,
+      stepSort: mergedSort,
       processGroupId: processGroupId,
       processGroupKey: processGroupKey,
       processGroupLabel: processGroupLabel,

@@ -1,6 +1,12 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../models/project.dart';
+import '../../process_spec/domain/process_group.dart';
+import '../../process_spec/domain/process_step.dart';
 import '../../process_spec/presentation/process_colors.dart';
 import '../application/gantt_providers.dart';
 import 'group_plan_offset.dart';
@@ -29,6 +35,11 @@ class GanttTask {
   final double progress;
   // 製品全体の予定完了日（製品レベルの予定を工程にも共有する）
   final DateTime? plannedEnd;
+  // SPEC の process_steps への紐付け（工程別ビューで使用）
+  final String? stepId;
+  final String? stepKey;
+  final String? stepLabel;
+  final int? stepSort;
   // SPEC の process_groups への紐付け（工程別ビューで使用）
   final String? processGroupId;
   final String? processGroupKey;
@@ -43,6 +54,10 @@ class GanttTask {
     required this.end,
     required this.progress,
     this.plannedEnd,
+    this.stepId,
+    this.stepKey,
+    this.stepLabel,
+    this.stepSort,
     this.processGroupId,
     this.processGroupKey,
     this.processGroupLabel,
@@ -84,6 +99,63 @@ class GanttRowEntry {
     : kind = GanttRowKind.taskRow;
 }
 
+// 工程別ビュー用の親子ツリー行モデル。
+// 親: process_groups（一級の工程グループ。一次加工／コア部／…）
+// 子: process_steps（各グループ配下の工程ステップ。切断／ショット／UT／…）
+// ガント画面では、左ペイン・右ペインともにこの rows を使って
+// 折りたたみ可能なツリー構造として表示する。
+abstract class ProcessTreeRow {
+  const ProcessTreeRow();
+}
+
+class ProcessGroupRow extends ProcessTreeRow {
+  final String groupId;
+  final String groupKey;
+  final String label;
+  final int sortOrder;
+  final List<GanttTask> tasks; // そのグループに属する全タスク
+
+  const ProcessGroupRow({
+    required this.groupId,
+    required this.groupKey,
+    required this.label,
+    required this.sortOrder,
+    required this.tasks,
+  });
+}
+
+class ProcessStepRow extends ProcessTreeRow {
+  final String groupId;
+  final String stepId;
+  final String stepKey;
+  final String label;
+  final int sortOrder;
+  final List<GanttTask> tasks; // そのステップに属するタスク
+
+  const ProcessStepRow({
+    required this.groupId,
+    required this.stepId,
+    required this.stepKey,
+    required this.label,
+    required this.sortOrder,
+    required this.tasks,
+  });
+}
+
+class ProcessVisibleRow {
+  final bool isGroup;
+  final ProcessGroupRow? groupRow;
+  final ProcessStepRow? stepRow;
+
+  const ProcessVisibleRow.group(this.groupRow)
+      : isGroup = true,
+        stepRow = null;
+
+  const ProcessVisibleRow.step(this.stepRow)
+      : isGroup = false,
+        groupRow = null;
+}
+
 /// バーの位置計算結果
 class _TaskGeometry {
   final double left;
@@ -92,20 +164,16 @@ class _TaskGeometry {
   const _TaskGeometry({required this.left, required this.width});
 }
 
-/// 工程グループ（SPEC の process_groups）単位の集計モデル
-class ProcessGroupSummary {
-  final String key;
-  final String label;
-  final int sortOrder;
-  final List<GanttTask> tasks;
-
-  const ProcessGroupSummary({
-    required this.key,
-    required this.label,
-    required this.sortOrder,
-    required this.tasks,
-  });
-}
+// ガント行高さを左右で揃える共通定数
+const double kGanttRowHeight = 44.0;
+const double _leftPaneWidth = 280.0;
+const double _processStepIndent = 24.0;
+const List<double> _dayZoomLevels = [16.0, 24.0, 32.0, 48.0, 64.0];
+const int _timelinePaddingDaysBefore = 7;
+const int _timelinePaddingDaysAfter = 7;
+const int _timelineExtraScrollableDays = 14;
+const double _miniMapDayWidth = 3.0;
+const double _miniMapHeight = 40.0;
 
 class GanttScreen extends ConsumerStatefulWidget {
   final Project project;
@@ -119,14 +187,17 @@ class GanttScreen extends ConsumerStatefulWidget {
 class _GanttScreenState extends ConsumerState<GanttScreen> {
   // タイムライン幅調整
   // 行高さは左リストと右ガントで共通化し、ズレを防ぐ
-  static const double _rowHeight = 52;
+  static const double _rowHeight = kGanttRowHeight;
+  static const double _timelineMonthRowHeight = 18;
+  static const double _timelineDayRowHeight = 18;
   // 日付スケール
   GanttDateScale _dateScale = GanttDateScale.month;
+  double _dayCellWidth = 32.0; // 日ビュー用の可変セル幅（ズーム）
 
   double get _dayWidth {
     switch (_dateScale) {
       case GanttDateScale.day:
-        return 64;
+        return _dayCellWidth;
       case GanttDateScale.week:
         return 32;
       case GanttDateScale.month:
@@ -139,14 +210,25 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
   ); // デフォルト
   DateTime _endDate = DateTime.now().add(const Duration(days: 14));
   int _totalDays = 18;
+  DateTime get _displayStartDate =>
+      _startDate.subtract(const Duration(days: _timelinePaddingDaysBefore));
+  DateTime get _displayEndDate =>
+      _endDate.add(const Duration(days: _timelinePaddingDaysAfter));
 
   // スクロール同期用
   final ScrollController _leftScroll = ScrollController();
+  final ScrollController _rightListScroll = ScrollController();
   final ScrollController _rightScroll = ScrollController();
   final ScrollController _rightHeaderScroll = ScrollController();
+  bool _isSyncingVertical = false;
+  bool _isSyncingHorizontal = false;
+  double _headerDragStartOffset = 0.0;
+  double _headerDragAccumDx = 0.0;
+  double _headerDragSpeed = 2.0; // ドラッグ体感を上げる倍率（必要に応じて調整）
 
   // 展開状態
   final Set<String> _expandedProductIds = <String>{};
+  final Map<String, bool> _groupExpanded = {}; // key: groupId, value: 展開中かどうか
 
   // フィルタUI用（ダミー）
   String _selectedProjectName = '工事A';
@@ -165,20 +247,120 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
   GroupPlanOffset _dragStartOffset = const GroupPlanOffset();
   _DragMode? _dragMode;
 
+  bool _isGroupExpanded(String groupId) => _groupExpanded[groupId] ?? false;
+
+  void _toggleGroupExpanded(String groupId) {
+    setState(() {
+      final current = _groupExpanded[groupId] ?? false;
+      _groupExpanded[groupId] = !current;
+    });
+  }
+
+  void _changeDayWidth(double newWidth) {
+    final oldWidth = _dayCellWidth;
+    if (oldWidth == newWidth) return;
+
+    double oldOffset = 0.0;
+    double viewport = 0.0;
+    double maxExtent = 0.0;
+    if (_rightScroll.hasClients) {
+      oldOffset = _rightScroll.offset;
+      viewport = _rightScroll.position.viewportDimension;
+      maxExtent = _rightScroll.position.maxScrollExtent;
+    }
+
+    final oldTotalWidth = _totalDays * oldWidth;
+    final centerX = oldOffset + viewport / 2;
+    final centerRatio =
+        oldTotalWidth == 0 ? 0.0 : (centerX / oldTotalWidth).clamp(0.0, 1.0);
+
+    setState(() {
+      _dayCellWidth = newWidth;
+    });
+
+    if (_rightScroll.hasClients) {
+      final newTotalWidth = _totalDays * newWidth;
+      final newCenterX = newTotalWidth * centerRatio;
+      final target =
+          (newCenterX - viewport / 2).clamp(0.0, maxExtent == 0 ? 0.0 : _rightScroll.position.maxScrollExtent);
+      _rightScroll.jumpTo(target);
+    }
+  }
+
+  void _zoomInDayWidth() {
+    final current = _dayCellWidth;
+    final currentIndex =
+        _dayZoomLevels.lastIndexWhere((level) => level <= current);
+    final nextIndex = (currentIndex + 1).clamp(0, _dayZoomLevels.length - 1);
+    _changeDayWidth(_dayZoomLevels[nextIndex]);
+  }
+
+  void _zoomOutDayWidth() {
+    final current = _dayCellWidth;
+    final currentIndex =
+        _dayZoomLevels.indexWhere((level) => level >= current);
+    final idx = currentIndex == -1 ? _dayZoomLevels.length - 1 : currentIndex;
+    final prevIndex = (idx - 1).clamp(0, _dayZoomLevels.length - 1);
+    _changeDayWidth(_dayZoomLevels[prevIndex]);
+  }
+
   @override
   void initState() {
     super.initState();
     _rightScroll.addListener(() {
-      _rightHeaderScroll.jumpTo(_rightScroll.offset);
+      _syncHorizontalScroll(_rightScroll, _rightHeaderScroll);
+    });
+    _rightHeaderScroll.addListener(() {
+      _syncHorizontalScroll(_rightHeaderScroll, _rightScroll);
+    });
+    _leftScroll.addListener(() {
+      if (!_rightListScroll.hasClients) return;
+      _syncVerticalScroll(_leftScroll, _rightListScroll);
+    });
+    _rightListScroll.addListener(() {
+      if (!_leftScroll.hasClients) return;
+      _syncVerticalScroll(_rightListScroll, _leftScroll);
     });
   }
 
   @override
   void dispose() {
     _leftScroll.dispose();
+    _rightListScroll.dispose();
     _rightScroll.dispose();
     _rightHeaderScroll.dispose();
     super.dispose();
+  }
+
+  void _syncVerticalScroll(ScrollController source, ScrollController target) {
+    if (_isSyncingVertical) return;
+    _isSyncingVertical = true;
+    try {
+      final offset = source.offset;
+      if (offset <= target.position.maxScrollExtent &&
+          offset >= target.position.minScrollExtent) {
+        target.jumpTo(offset);
+      }
+    } catch (_) {
+      // ignore errors during sync
+    }
+    _isSyncingVertical = false;
+  }
+
+  void _syncHorizontalScroll(ScrollController source, ScrollController target) {
+    if (_isSyncingHorizontal) return;
+    if (!source.hasClients || !target.hasClients) return;
+    _isSyncingHorizontal = true;
+    try {
+      final offset = source.offset.clamp(
+        target.position.minScrollExtent,
+        target.position.maxScrollExtent,
+      );
+      target.jumpTo(offset);
+    } catch (_) {
+      // ignore sync errors
+    }
+    _isSyncingHorizontal = false;
   }
 
   List<GanttRowEntry> _buildRowEntries(List<GanttProduct> products) {
@@ -248,9 +430,29 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
   String _formatDate(DateTime d) =>
       '${d.month.toString().padLeft(2, '0')}/${d.day.toString().padLeft(2, '0')}';
 
+  DateTime? _minTaskStart(List<GanttTask> tasks) {
+    if (tasks.isEmpty) return null;
+    return tasks
+        .map((t) => t.start)
+        .reduce((a, b) => a.isBefore(b) ? a : b);
+  }
+
+  DateTime? _maxTaskEnd(List<GanttTask> tasks) {
+    if (tasks.isEmpty) return null;
+    return tasks.map((t) => t.end).reduce((a, b) => a.isAfter(b) ? a : b);
+  }
+
+  double _averageProgress(List<GanttTask> tasks) {
+    if (tasks.isEmpty) return 0.0;
+    final total = tasks.fold<double>(0.0, (sum, t) => sum + t.progress);
+    final avg = total / tasks.length;
+    return avg.clamp(0.0, 1.0);
+  }
+
   @override
   Widget build(BuildContext context) {
     final asyncProducts = ref.watch(ganttProductsProvider(widget.project));
+    final asyncProcessSpec = ref.watch(ganttProcessSpecProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -317,6 +519,25 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
             ],
           ),
           const SizedBox(width: 8),
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.remove),
+                tooltip: 'ズームアウト（セル幅縮小）',
+                onPressed: _dateScale == GanttDateScale.day
+                    ? () => setState(_zoomOutDayWidth)
+                    : null,
+              ),
+              IconButton(
+                icon: const Icon(Icons.add),
+                tooltip: 'ズームイン（セル幅拡大）',
+                onPressed: _dateScale == GanttDateScale.day
+                    ? () => setState(_zoomInDayWidth)
+                    : null,
+              ),
+            ],
+          ),
+          const SizedBox(width: 8),
           ToggleButtons(
             isSelected: [
               _viewMode == GanttViewMode.byProduct,
@@ -346,8 +567,9 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
               // 「今日」の位置へ横スクロール
               final now = DateTime.now();
               final todayBase = DateTime(now.year, now.month, now.day);
+              final displayStart = _displayStartDate;
               final offsetDays =
-                  todayBase.difference(_startDate).inDays;
+                  todayBase.difference(displayStart).inDays;
               double target;
               if (offsetDays <= 0) {
                 target = 0;
@@ -375,55 +597,81 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('エラー: $e')),
         data: (products) {
-          _updateDateRange(products);
-          final filteredProducts = _filteredProductsFromList(products);
-          final rowEntries = _filterRowsByKeyword(
-            _buildRowEntries(filteredProducts),
-          );
-          final processSummaries = _filterSummariesByKeyword(
-            _buildProcessSummaries(filteredProducts),
-          );
-          return LayoutBuilder(
-            builder: (context, constraints) {
-              if (constraints.maxWidth >= 900) {
-                return Row(
-                  children: [
-                    SizedBox(
-                      width: 280,
-                      child: _buildLeftPane(
-                        rowEntries: rowEntries,
-                        summaries: processSummaries,
-                      ),
-                    ),
-                    const VerticalDivider(width: 1),
-                    Expanded(
-                      child: _buildRightPane(
-                        rowEntries: rowEntries,
-                        summaries: processSummaries,
-                      ),
-                    ),
-                  ],
-                );
+          return asyncProcessSpec.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => Center(child: Text('工程マスタ読込エラー: $e')),
+            data: (spec) {
+              _updateDateRange(products);
+              final filteredProducts = _filteredProductsFromList(products);
+              final rowEntries = _filterRowsByKeyword(
+                _buildRowEntries(filteredProducts),
+              );
+              final allTasks =
+                  filteredProducts.expand((p) => p.tasks).toList();
+              final processRows = _filterTreeRowsByKeyword(
+                _buildProcessTreeRows(
+                  spec.groups,
+                  spec.steps,
+                  allTasks,
+                ),
+              );
+              final visibleProcessRows = _buildVisibleProcessRows(processRows);
+
+              Widget content;
+
+              if (_viewMode == GanttViewMode.byProcess) {
+                content = _buildProcessUnifiedView(visibleProcessRows);
               } else {
-                return Column(
-                  children: [
-                    SizedBox(
-                      height: 320,
-                      child: _buildLeftPane(
-                        rowEntries: rowEntries,
-                        summaries: processSummaries,
-                      ),
-                    ),
-                    const Divider(height: 1),
-                    Expanded(
-                      child: _buildRightPane(
-                        rowEntries: rowEntries,
-                        summaries: processSummaries,
-                      ),
-                    ),
-                  ],
+                content = LayoutBuilder(
+                  builder: (context, constraints) {
+                    if (constraints.maxWidth >= 900) {
+                      return Row(
+                        children: [
+                          SizedBox(
+                            width: 280,
+                            child: _buildLeftPane(
+                              rowEntries: rowEntries,
+                              processRows: processRows,
+                              visibleProcessRows: visibleProcessRows,
+                            ),
+                          ),
+                          const VerticalDivider(width: 1),
+                          Expanded(
+                            child: _buildRightPane(
+                              rowEntries: rowEntries,
+                              processRows: processRows,
+                              visibleProcessRows: visibleProcessRows,
+                            ),
+                          ),
+                        ],
+                      );
+                    } else {
+                      return Column(
+                        children: [
+                          SizedBox(
+                            height: 320,
+                            child: _buildLeftPane(
+                              rowEntries: rowEntries,
+                              processRows: processRows,
+                              visibleProcessRows: visibleProcessRows,
+                            ),
+                          ),
+                          const Divider(height: 1),
+                          Expanded(
+                            child: _buildRightPane(
+                              rowEntries: rowEntries,
+                              processRows: processRows,
+                              visibleProcessRows: visibleProcessRows,
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+                  },
                 );
               }
+
+              return _wrapHorizontalWheelScroll(content);
             },
           );
         },
@@ -431,15 +679,35 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
     );
   }
 
+  Widget _wrapHorizontalWheelScroll(Widget child) {
+    return Listener(
+      onPointerSignal: (event) {
+        if (event is! PointerScrollEvent) return;
+        final pressed = HardwareKeyboard.instance.logicalKeysPressed;
+        final isShiftPressed = pressed.contains(LogicalKeyboardKey.shiftLeft) ||
+            pressed.contains(LogicalKeyboardKey.shiftRight);
+        if (!isShiftPressed) return;
+        if (!_rightScroll.hasClients) return;
+        final min = _rightScroll.position.minScrollExtent;
+        final max = _rightScroll.position.maxScrollExtent;
+        final target = (_rightScroll.offset + event.scrollDelta.dy)
+            .clamp(min, max);
+        _rightScroll.jumpTo(target);
+      },
+      child: child,
+    );
+  }
+
   Widget _buildLeftPane({
     required List<GanttRowEntry> rowEntries,
-    required List<ProcessGroupSummary> summaries,
+    required List<ProcessTreeRow> processRows,
+    required List<ProcessVisibleRow> visibleProcessRows,
   }) {
     switch (_viewMode) {
       case GanttViewMode.byProduct:
         return _buildLeftPaneByProduct(rowEntries);
       case GanttViewMode.byProcess:
-        return _buildLeftPaneByProcess(summaries);
+        return _buildLeftPaneByProcess(visibleProcessRows);
     }
   }
 
@@ -447,6 +715,7 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
     return ListView.builder(
       controller: _leftScroll,
       itemCount: rows.length,
+      itemExtent: _rowHeight,
       itemBuilder: (context, index) {
         final entry = rows[index];
         switch (entry.kind) {
@@ -459,143 +728,309 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
     );
   }
 
-  Widget _buildLeftPaneByProcess(List<ProcessGroupSummary> summaries) {
+  Widget _buildLeftPaneByProcess(List<ProcessVisibleRow> rows) {
     return ListView.builder(
       controller: _leftScroll,
-      itemCount: summaries.length,
+      itemCount: rows.length,
+      itemExtent: _rowHeight,
       itemBuilder: (context, index) {
-        final summary = summaries[index];
-        final color = _taskBaseColorByLabel(summary.label);
-        final allStarts = summary.tasks.map((t) => t.start).toList()..sort();
-        final allEnds = summary.tasks.map((t) => t.end).toList()..sort();
-        final start = allStarts.isNotEmpty ? allStarts.first : null;
-        final end = allEnds.isNotEmpty ? allEnds.last : null;
-        final avgProgress = summary.tasks.isEmpty
-            ? 0.0
-            : summary.tasks
-                    .map((t) => t.progress)
-                    .fold<double>(0, (a, b) => a + b) /
-                summary.tasks.length;
-        return SizedBox(
-          height: _rowHeight,
-          child: InkWell(
-            onTap: () => _showProcessGroupDetail(context, summary, color),
-            child: ListTile(
-              dense: true,
-              visualDensity: VisualDensity.compact,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 4,
-              ),
-              leading: Container(
-                width: 12,
-                height: 12,
-                decoration: BoxDecoration(
-                  color: color,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-              title: Text(summary.label),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    [
-                      'タスク数: ${summary.tasks.length}',
-                      if (start != null && end != null)
-                        '${_formatDate(start)} 〜 ${_formatDate(end)}',
-                    ].join(' / '),
-                  ),
-                  const SizedBox(height: 4),
-                  LinearProgressIndicator(
-                    value: avgProgress.clamp(0.0, 1.0),
-                    backgroundColor: Colors.grey.shade200,
+        final row = rows[index];
+        if (row.isGroup && row.groupRow != null) {
+          return _buildProcessGroupTile(context, row.groupRow!);
+        } else if (!row.isGroup && row.stepRow != null) {
+          return _buildProcessStepTile(row.stepRow!);
+        }
+        return const SizedBox.shrink();
+      },
+    );
+  }
+
+  /// 工程ツリーの表示状態に応じて、実際に表示する行（親+展開中の子のみ）のリストを構築する。
+  List<ProcessVisibleRow> _buildVisibleProcessRows(List<ProcessTreeRow> rows) {
+    final result = <ProcessVisibleRow>[];
+    var index = 0;
+
+    while (index < rows.length) {
+      final row = rows[index];
+      if (row is ProcessGroupRow) {
+        result.add(ProcessVisibleRow.group(row));
+        index++;
+
+        if (_isGroupExpanded(row.groupId)) {
+          while (index < rows.length && rows[index] is ProcessStepRow) {
+            final stepRow = rows[index] as ProcessStepRow;
+            if (stepRow.groupId != row.groupId) break;
+            result.add(ProcessVisibleRow.step(stepRow));
+            index++;
+          }
+        } else {
+          while (index < rows.length && rows[index] is ProcessStepRow) {
+            final stepRow = rows[index] as ProcessStepRow;
+            if (stepRow.groupId != row.groupId) break;
+            index++;
+          }
+        }
+      } else {
+        index++;
+      }
+    }
+
+    return result;
+  }
+
+  Widget _buildProcessGroupTile(BuildContext context, ProcessGroupRow row) {
+    final color = _taskBaseColorByLabel(row.label);
+    final expanded = _isGroupExpanded(row.groupId);
+    final start = _minTaskStart(row.tasks);
+    final end = _maxTaskEnd(row.tasks);
+    final subtitleParts = <String>[
+      'タスク数: ${row.tasks.length}',
+      if (start != null && end != null) '${_formatDate(start)} 〜 ${_formatDate(end)}',
+    ];
+    final avgProgress = _averageProgress(row.tasks);
+    return SizedBox(
+      height: _rowHeight,
+      child: ListTile(
+        dense: true,
+        visualDensity: VisualDensity.compact,
+        leading: IconButton(
+          icon: Icon(expanded ? Icons.expand_more : Icons.chevron_right),
+          onPressed: () => _toggleGroupExpanded(row.groupId),
+        ),
+        title: Text(row.label),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(subtitleParts.join(' / ')),
+            const SizedBox(height: 4),
+            LinearProgressIndicator(
+              value: avgProgress,
+              backgroundColor: Colors.grey.shade200,
+              color: color,
+              minHeight: 6,
+            ),
+          ],
+        ),
+        onTap: () => _toggleGroupExpanded(row.groupId),
+        onLongPress: () => _showProcessGroupDetail(context, row, color),
+      ),
+    );
+  }
+
+  Widget _buildProcessStepTile(ProcessStepRow row) {
+    final color = _taskBaseColorByLabel(row.label);
+    final start = _minTaskStart(row.tasks);
+    final end = _maxTaskEnd(row.tasks);
+    final subtitleParts = <String>[
+      'タスク数: ${row.tasks.length}',
+      if (start != null && end != null) '${_formatDate(start)} 〜 ${_formatDate(end)}',
+    ];
+    return SizedBox(
+      height: _rowHeight,
+      child: Padding(
+        padding: const EdgeInsets.only(left: _processStepIndent),
+        child: ListTile(
+          dense: true,
+          visualDensity: VisualDensity.compact,
+          leading: SizedBox(
+            width: 28,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.start,
+              children: [
+                Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
                     color: color,
-                    minHeight: 6,
+                    borderRadius: BorderRadius.circular(999),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
-        );
-      },
+          title: Text(row.label, maxLines: 1, overflow: TextOverflow.ellipsis),
+          subtitle: Text(subtitleParts.join(' / ')),
+          onTap: () {
+            // step 行のタップ時の動きは今後拡張
+          },
+        ),
+      ),
     );
   }
 
   Widget _buildRightPane({
     required List<GanttRowEntry> rowEntries,
-    required List<ProcessGroupSummary> summaries,
+    required List<ProcessTreeRow> processRows,
+    required List<ProcessVisibleRow> visibleProcessRows,
   }) {
     switch (_viewMode) {
       case GanttViewMode.byProduct:
         return _buildTimelineByProduct(rowEntries);
       case GanttViewMode.byProcess:
-        return _buildTimelineByProcess(summaries);
+        return _buildTimelineByProcess(visibleProcessRows);
     }
+  }
+
+  /// 工程別ビューを「左セル＋右セル」を1行にまとめた単一ListViewで描画する。
+  /// 親を閉じたときは子行そのものをリストに入れないため、空白が残らず左右も確実に揃う。
+  Widget _buildProcessUnifiedView(List<ProcessVisibleRow> visibleRows) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final displayStart = _displayStartDate;
+        final displayEnd = _displayEndDate;
+        final visibleDays = displayEnd.difference(displayStart).inDays + 1;
+        final timelineWidth =
+            (constraints.maxWidth - _leftPaneWidth).clamp(1.0, double.infinity);
+        final requiredDays =
+            (timelineWidth / _dayWidth).ceil().clamp(1, 365);
+        final minScrollableDays =
+            (visibleDays + _timelineExtraScrollableDays).clamp(1, 365);
+        final daysCount = math.max(requiredDays, minScrollableDays);
+        _totalDays = daysCount;
+
+        return Column(
+          children: [
+            _buildTimelineHeader(daysCount, displayStart),
+            const Divider(height: 1),
+            Expanded(
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: _leftPaneWidth,
+                    child: ListView.builder(
+                      controller: _leftScroll,
+                      itemCount: visibleRows.length,
+                      itemExtent: _rowHeight,
+                      itemBuilder: (context, index) {
+                        final row = visibleRows[index];
+                        if (row.isGroup && row.groupRow != null) {
+                          return _buildProcessGroupTile(context, row.groupRow!);
+                        }
+                        return _buildProcessStepTile(row.stepRow!);
+                      },
+                    ),
+                  ),
+                  const VerticalDivider(width: 1),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      controller: _rightScroll,
+                      scrollDirection: Axis.horizontal,
+                      child: SizedBox(
+                        width: daysCount * _dayWidth,
+                        child: ListView.builder(
+                          controller: _rightListScroll,
+                          itemCount: visibleRows.length,
+                          itemExtent: _rowHeight,
+                          itemBuilder: (context, index) {
+                        final row = visibleRows[index];
+                        if (row.isGroup && row.groupRow != null) {
+                          return _buildGroupTimelineRow(
+                            row.groupRow!,
+                            daysCount,
+                            displayStart,
+                          );
+                        }
+                        return _buildStepTimelineRow(
+                          row.stepRow!,
+                          daysCount,
+                          displayStart,
+                        );
+                      },
+                    ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            _buildMiniMap(
+              daysCount: daysCount,
+              startDate: displayStart,
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Widget _buildProductHeaderTile(GanttProduct product) {
     final isExpanded = _expandedProductIds.contains(product.id);
-    return ListTile(
-      title: Text(
-        product.code,
-        style: const TextStyle(fontWeight: FontWeight.bold),
-      ),
-      subtitle: Text(product.name),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(
-            width: 80,
-            child: LinearProgressIndicator(
-              value: product.progress.clamp(0.0, 1.0),
+    return SizedBox(
+      height: _rowHeight,
+      child: ListTile(
+        dense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+        title: Text(
+          product.code,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Text(product.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 80,
+              child: LinearProgressIndicator(
+                value: product.progress.clamp(0.0, 1.0),
+              ),
             ),
-          ),
-          Icon(isExpanded ? Icons.expand_less : Icons.expand_more),
-        ],
+            Icon(isExpanded ? Icons.expand_less : Icons.expand_more),
+          ],
+        ),
+        onTap: () {
+          setState(() {
+            if (isExpanded) {
+              _expandedProductIds.remove(product.id);
+            } else {
+              _expandedProductIds.add(product.id);
+            }
+          });
+        },
       ),
-      onTap: () {
-        setState(() {
-          if (isExpanded) {
-            _expandedProductIds.remove(product.id);
-          } else {
-            _expandedProductIds.add(product.id);
-          }
-        });
-      },
     );
   }
 
   Widget _buildTaskTile(GanttTask task) {
     final baseColor = _taskBaseColorByLabel(task.name);
-    return ListTile(
-      contentPadding: const EdgeInsets.only(left: 32, right: 16),
-      leading: Container(
-        width: 12,
-        height: 12,
-        decoration: BoxDecoration(
-          color: baseColor,
-          borderRadius: BorderRadius.circular(999),
+    return SizedBox(
+      height: _rowHeight,
+      child: ListTile(
+        dense: true,
+        contentPadding: const EdgeInsets.only(left: 32, right: 16),
+        leading: Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: baseColor,
+            borderRadius: BorderRadius.circular(999),
+          ),
+        ),
+        title: Text(task.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+        subtitle: Text(
+          '${_formatDate(task.start)} 〜 ${_formatDate(task.end)}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
       ),
-      title: Text(task.name),
-      subtitle: Text('${_formatDate(task.start)} 〜 ${_formatDate(task.end)}'),
     );
   }
 
   Widget _buildTimelineByProduct(List<GanttRowEntry> rows) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final visibleDays = _endDate.difference(_startDate).inDays + 1;
+        final displayStart = _displayStartDate;
+        final displayEnd = _displayEndDate;
+        final visibleDays = displayEnd.difference(displayStart).inDays + 1;
         final requiredDays =
             (constraints.maxWidth / _dayWidth).ceil().clamp(1, 365);
-        final daysCount = visibleDays < requiredDays ? requiredDays : visibleDays;
-        // _totalDays/_endDate を最新に合わせておく（他ヘルパーで参照するため）
+        final minScrollableDays =
+            (visibleDays + _timelineExtraScrollableDays).clamp(1, 365);
+        final daysCount = math.max(requiredDays, minScrollableDays);
+        // _totalDays を最新に合わせておく（他ヘルパーで参照するため）
         _totalDays = daysCount;
-        _endDate = _startDate.add(Duration(days: daysCount - 1));
         return Column(
           children: [
-            _buildTimelineHeader(daysCount),
+            _buildTimelineHeader(daysCount, displayStart),
             const Divider(height: 1),
             Expanded(
               child: SingleChildScrollView(
@@ -604,54 +1039,33 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
                 child: SizedBox(
                   width: daysCount * _dayWidth,
                   child: ListView.builder(
+                    controller: _rightListScroll,
                     itemCount: rows.length,
+                    itemExtent: _rowHeight,
                     itemBuilder: (context, index) {
                       final entry = rows[index];
                       switch (entry.kind) {
                         case GanttRowKind.productHeader:
-                          return _buildProductTimelineRow(entry.product, daysCount);
+                          return _buildProductTimelineRow(
+                            entry.product,
+                            daysCount,
+                            displayStart,
+                          );
                         case GanttRowKind.taskRow:
-                          return _buildTaskTimelineRow(entry.task!, daysCount);
+                          return _buildTaskTimelineRow(
+                            entry.task!,
+                            daysCount,
+                            displayStart,
+                          );
                       }
                     },
                   ),
                 ),
               ),
             ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildTimelineByProcess(List<ProcessGroupSummary> summaries) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final visibleDays = _endDate.difference(_startDate).inDays + 1;
-        final requiredDays =
-            (constraints.maxWidth / _dayWidth).ceil().clamp(1, 365);
-        final daysCount = visibleDays < requiredDays ? requiredDays : visibleDays;
-        _totalDays = daysCount;
-        _endDate = _startDate.add(Duration(days: daysCount - 1));
-        return Column(
-          children: [
-            _buildTimelineHeader(daysCount),
-            const Divider(height: 1),
-            Expanded(
-              child: SingleChildScrollView(
-                controller: _rightScroll,
-                scrollDirection: Axis.horizontal,
-                child: SizedBox(
-                  width: daysCount * _dayWidth,
-                  child: ListView.builder(
-                    itemCount: summaries.length,
-                    itemBuilder: (context, index) {
-                      final summary = summaries[index];
-                      return _buildProcessTimelineRow(summary, daysCount);
-                    },
-                  ),
-                ),
-              ),
+            _buildMiniMap(
+              daysCount: daysCount,
+              startDate: displayStart,
             ),
           ],
         );
@@ -659,36 +1073,229 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
     );
   }
 
-  Widget _buildTimelineHeader(int daysCount) {
-    return SizedBox(
-      height: 32,
-      child: SingleChildScrollView(
-        controller: _rightHeaderScroll,
-        scrollDirection: Axis.horizontal,
+  Widget _buildTimelineByProcess(List<ProcessVisibleRow> rows) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final displayStart = _displayStartDate;
+        final displayEnd = _displayEndDate;
+        final visibleDays = displayEnd.difference(displayStart).inDays + 1;
+        final requiredDays =
+            (constraints.maxWidth / _dayWidth).ceil().clamp(1, 365);
+        final minScrollableDays =
+            (visibleDays + _timelineExtraScrollableDays).clamp(1, 365);
+        final daysCount = math.max(requiredDays, minScrollableDays);
+        _totalDays = daysCount;
+        return Column(
+          children: [
+            _buildTimelineHeader(daysCount, displayStart),
+            const Divider(height: 1),
+            Expanded(
+              child: SingleChildScrollView(
+                controller: _rightScroll,
+                scrollDirection: Axis.horizontal,
+                  child: SizedBox(
+                    width: daysCount * _dayWidth,
+                    child: ListView.builder(
+                      controller: _rightListScroll,
+                      itemCount: rows.length,
+                      itemExtent: _rowHeight,
+                      itemBuilder: (context, index) {
+                        final row = rows[index];
+                        if (row.isGroup && row.groupRow != null) {
+                          return _buildGroupTimelineRow(
+                            row.groupRow!,
+                            daysCount,
+                            displayStart,
+                          );
+                        } else if (!row.isGroup && row.stepRow != null) {
+                          return _buildStepTimelineRow(
+                            row.stepRow!,
+                            daysCount,
+                            displayStart,
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            _buildMiniMap(
+              daysCount: daysCount,
+              startDate: displayStart,
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildTimelineHeader(int daysCount, DateTime startDate) {
+    final dates = List<DateTime>.generate(
+      daysCount,
+      (i) => startDate.add(Duration(days: i)),
+    );
+
+    final totalWidth = daysCount * _dayWidth;
+    final headerHeight = _timelineMonthRowHeight + _timelineDayRowHeight;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      dragStartBehavior: DragStartBehavior.down,
+      onHorizontalDragStart: (_) {
+        if (_rightScroll.hasClients) {
+          _headerDragStartOffset = _rightScroll.offset;
+          _headerDragAccumDx = 0.0;
+          debugPrint(
+            '[HEADER DRAG] start offset=${_rightScroll.offset}',
+          );
+        }
+      },
+      onHorizontalDragUpdate: (details) {
+        if (!_rightScroll.hasClients) return;
+        _headerDragAccumDx += details.delta.dx * _headerDragSpeed;
+        final min = _rightScroll.position.minScrollExtent;
+        final max = _rightScroll.position.maxScrollExtent;
+        final target = (_headerDragStartOffset - _headerDragAccumDx)
+            .clamp(min, max);
+        debugPrint(
+          '[HEADER DRAG] delta.dx=${details.delta.dx}, '
+          'speed=$_headerDragSpeed, '
+          'accumDx=$_headerDragAccumDx, '
+          'oldOffset=$_headerDragStartOffset, '
+          'newOffset=$target, '
+          'max=$max',
+        );
+        _rightScroll.jumpTo(target);
+      },
+      child: SizedBox(
+        height: headerHeight,
         child: Row(
-          children: List.generate(daysCount, (i) {
-            final d = _startDate.add(Duration(days: i));
-            return Container(
-              width: _dayWidth,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                border: Border(right: BorderSide(color: Colors.grey.shade300)),
+          children: [
+            SizedBox(
+              width: _leftPaneWidth,
+              height: headerHeight,
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const NeverScrollableScrollPhysics(),
+                controller: _rightHeaderScroll,
+                scrollDirection: Axis.horizontal,
+                child: SizedBox(
+                  width: totalWidth,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildMonthHeaderRow(dates),
+                      _buildDayHeaderRow(dates),
+                    ],
+                  ),
+                ),
               ),
-              child: Text(
-                '${d.month}/${d.day}',
-                style: const TextStyle(fontSize: 12),
-              ),
-            );
-          }),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildRowGrid(int daysCount) {
+  Widget _buildMiniMap({
+    required int daysCount,
+    required DateTime startDate,
+  }) {
+    return GanttMiniMap(
+      mainController: _rightScroll,
+      dayWidth: _dayWidth,
+      miniDayWidth: _miniMapDayWidth,
+      daysCount: daysCount,
+      startDate: startDate,
+      height: _miniMapHeight,
+    );
+  }
+
+  Widget _buildMonthHeaderRow(List<DateTime> dates) {
+    if (dates.isEmpty) return const SizedBox.shrink();
+
+    final List<Widget> segments = [];
+    DateTime current = dates.first;
+    int span = 0;
+
+    void pushSegment() {
+      if (span == 0) return;
+      segments.add(
+        Container(
+          width: span * _dayWidth,
+          height: _timelineMonthRowHeight,
+          decoration: BoxDecoration(
+            color: Colors.grey[200],
+            border: Border(
+              right: BorderSide(color: Colors.grey.shade300),
+              bottom: BorderSide(color: Colors.grey.shade300),
+            ),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            '${current.month}',
+            textAlign: TextAlign.center,
+            softWrap: false,
+            overflow: TextOverflow.clip,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey[700],
+            ),
+          ),
+        ),
+      );
+    }
+
+    for (final d in dates) {
+      final isSameMonth = d.year == current.year && d.month == current.month;
+      if (isSameMonth) {
+        span++;
+      } else {
+        pushSegment();
+        current = d;
+        span = 1;
+      }
+    }
+    pushSegment();
+
+    return Row(children: segments);
+  }
+
+  Widget _buildDayHeaderRow(List<DateTime> dates) {
+    return Row(
+      children: dates.map((d) {
+        return Container(
+          width: _dayWidth,
+          height: _timelineDayRowHeight,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            border: Border(
+              right: BorderSide(color: Colors.grey.shade300),
+              bottom: BorderSide(color: Colors.grey.shade300),
+            ),
+          ),
+          child: Text(
+            '${d.day}',
+            textAlign: TextAlign.center,
+            softWrap: false,
+            overflow: TextOverflow.clip,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.normal,
+              color: Colors.black87,
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildRowGrid(int daysCount, DateTime startDate) {
     return Row(
       children: List.generate(daysCount, (i) {
-        final d = _startDate.add(Duration(days: i));
+        final d = startDate.add(Duration(days: i));
         final isWeekend =
             d.weekday == DateTime.saturday || d.weekday == DateTime.sunday;
         return Container(
@@ -709,14 +1316,18 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
     );
   }
 
-  Widget _buildProcessTimelineRow(ProcessGroupSummary summary, int daysCount) {
-    final baseColor = _taskBaseColorByLabel(summary.label);
+  Widget _buildGroupTimelineRow(
+    ProcessGroupRow row,
+    int daysCount,
+    DateTime startDate,
+  ) {
+    final baseColor = _taskBaseColorByLabel(row.label);
     // 工程別ビューでは、各工程の全タスク期間（最初の start〜最後の end）を細い計画バーとして 1本描画し、その上に各製品のバー（実績）を重ねている
     _TaskGeometry? plannedGeo;
-    if (summary.tasks.isNotEmpty) {
-      final starts = summary.tasks.map((t) => t.start).toList()..sort();
-      final ends = summary.tasks.map((t) => t.end).toList()..sort();
-      final offset = _groupPlanOffsets[summary.key] ?? const GroupPlanOffset();
+    if (row.tasks.isNotEmpty) {
+      final starts = row.tasks.map((t) => t.start).toList()..sort();
+      final ends = row.tasks.map((t) => t.end).toList()..sort();
+      final offset = _groupPlanOffsets[row.groupKey] ?? const GroupPlanOffset();
       var plannedStart = starts.first.add(
         Duration(days: offset.shiftDays + offset.startExtra),
       );
@@ -730,19 +1341,9 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
       plannedGeo = _computeRangeGeometry(
         plannedStart,
         plannedEnd,
-        _startDate,
+        startDate,
         daysCount,
         _dayWidth,
-      );
-      // デバッグ用ログ: 計画バーのジオメトリを可視化
-      // ignore: avoid_print
-      print(
-        '[process-planned] ${summary.label} '
-        'tasks=${summary.tasks.length} '
-        'groupStart=${starts.first} groupEnd=${ends.last} '
-        'offset=${offset.shiftDays} '
-        'startDate=$_startDate totalDays=$_totalDays '
-        'geo=${plannedGeo?.left},${plannedGeo?.width}',
       );
     }
 
@@ -750,15 +1351,33 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
       height: _rowHeight,
       child: Stack(
         children: [
-          Positioned.fill(child: _buildRowGrid(daysCount)),
+          Positioned.fill(child: _buildRowGrid(daysCount, startDate)),
           if (plannedGeo != null)
             _buildProcessPlannedBar(
               plannedGeo,
               baseColor,
-              summary.key,
+              row.groupKey,
             ),
-          for (final task in summary.tasks)
-            _buildProcessTaskBar(task, baseColor, daysCount),
+          for (final task in row.tasks)
+            _buildProcessTaskBar(task, baseColor, daysCount, startDate),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStepTimelineRow(
+    ProcessStepRow row,
+    int daysCount,
+    DateTime startDate,
+  ) {
+    final baseColor = _taskBaseColorByLabel(row.label);
+    return SizedBox(
+      height: _rowHeight,
+      child: Stack(
+        children: [
+          Positioned.fill(child: _buildRowGrid(daysCount, startDate)),
+          for (final task in row.tasks)
+            _buildProcessTaskBar(task, baseColor, daysCount, startDate),
         ],
       ),
     );
@@ -846,8 +1465,13 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
   }
 
   /// 工種別ビューでも製品別と同じ「予定(細)+実績(太)」2レイヤーバーを使う
-  Widget _buildProcessTaskBar(GanttTask task, Color baseColor, int daysCount) {
-    final geo = _computeTaskGeometry(task, _startDate, daysCount, _dayWidth);
+  Widget _buildProcessTaskBar(
+    GanttTask task,
+    Color baseColor,
+    int daysCount,
+    DateTime startDate,
+  ) {
+    final geo = _computeTaskGeometry(task, startDate, daysCount, _dayWidth);
     if (geo == null) return const SizedBox.shrink();
     final progress = task.progress.clamp(0.0, 1.0);
 
@@ -862,22 +1486,31 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
     );
   }
 
-  Widget _buildProductTimelineRow(GanttProduct product, int daysCount) {
+  Widget _buildProductTimelineRow(
+    GanttProduct product,
+    int daysCount,
+    DateTime startDate,
+  ) {
     return SizedBox(
       height: _rowHeight,
       child: Stack(
         children: [
           // Note: productヘッダ行は現状グリッドなし（必要ならヘッダ表現を追加）
           Positioned.fill(child: Container()),
-          _buildTodayLine(),
-          for (final task in product.tasks) _buildTaskBar(task, daysCount),
+          _buildTodayLine(startDate, daysCount),
+          for (final task in product.tasks)
+            _buildTaskBar(task, daysCount, startDate),
         ],
       ),
     );
   }
 
-  Widget _buildTaskTimelineRow(GanttTask task, int daysCount) {
-    final geo = _computeTaskGeometry(task, _startDate, daysCount, _dayWidth);
+  Widget _buildTaskTimelineRow(
+    GanttTask task,
+    int daysCount,
+    DateTime startDate,
+  ) {
+    final geo = _computeTaskGeometry(task, startDate, daysCount, _dayWidth);
     final baseColor = _taskBaseColorByLabel(task.name);
     final progress = task.progress.clamp(0.0, 1.0);
 
@@ -885,9 +1518,9 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
       height: _rowHeight,
       child: Stack(
         children: [
-          Positioned.fill(child: _buildRowGrid(daysCount)),
-          _buildTodayLine(),
-          _buildPlannedEndLine(task),
+          Positioned.fill(child: _buildRowGrid(daysCount, startDate)),
+          _buildTodayLine(startDate, daysCount),
+          _buildPlannedEndLine(task, startDate, daysCount),
           if (geo != null)
             Positioned(
               left: geo.left,
@@ -903,8 +1536,8 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
     );
   }
 
-  Widget _buildTaskBar(GanttTask task, int daysCount) {
-    final geo = _computeTaskGeometry(task, _startDate, daysCount, _dayWidth);
+  Widget _buildTaskBar(GanttTask task, int daysCount, DateTime startDate) {
+    final geo = _computeTaskGeometry(task, startDate, daysCount, _dayWidth);
     if (geo == null) return const SizedBox.shrink();
     final baseColor = _taskBaseColorByLabel(task.name);
     final progress = task.progress.clamp(0.0, 1.0);
@@ -970,11 +1603,11 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
     );
   }
 
-  Widget _buildTodayLine() {
+  Widget _buildTodayLine(DateTime startDate, int totalDays) {
     final today = DateTime.now();
     final todayBase = DateTime(today.year, today.month, today.day);
-    final offset = todayBase.difference(_startDate).inDays;
-    if (offset < 0 || offset >= _totalDays) {
+    final offset = todayBase.difference(startDate).inDays;
+    if (offset < 0 || offset >= totalDays) {
       return const SizedBox.shrink();
     }
     return Positioned(
@@ -986,14 +1619,18 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
   }
 
   /// 予定完了日の縦ライン（行内のみ）
-  Widget _buildPlannedEndLine(GanttTask task) {
+  Widget _buildPlannedEndLine(
+    GanttTask task,
+    DateTime startDate,
+    int totalDays,
+  ) {
     final planned = task.plannedEnd;
     if (planned == null) {
       return const SizedBox.shrink();
     }
     final plannedOnly = DateTime(planned.year, planned.month, planned.day);
-    final offsetDays = plannedOnly.difference(_startDate).inDays;
-    if (offsetDays < 0 || offsetDays >= _totalDays) {
+    final offsetDays = plannedOnly.difference(startDate).inDays;
+    if (offsetDays < 0 || offsetDays >= totalDays) {
       // タイムライン範囲外
       return const SizedBox.shrink();
     }
@@ -1048,86 +1685,148 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
     }).toList();
   }
 
-  /// process_groups ベースで工程別ビュー用の集計を行う
-  /// 行 = process_groups（一次加工/コア部/...）を親とし、将来は子工程(process_steps)を展開する拡張を想定。
-  List<ProcessGroupSummary> _buildProcessSummaries(
-    List<GanttProduct> products,
+  List<ProcessTreeRow> _buildProcessTreeRows(
+    List<ProcessGroup> groups,
+    List<ProcessStep> steps,
+    List<GanttTask> allTasks,
   ) {
-    // SPEC 順固定（一次加工 → コア部 → 仕口部 → 大組部 → 二次部材 → 製品検査 → 製品塗装 → 積込 → 出荷）
-    const orderedGroups = [
-      {'key': 'primary', 'label': '一次加工'},
-      {'key': 'core', 'label': 'コア部'},
-      {'key': 'shikuchi', 'label': '仕口部'},
-      {'key': 'oogumi', 'label': '大組部'},
-      {'key': 'niji', 'label': '二次部材'},
-      {'key': 'productInspection', 'label': '製品検査'},
-      {'key': 'coating', 'label': '製品塗装'},
-      {'key': 'loading', 'label': '積込'},
-      {'key': 'shipping', 'label': '出荷'},
-    ];
-
-    // まずタスクを processGroupKey / Label でまとめる
-    final Map<String, List<GanttTask>> groupedTasks = {};
-
-    for (final product in products) {
-      for (final task in product.tasks) {
-        final key =
-            (task.processGroupKey ?? task.processGroupId ?? '').trim();
-        final label = (task.processGroupLabel ?? '').trim();
-        final mapKey = key.isNotEmpty ? key : (label.isNotEmpty ? label : 'other');
-        groupedTasks.putIfAbsent(mapKey, () => <GanttTask>[]).add(task);
+    final Map<String, String> groupLookup = {
+      for (final g in groups) g.id: g.id,
+      for (final g in groups) g.key: g.id,
+      'その他': groups.firstWhere((g) => g.label == 'その他',
+              orElse: () => groups.isNotEmpty ? groups.last : ProcessGroup(id: 'その他', key: 'その他', label: 'その他', sortOrder: 999))
+          .id,
+    };
+    String? resolveGroupId(String? raw) {
+      if (raw == null) return null;
+      return groupLookup[raw] ?? raw;
+    }
+    ProcessGroup? otherGroup;
+    for (final g in groups) {
+      final keyLower = g.key.toLowerCase();
+      if (keyLower == 'other' || g.label == 'その他') {
+        otherGroup = g;
+        break;
       }
     }
 
-    // SPEC 順で並べ替えつつ、タスクが無いグループも空で出す
-    final List<ProcessGroupSummary> list = [];
-    for (var i = 0; i < orderedGroups.length; i++) {
-      final spec = orderedGroups[i];
-      final key = spec['key']!;
-      final label = spec['label']!;
-      // ラベル一致・キー一致のどちらかで拾う
-      final tasks = groupedTasks[key] ??
-          groupedTasks[label] ??
-          <GanttTask>[];
-      list.add(
-        ProcessGroupSummary(
-          key: key,
-          label: label,
-          sortOrder: i, // 固定順
-          tasks: tasks,
-        ),
-      );
+    final stepsById = {for (final s in steps) s.id: s};
+
+    final tasksByGroup = <String, List<GanttTask>>{};
+    // key: "$groupId||$stepLabel"
+    final tasksByStepLabel = <String, List<GanttTask>>{};
+
+    for (final task in allTasks) {
+      final step = task.stepId != null ? stepsById[task.stepId] : null;
+      String? derivedGroupId = resolveGroupId(task.processGroupId);
+      if (derivedGroupId == null && step != null) {
+        derivedGroupId = resolveGroupId(step.groupId);
+      }
+      derivedGroupId ??= otherGroup?.id;
+
+      if (derivedGroupId != null) {
+        tasksByGroup.putIfAbsent(derivedGroupId, () => <GanttTask>[]).add(task);
+      }
+      final stepLabel = (task.stepLabel ?? task.name).trim();
+      if (derivedGroupId != null && stepLabel.isNotEmpty) {
+        final key = '$derivedGroupId||$stepLabel';
+        tasksByStepLabel.putIfAbsent(key, () => <GanttTask>[]).add(task);
+      }
     }
 
-    // SPEC に無いグループがあれば「その他」として後ろに付ける
-    final usedKeys = {...orderedGroups.map((g) => g['key']), ...orderedGroups.map((g) => g['label'])};
-    groupedTasks.forEach((key, tasks) {
-      if (usedKeys.contains(key)) return;
-      list.add(
-        ProcessGroupSummary(
-          key: key,
-          label: 'その他',
-          sortOrder: 999,
-          tasks: tasks,
+    final groupsSorted = [...groups]
+      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+
+    final rows = <ProcessTreeRow>[];
+
+    for (final group in groupsSorted) {
+      final groupTasks = tasksByGroup[group.id] ?? const <GanttTask>[];
+      final groupKey = group.key.isNotEmpty ? group.key : group.id;
+
+      rows.add(
+        ProcessGroupRow(
+          groupId: group.id,
+          groupKey: groupKey,
+          label: group.label,
+          sortOrder: group.sortOrder,
+          tasks: groupTasks,
         ),
       );
-    });
 
-    return list;
+      final groupedSteps = steps
+          .where((s) => resolveGroupId(s.groupId) == group.id)
+          .toList()
+        ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+
+      final seenLabels = <String>{};
+      for (final step in groupedSteps) {
+        final labelKey = step.label.trim().isNotEmpty ? step.label.trim() : step.id;
+        if (seenLabels.contains(labelKey)) continue;
+        seenLabels.add(labelKey);
+        final stepTasks = tasksByStepLabel['${group.id}||$labelKey'] ??
+            const <GanttTask>[];
+        rows.add(
+          ProcessStepRow(
+            groupId: group.id,
+            stepId: step.id,
+            stepKey: step.key,
+            label: step.label,
+            sortOrder: step.sortOrder,
+            tasks: stepTasks,
+          ),
+        );
+      }
+    }
+
+    return rows;
   }
 
-  List<ProcessGroupSummary> _filterSummariesByKeyword(
-    List<ProcessGroupSummary> summaries,
-  ) {
-    if (_keyword.isEmpty) return summaries;
+  List<ProcessTreeRow> _filterTreeRowsByKeyword(List<ProcessTreeRow> rows) {
+    if (_keyword.isEmpty) return rows;
     final kw = _keyword.toLowerCase();
-    return summaries
-        .where(
-          (s) =>
-              s.label.toLowerCase().contains(kw) ||
-              s.tasks.any((t) => t.name.toLowerCase().contains(kw)),
-        )
-        .toList();
+    final filtered = <ProcessTreeRow>[];
+    var index = 0;
+
+    while (index < rows.length) {
+      final row = rows[index];
+      if (row is ProcessGroupRow) {
+        final group = row;
+        final steps = <ProcessStepRow>[];
+        var cursor = index + 1;
+        while (
+          cursor < rows.length &&
+          rows[cursor] is ProcessStepRow &&
+          (rows[cursor] as ProcessStepRow).groupId == group.groupId
+        ) {
+          steps.add(rows[cursor] as ProcessStepRow);
+          cursor++;
+        }
+
+        final groupMatches = group.label.toLowerCase().contains(kw) ||
+            group.tasks.any((t) => t.name.toLowerCase().contains(kw));
+        final matchingSteps = steps
+            .where(
+              (s) =>
+                  s.label.toLowerCase().contains(kw) ||
+                  s.tasks.any((t) => t.name.toLowerCase().contains(kw)),
+            )
+            .toList();
+
+        if (groupMatches) {
+          filtered.add(group);
+          filtered.addAll(steps);
+        } else if (matchingSteps.isNotEmpty) {
+          filtered.add(group);
+          filtered.addAll(matchingSteps);
+        }
+
+        index = cursor;
+      } else {
+        index++;
+      }
+    }
+
+    return filtered;
   }
 
   void _onPlanDragStart(String groupKey, _DragMode mode) {
@@ -1171,10 +1870,10 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
   /// 工程別ビューで行をタップしたとき、その工程グループに属する製品別タスクの一覧をモーダルで表示する（閲覧専用）
   Future<void> _showProcessGroupDetail(
     BuildContext context,
-    ProcessGroupSummary summary,
+    ProcessGroupRow row,
     Color baseColor,
   ) async {
-    final tasks = summary.tasks;
+    final tasks = row.tasks;
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1201,7 +1900,7 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        summary.label,
+                        row.label,
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                     ],
@@ -1308,5 +2007,145 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
       _endDate = end;
       _totalDays = total;
     }
+  }
+}
+
+class GanttMiniMap extends StatefulWidget {
+  final ScrollController mainController;
+  final double dayWidth;
+  final double miniDayWidth;
+  final int daysCount;
+  final DateTime startDate;
+  final double height;
+
+  const GanttMiniMap({
+    super.key,
+    required this.mainController,
+    required this.dayWidth,
+    required this.miniDayWidth,
+    required this.daysCount,
+    required this.startDate,
+    required this.height,
+  });
+
+  @override
+  State<GanttMiniMap> createState() => _GanttMiniMapState();
+}
+
+class _GanttMiniMapState extends State<GanttMiniMap> {
+  @override
+  void initState() {
+    super.initState();
+    widget.mainController.addListener(_handleMainScroll);
+  }
+
+  @override
+  void dispose() {
+    widget.mainController.removeListener(_handleMainScroll);
+    super.dispose();
+  }
+
+  void _handleMainScroll() {
+    if (!mounted) return;
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final totalWidth = widget.dayWidth * widget.daysCount;
+    final miniTotalWidth = widget.miniDayWidth * widget.daysCount;
+    final hasClients = widget.mainController.hasClients;
+    final viewport = hasClients
+        ? widget.mainController.position.viewportDimension
+        : miniTotalWidth;
+    final offset = hasClients ? widget.mainController.offset : 0.0;
+    final maxScroll =
+        hasClients ? widget.mainController.position.maxScrollExtent : 0.0;
+
+    final viewportRatio =
+        totalWidth == 0 ? 1.0 : (viewport / totalWidth).clamp(0.0, 1.0);
+    final miniViewportWidth = (miniTotalWidth * viewportRatio).toDouble();
+
+    final miniScrollableWidth =
+        (miniTotalWidth - miniViewportWidth).clamp(0.0, double.infinity);
+    final scrollRatio =
+        maxScroll <= 0 ? 0.0 : (offset / maxScroll).clamp(0.0, 1.0);
+    final miniViewportX = (miniScrollableWidth * scrollRatio).toDouble();
+
+    final scaleToMain =
+        miniTotalWidth == 0 ? 1.0 : (totalWidth / miniTotalWidth);
+
+    void jumpMainByDelta(double miniDelta) {
+      if (!widget.mainController.hasClients) return;
+      final deltaMain = miniDelta * scaleToMain;
+      final min = widget.mainController.position.minScrollExtent;
+      final max = widget.mainController.position.maxScrollExtent;
+      final target =
+          (widget.mainController.offset + deltaMain).clamp(min, max);
+      widget.mainController.jumpTo(target);
+    }
+
+    void jumpMainToMiniPosition(double miniCenter) {
+      if (!widget.mainController.hasClients) return;
+      final desiredMainCenter = miniCenter * scaleToMain;
+      final min = widget.mainController.position.minScrollExtent;
+      final max = widget.mainController.position.maxScrollExtent;
+      final target = (desiredMainCenter - viewport / 2).clamp(min, max);
+      widget.mainController.jumpTo(target);
+    }
+
+    return SizedBox(
+      height: widget.height,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onPanUpdate: (details) => jumpMainByDelta(details.delta.dx),
+        onTapDown: (details) =>
+            jumpMainToMiniPosition(details.localPosition.dx),
+        child: Stack(
+          children: [
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.grey.withValues(alpha: 0.08),
+                border: Border(
+                  top: BorderSide(color: Colors.grey.shade300),
+                  bottom: BorderSide(color: Colors.grey.shade300),
+                ),
+              ),
+              child: Row(
+                children: List.generate(widget.daysCount, (i) {
+                  final d = widget.startDate.add(Duration(days: i));
+                  final isWeekend = d.weekday == DateTime.saturday ||
+                      d.weekday == DateTime.sunday;
+                  return Container(
+                    width: widget.miniDayWidth,
+                    height: double.infinity,
+                    color: isWeekend
+                        ? Colors.grey.withValues(alpha: 0.12)
+                        : Colors.transparent,
+                  );
+                }),
+              ),
+            ),
+            Positioned(
+              left: miniViewportX,
+              top: 4,
+              bottom: 4,
+              width: miniViewportWidth,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.blue.withValues(alpha: 0.12),
+                  border: Border.all(
+                    color: Colors.blue.withValues(alpha: 0.6),
+                    width: 1,
+                  ),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
