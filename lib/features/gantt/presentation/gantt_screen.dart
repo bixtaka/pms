@@ -168,12 +168,29 @@ class _TaskGeometry {
 const double kGanttRowHeight = 44.0;
 const double _leftPaneWidth = 280.0;
 const double _processStepIndent = 24.0;
-const List<double> _dayZoomLevels = [16.0, 24.0, 32.0, 48.0, 64.0];
+const List<double> _dayZoomLevels = [32.0, 48.0, 64.0];
+const int _dayViewPaddingAfterDays = 21; // 日ビュー専用の表示余白（日数）
 const int _timelinePaddingDaysBefore = 7;
 const int _timelinePaddingDaysAfter = 7;
 const int _timelineExtraScrollableDays = 14;
 const double _miniMapDayWidth = 3.0;
 const double _miniMapHeight = 40.0;
+
+ScrollController _createMainScrollController() {
+  final controller = ScrollController();
+  controller.addListener(() {
+    debugPrint('[GANTT MAIN] offset=${controller.offset}');
+  });
+  return controller;
+}
+
+ScrollController _createHeaderScrollController() {
+  final controller = ScrollController();
+  controller.addListener(() {
+    debugPrint('[GANTT HEADER] offset=${controller.offset}');
+  });
+  return controller;
+}
 
 class GanttScreen extends ConsumerStatefulWidget {
   final Project project;
@@ -192,7 +209,8 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
   static const double _timelineDayRowHeight = 18;
   // 日付スケール
   GanttDateScale _dateScale = GanttDateScale.month;
-  double _dayCellWidth = 32.0; // 日ビュー用の可変セル幅（ズーム）
+  int _dayZoomIndex = 0; // 日ビューのズーム段階（0:標準,1:中,2:最大）
+  double _dayCellWidth = _dayZoomLevels[0]; // 日ビュー用の可変セル幅（ズーム）
 
   double get _dayWidth {
     switch (_dateScale) {
@@ -205,26 +223,73 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
     }
   }
 
+  bool get _isDayView => _dateScale == GanttDateScale.day;
+
+  DateTime _getDayViewDisplayStart(int zoomIndex) {
+    final d = _startDate;
+    debugPrint(
+      '[_getDayViewDisplayStart] zoomIndex=$zoomIndex, start=$d',
+    );
+    return d;
+  }
+
+  DateTime _getDayViewDisplayEnd(int zoomIndex) {
+    const int kZoom1Days = 45;
+    const int kZoom2Days = 35;
+
+    // ズーム0（最小ズーム／縮小）は実データ全期間をベースに表示
+    // 必要であれば UI 用に少しだけ先を見せる（余白）
+    if (zoomIndex == 0) {
+      final d = _endDate.add(
+        const Duration(days: _dayViewPaddingAfterDays),
+      );
+      debugPrint(
+        '[_getDayViewDisplayEnd] zoomIndex=0, end=$d (endDate=$_endDate, padding=$_dayViewPaddingAfterDays)',
+      );
+      return d;
+    }
+
+    if (zoomIndex == 1) {
+      final d = _startDate.add(const Duration(days: kZoom1Days));
+      debugPrint(
+        '[_getDayViewDisplayEnd] zoomIndex=1, end=$d (start=$_startDate, +$kZoom1Days days)',
+      );
+      return d;
+    }
+
+    final d = _startDate.add(const Duration(days: kZoom2Days));
+    debugPrint(
+      '[_getDayViewDisplayEnd] zoomIndex>=2, end=$d (start=$_startDate, +$kZoom2Days days)',
+    );
+    return d;
+  }
+
   DateTime _startDate = DateTime.now().subtract(
     const Duration(days: 3),
   ); // デフォルト
   DateTime _endDate = DateTime.now().add(const Duration(days: 14));
   int _totalDays = 18;
-  DateTime get _displayStartDate =>
-      _startDate.subtract(const Duration(days: _timelinePaddingDaysBefore));
-  DateTime get _displayEndDate =>
-      _endDate.add(const Duration(days: _timelinePaddingDaysAfter));
+  DateTime get _displayStartDate {
+    if (_isDayView) {
+      return _getDayViewDisplayStart(_dayZoomIndex);
+    }
+    return _startDate.subtract(const Duration(days: _timelinePaddingDaysBefore));
+  }
+
+  DateTime get _displayEndDate {
+    if (_isDayView) {
+      return _getDayViewDisplayEnd(_dayZoomIndex);
+    }
+    return _endDate.add(const Duration(days: _timelinePaddingDaysAfter));
+  }
 
   // スクロール同期用
   final ScrollController _leftScroll = ScrollController();
   final ScrollController _rightListScroll = ScrollController();
-  final ScrollController _rightScroll = ScrollController();
-  final ScrollController _rightHeaderScroll = ScrollController();
+  final ScrollController _rightScroll = _createMainScrollController();
+  final ScrollController _rightHeaderScroll = _createHeaderScrollController();
   bool _isSyncingVertical = false;
   bool _isSyncingHorizontal = false;
-  double _headerDragStartOffset = 0.0;
-  double _headerDragAccumDx = 0.0;
-  double _headerDragSpeed = 2.0; // ドラッグ体感を上げる倍率（必要に応じて調整）
 
   // 展開状態
   final Set<String> _expandedProductIds = <String>{};
@@ -288,20 +353,19 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
   }
 
   void _zoomInDayWidth() {
-    final current = _dayCellWidth;
-    final currentIndex =
-        _dayZoomLevels.lastIndexWhere((level) => level <= current);
-    final nextIndex = (currentIndex + 1).clamp(0, _dayZoomLevels.length - 1);
-    _changeDayWidth(_dayZoomLevels[nextIndex]);
+    final nextIndex = (_dayZoomIndex + 1).clamp(0, _dayZoomLevels.length - 1);
+    if (nextIndex == _dayZoomIndex) return;
+    _dayZoomIndex = nextIndex;
+    debugPrint('[zoom] direction=+1, dayWidth=$_dayCellWidth -> zoomIndex=$_dayZoomIndex');
+    _changeDayWidth(_dayZoomLevels[_dayZoomIndex]);
   }
 
   void _zoomOutDayWidth() {
-    final current = _dayCellWidth;
-    final currentIndex =
-        _dayZoomLevels.indexWhere((level) => level >= current);
-    final idx = currentIndex == -1 ? _dayZoomLevels.length - 1 : currentIndex;
-    final prevIndex = (idx - 1).clamp(0, _dayZoomLevels.length - 1);
-    _changeDayWidth(_dayZoomLevels[prevIndex]);
+    final prevIndex = (_dayZoomIndex - 1).clamp(0, _dayZoomLevels.length - 1);
+    if (prevIndex == _dayZoomIndex) return;
+    _dayZoomIndex = prevIndex;
+    debugPrint('[zoom] direction=-1, dayWidth=$_dayCellWidth -> zoomIndex=$_dayZoomIndex');
+    _changeDayWidth(_dayZoomLevels[_dayZoomIndex]);
   }
 
   @override
@@ -361,6 +425,40 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
       // ignore sync errors
     }
     _isSyncingHorizontal = false;
+  }
+
+  double _computeHeaderDragScale(ScrollController controller) {
+    if (!controller.hasClients) return 1.0;
+
+    final viewport = controller.position.viewportDimension;
+    final maxScroll = controller.position.maxScrollExtent;
+
+    if (viewport <= 0 || maxScroll <= 0) {
+      return 1.0; // スクロールできない場合は等倍
+    }
+
+    return maxScroll / viewport;
+  }
+
+  int _computeDaysCount({
+    required int visibleDays,
+    required double availableWidth,
+  }) {
+    if (_isDayView) {
+      // 日ビューでも表示幅が狭すぎてスクロールできなくならないよう、
+      // 必ず「見せたい日数」と「表示に必要な最小日数」の大きい方を使う。
+      final requiredDays =
+          (availableWidth / _dayWidth).ceil().clamp(1, 365) as int;
+      return visibleDays > requiredDays ? visibleDays : requiredDays;
+    }
+
+    final requiredDays =
+        (availableWidth / _dayWidth).ceil().clamp(1, 365) as int;
+    final minScrollableDays =
+        (visibleDays + _timelineExtraScrollableDays).clamp(1, 365) as int;
+    return requiredDays > minScrollableDays
+        ? requiredDays
+        : minScrollableDays;
   }
 
   List<GanttRowEntry> _buildRowEntries(List<GanttProduct> products) {
@@ -493,6 +591,9 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
               switch (i) {
                 case 0:
                   _dateScale = GanttDateScale.day;
+                  _dayZoomIndex = 0;
+                  debugPrint('[zoom] select=day, reset zoomIndex=$_dayZoomIndex');
+                  _changeDayWidth(_dayZoomLevels[_dayZoomIndex]);
                   break;
                 case 1:
                   _dateScale = GanttDateScale.week;
@@ -779,6 +880,7 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
   }
 
   Widget _buildProcessGroupTile(BuildContext context, ProcessGroupRow row) {
+    const groupBg = Color(0xFFF2F2F2);
     final color = _taskBaseColorByLabel(row.label);
     final expanded = _isGroupExpanded(row.groupId);
     final start = _minTaskStart(row.tasks);
@@ -788,16 +890,26 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
       if (start != null && end != null) '${_formatDate(start)} 〜 ${_formatDate(end)}',
     ];
     final avgProgress = _averageProgress(row.tasks);
-    return SizedBox(
+    return Container(
       height: _rowHeight,
+      color: groupBg,
       child: ListTile(
         dense: true,
         visualDensity: VisualDensity.compact,
-        leading: IconButton(
-          icon: Icon(expanded ? Icons.expand_more : Icons.chevron_right),
-          onPressed: () => _toggleGroupExpanded(row.groupId),
+        leading: SizedBox(
+          width: 28,
+          child: IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+            iconSize: 20,
+            icon: Icon(expanded ? Icons.expand_more : Icons.chevron_right),
+            onPressed: () => _toggleGroupExpanded(row.groupId),
+          ),
         ),
-        title: Text(row.label),
+        title: Text(
+          row.label,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -818,6 +930,7 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
   }
 
   Widget _buildProcessStepTile(ProcessStepRow row) {
+    const stepBg = Colors.white;
     final color = _taskBaseColorByLabel(row.label);
     final start = _minTaskStart(row.tasks);
     final end = _maxTaskEnd(row.tasks);
@@ -825,8 +938,9 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
       'タスク数: ${row.tasks.length}',
       if (start != null && end != null) '${_formatDate(start)} 〜 ${_formatDate(end)}',
     ];
-    return SizedBox(
+    return Container(
       height: _rowHeight,
+      color: stepBg,
       child: Padding(
         padding: const EdgeInsets.only(left: _processStepIndent),
         child: ListTile(
@@ -848,7 +962,12 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
               ],
             ),
           ),
-          title: Text(row.label, maxLines: 1, overflow: TextOverflow.ellipsis),
+          title: Text(
+            row.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.normal),
+          ),
           subtitle: Text(subtitleParts.join(' / ')),
           onTap: () {
             // step 行のタップ時の動きは今後拡張
@@ -881,11 +1000,26 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
         final visibleDays = displayEnd.difference(displayStart).inDays + 1;
         final timelineWidth =
             (constraints.maxWidth - _leftPaneWidth).clamp(1.0, double.infinity);
-        final requiredDays =
-            (timelineWidth / _dayWidth).ceil().clamp(1, 365);
-        final minScrollableDays =
-            (visibleDays + _timelineExtraScrollableDays).clamp(1, 365);
-        final daysCount = math.max(requiredDays, minScrollableDays);
+        final daysCount = _computeDaysCount(
+          visibleDays: visibleDays,
+          availableWidth: timelineWidth,
+        );
+        if (_isDayView) {
+          debugPrint(
+            '[DayTimeline][ProcessUnified] zoomIndex=$_dayZoomIndex, '
+            'displayStart=$displayStart, displayEnd=$displayEnd, '
+            'visibleDays=$visibleDays, timelineWidth=$timelineWidth, '
+            'daysCount=$daysCount, dayWidth=$_dayWidth',
+          );
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (_rightScroll.hasClients) {
+              debugPrint(
+                '[DayTimeline][ProcessUnified] maxScrollExtent=${_rightScroll.position.maxScrollExtent}, '
+                'viewport=${_rightScroll.position.viewportDimension}',
+              );
+            }
+          });
+        }
         _totalDays = daysCount;
 
         return Column(
@@ -1021,11 +1155,26 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
         final displayStart = _displayStartDate;
         final displayEnd = _displayEndDate;
         final visibleDays = displayEnd.difference(displayStart).inDays + 1;
-        final requiredDays =
-            (constraints.maxWidth / _dayWidth).ceil().clamp(1, 365);
-        final minScrollableDays =
-            (visibleDays + _timelineExtraScrollableDays).clamp(1, 365);
-        final daysCount = math.max(requiredDays, minScrollableDays);
+        final daysCount = _computeDaysCount(
+          visibleDays: visibleDays,
+          availableWidth: constraints.maxWidth,
+        );
+        if (_isDayView) {
+          debugPrint(
+            '[DayTimeline][ByProduct] zoomIndex=$_dayZoomIndex, '
+            'displayStart=$displayStart, displayEnd=$displayEnd, '
+            'visibleDays=$visibleDays, availableWidth=${constraints.maxWidth}, '
+            'daysCount=$daysCount, dayWidth=$_dayWidth',
+          );
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (_rightScroll.hasClients) {
+              debugPrint(
+                '[DayTimeline][ByProduct] maxScrollExtent=${_rightScroll.position.maxScrollExtent}, '
+                'viewport=${_rightScroll.position.viewportDimension}',
+              );
+            }
+          });
+        }
         // _totalDays を最新に合わせておく（他ヘルパーで参照するため）
         _totalDays = daysCount;
         return Column(
@@ -1079,11 +1228,26 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
         final displayStart = _displayStartDate;
         final displayEnd = _displayEndDate;
         final visibleDays = displayEnd.difference(displayStart).inDays + 1;
-        final requiredDays =
-            (constraints.maxWidth / _dayWidth).ceil().clamp(1, 365);
-        final minScrollableDays =
-            (visibleDays + _timelineExtraScrollableDays).clamp(1, 365);
-        final daysCount = math.max(requiredDays, minScrollableDays);
+        final daysCount = _computeDaysCount(
+          visibleDays: visibleDays,
+          availableWidth: constraints.maxWidth,
+        );
+        if (_isDayView) {
+          debugPrint(
+            '[DayTimeline][ByProcess] zoomIndex=$_dayZoomIndex, '
+            'displayStart=$displayStart, displayEnd=$displayEnd, '
+            'visibleDays=$visibleDays, availableWidth=${constraints.maxWidth}, '
+            'daysCount=$daysCount, dayWidth=$_dayWidth',
+          );
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (_rightScroll.hasClients) {
+              debugPrint(
+                '[DayTimeline][ByProcess] maxScrollExtent=${_rightScroll.position.maxScrollExtent}, '
+                'viewport=${_rightScroll.position.viewportDimension}',
+              );
+            }
+          });
+        }
         _totalDays = daysCount;
         return Column(
           children: [
@@ -1136,36 +1300,30 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
       (i) => startDate.add(Duration(days: i)),
     );
 
+    final mainController = _rightScroll;
+    final headerController = _rightHeaderScroll;
     final totalWidth = daysCount * _dayWidth;
     final headerHeight = _timelineMonthRowHeight + _timelineDayRowHeight;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       dragStartBehavior: DragStartBehavior.down,
-      onHorizontalDragStart: (_) {
-        if (_rightScroll.hasClients) {
-          _headerDragStartOffset = _rightScroll.offset;
-          _headerDragAccumDx = 0.0;
-          debugPrint(
-            '[HEADER DRAG] start offset=${_rightScroll.offset}',
-          );
-        }
-      },
       onHorizontalDragUpdate: (details) {
-        if (!_rightScroll.hasClients) return;
-        _headerDragAccumDx += details.delta.dx * _headerDragSpeed;
-        final min = _rightScroll.position.minScrollExtent;
-        final max = _rightScroll.position.maxScrollExtent;
-        final target = (_headerDragStartOffset - _headerDragAccumDx)
-            .clamp(min, max);
+        if (!mainController.hasClients) return;
+
+        final double scale = _computeHeaderDragScale(mainController);
+        final double delta = details.delta.dx * scale;
+        final double maxScroll = mainController.position.maxScrollExtent;
+        final double oldOffset = mainController.offset;
+        final double newOffset =
+            (oldOffset - delta).clamp(0.0, maxScroll);
         debugPrint(
           '[HEADER DRAG] delta.dx=${details.delta.dx}, '
-          'speed=$_headerDragSpeed, '
-          'accumDx=$_headerDragAccumDx, '
-          'oldOffset=$_headerDragStartOffset, '
-          'newOffset=$target, '
-          'max=$max',
+          'scale=$scale, '
+          'oldOffset=$oldOffset, '
+          'newOffset=$newOffset, '
+          'maxScroll=$maxScroll',
         );
-        _rightScroll.jumpTo(target);
+        mainController.jumpTo(newOffset);
       },
       child: SizedBox(
         height: headerHeight,
@@ -1178,7 +1336,7 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
             Expanded(
               child: SingleChildScrollView(
                 physics: const NeverScrollableScrollPhysics(),
-                controller: _rightHeaderScroll,
+                controller: headerController,
                 scrollDirection: Axis.horizontal,
                 child: SizedBox(
                   width: totalWidth,
@@ -2007,6 +2165,9 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
       _endDate = end;
       _totalDays = total;
     }
+    debugPrint(
+      '[_updateDateRange] _startDate=$_startDate, _endDate=$_endDate, _totalDays=$_totalDays',
+    );
   }
 }
 
@@ -2054,13 +2215,15 @@ class _GanttMiniMapState extends State<GanttMiniMap> {
   Widget build(BuildContext context) {
     final totalWidth = widget.dayWidth * widget.daysCount;
     final miniTotalWidth = widget.miniDayWidth * widget.daysCount;
-    final hasClients = widget.mainController.hasClients;
-    final viewport = hasClients
-        ? widget.mainController.position.viewportDimension
-        : miniTotalWidth;
-    final offset = hasClients ? widget.mainController.offset : 0.0;
-    final maxScroll =
-        hasClients ? widget.mainController.position.maxScrollExtent : 0.0;
+    final position = widget.mainController.positions.isNotEmpty
+        ? widget.mainController.positions.first
+        : null;
+    final hasViewport = position?.hasViewportDimension == true;
+    final hasPixels = position?.hasPixels == true;
+    final hasContent = position?.hasContentDimensions == true;
+    final viewport = hasViewport ? position!.viewportDimension : miniTotalWidth;
+    final offset = hasPixels ? position!.pixels : 0.0;
+    final maxScroll = hasContent ? position!.maxScrollExtent : 0.0;
 
     final viewportRatio =
         totalWidth == 0 ? 1.0 : (viewport / totalWidth).clamp(0.0, 1.0);
