@@ -68,6 +68,7 @@ class FirestoreGanttRepository implements GanttRepository {
               : product.name,
           name: product.name.isNotEmpty ? product.name : product.productCode,
           progress: avgProgress.isNaN ? 0.0 : avgProgress,
+          quantity: product.quantity,
           tasks: taskList,
         );
       }),

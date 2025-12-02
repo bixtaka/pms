@@ -16,20 +16,19 @@ class ProcessProgressSaveService {
     required int doneQty,
     String note = '',
   }) async {
-    // 未来日禁止
-    final onlyDate = DateTime(date.year, date.month, date.day);
+    final requestedDate = DateTime(date.year, date.month, date.day);
     final today = DateTime.now();
     final todayOnly = DateTime(today.year, today.month, today.day);
-    if (onlyDate.isAfter(todayOnly)) {
-      throw StateError('未来日への入力は不可です');
-    }
+    final clampedDate =
+        requestedDate.isAfter(todayOnly) ? todayOnly : requestedDate;
+    final safeDoneQty = doneQty < 0 ? 0 : doneQty;
 
     await _dailyRepo.upsertDaily(
       projectId: projectId,
       productId: productId,
       stepId: stepId,
-      date: onlyDate,
-      doneQty: doneQty,
+      date: clampedDate,
+      doneQty: safeDoneQty,
       note: note,
     );
   }

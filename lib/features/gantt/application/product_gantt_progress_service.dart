@@ -1,0 +1,199 @@
+import 'package:flutter/foundation.dart';
+
+import '../../process_spec/data/process_progress_daily_repository.dart';
+
+DateTime _toDateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
+
+/// 1日分の工程実績
+class ProductStepDailyProgress {
+  final String productId;
+  final String stepId;
+  final DateTime date;
+  final int doneQty;
+  final bool inProgress;
+
+  const ProductStepDailyProgress({
+    required this.productId,
+    required this.stepId,
+    required this.date,
+    required this.doneQty,
+    required this.inProgress,
+  });
+}
+
+enum GanttBarKind { planned, actual }
+
+enum GanttBarStatus { notStarted, inProgress, done }
+
+/// ガントに描画する連続実績バー
+class ProductGanttBar {
+  final String productId;
+  final String stepId;
+  final DateTime startDate;
+  final DateTime endDate;
+  final int totalDoneQty;
+  final bool isCompleted;
+  final GanttBarKind kind;
+  final GanttBarStatus status;
+
+  const ProductGanttBar({
+    required this.productId,
+    required this.stepId,
+    required this.startDate,
+    required this.endDate,
+    required this.totalDoneQty,
+    required this.isCompleted,
+    required this.kind,
+    required this.status,
+  });
+}
+
+/// 日別進捗をまとめて取得し、ガント用バーへ変換するサービス
+class ProductGanttProgressService {
+  final ProcessProgressDailyRepository dailyRepo;
+
+  ProductGanttProgressService(this.dailyRepo);
+
+  /// 指定期間＋製品リストの実績（日単位）をまとめて取得
+  Future<List<ProductStepDailyProgress>> fetchDailyProgressForRange({
+    required String projectId,
+    required DateTime start,
+    required DateTime end,
+    List<String>? productIds,
+  }) async {
+    final targets = productIds ?? const <String>[];
+    if (targets.isEmpty) return const [];
+    final startOnly = _toDateOnly(start);
+    final endOnly = _toDateOnly(end);
+    final result = <ProductStepDailyProgress>[];
+
+    for (final productId in targets) {
+      final dailies = await dailyRepo.fetchDaily(projectId, productId);
+      for (final d in dailies) {
+        final dateOnly = _toDateOnly(d.date);
+        if (dateOnly.isBefore(startOnly) || dateOnly.isAfter(endOnly)) continue;
+        final safeQty = d.doneQty < 0 ? 0 : d.doneQty;
+        final inProgress = safeQty <= 0;
+        result.add(
+          ProductStepDailyProgress(
+            productId: productId,
+            stepId: d.stepId,
+            date: dateOnly,
+            doneQty: safeQty,
+            inProgress: inProgress,
+          ),
+        );
+      }
+    }
+    return result;
+  }
+
+  /// 日別実績を連続バーへ変換（同一productId+stepIdで隣接日をまとめる）
+  List<ProductGanttBar> buildBarsFromDaily(
+    List<ProductStepDailyProgress> list, {
+    Map<String, int>? productQuantities,
+  }) {
+    if (list.isEmpty) return const [];
+    final grouped = <String, List<ProductStepDailyProgress>>{};
+    for (final d in list) {
+      // 実績 or 作業中のみ対象
+      if (d.doneQty <= 0 && !d.inProgress) continue;
+      final key = '${d.productId}__${d.stepId}';
+      grouped.putIfAbsent(key, () => <ProductStepDailyProgress>[]).add(d);
+    }
+
+    final bars = <ProductGanttBar>[];
+    grouped.forEach((key, values) {
+      values.sort((a, b) => a.date.compareTo(b.date));
+      ProductStepDailyProgress? currentStart;
+      DateTime? currentEnd;
+      int accQty = 0;
+      bool allCompleted = true;
+
+      final parts = key.split('__');
+      final productId = parts.first;
+      final stepId = parts.length > 1 ? parts.last : '';
+
+      for (final d in values) {
+        if (currentStart == null) {
+          currentStart = d;
+          currentEnd = d.date;
+          accQty = d.doneQty;
+          allCompleted = d.doneQty > 0;
+          continue;
+        }
+        final gap = d.date.difference(currentEnd!).inDays;
+        if (gap <= 1) {
+          currentEnd = d.date;
+          accQty += d.doneQty;
+          allCompleted = allCompleted && d.doneQty > 0;
+        } else {
+          bars.add(
+            _logAndBuildBar(
+              productId: productId,
+              stepId: stepId,
+              start: currentStart!.date,
+              end: currentEnd!,
+              totalQty: accQty,
+              isCompleted: allCompleted,
+              productQuantity: productQuantities?[productId],
+            ),
+          );
+          currentStart = d;
+          currentEnd = d.date;
+          accQty = d.doneQty;
+          allCompleted = d.doneQty > 0;
+        }
+      }
+      if (currentStart != null && currentEnd != null) {
+        bars.add(
+          _logAndBuildBar(
+            productId: productId,
+            stepId: stepId,
+            start: currentStart.date,
+            end: currentEnd,
+            totalQty: accQty,
+            isCompleted: allCompleted,
+            productQuantity: productQuantities?[productId],
+          ),
+        );
+      }
+    });
+    return bars;
+  }
+
+  ProductGanttBar _logAndBuildBar({
+    required String productId,
+    required String stepId,
+    required DateTime start,
+    required DateTime end,
+    required int totalQty,
+    required bool isCompleted,
+    int? productQuantity,
+  }) {
+    GanttBarStatus _resolveStatus() {
+      if (totalQty <= 0) return GanttBarStatus.notStarted;
+      if (productQuantity != null && productQuantity > 0) {
+        if (totalQty >= productQuantity) return GanttBarStatus.done;
+        return GanttBarStatus.inProgress;
+      }
+      return isCompleted ? GanttBarStatus.done : GanttBarStatus.inProgress;
+    }
+
+    final status = _resolveStatus();
+    final bar = ProductGanttBar(
+      productId: productId,
+      stepId: stepId,
+      startDate: _toDateOnly(start),
+      endDate: _toDateOnly(end),
+      totalDoneQty: totalQty,
+      isCompleted: isCompleted,
+      kind: GanttBarKind.actual,
+      status: status,
+    );
+    //debugPrint(
+    //  'bar: ${bar.startDate.toIso8601String()} - ${bar.endDate.toIso8601String()}',
+    //);
+    return bar;
+  }
+}

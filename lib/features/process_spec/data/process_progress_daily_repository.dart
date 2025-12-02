@@ -132,21 +132,21 @@ class ProcessProgressDailyRepository {
     required int doneQty,
     String note = '',
   }) async {
-    final onlyDate = DateTime(date.year, date.month, date.day);
+    final requestedDate = DateTime(date.year, date.month, date.day);
     final today = DateTime.now();
     final todayOnly = DateTime(today.year, today.month, today.day);
-    if (onlyDate.isAfter(todayOnly)) {
-      throw StateError('未来日への入力は不可です');
-    }
+    final clampedDate =
+        requestedDate.isAfter(todayOnly) ? todayOnly : requestedDate;
+    final safeDoneQty = doneQty < 0 ? 0 : doneQty;
 
     final docId =
-        '${stepId}_${onlyDate.year.toString().padLeft(4, '0')}${onlyDate.month.toString().padLeft(2, '0')}${onlyDate.day.toString().padLeft(2, '0')}';
+        '${stepId}_${clampedDate.year.toString().padLeft(4, '0')}${clampedDate.month.toString().padLeft(2, '0')}${clampedDate.day.toString().padLeft(2, '0')}';
     final col = _col(projectId, productId);
     await col.doc(docId).set({
       'stepId': stepId,
-      'completedQuantity': doneQty < 0 ? 0 : doneQty,
+      'completedQuantity': safeDoneQty,
       'remarks': note,
-      'updatedAt': Timestamp.fromDate(onlyDate),
+      'updatedAt': Timestamp.fromDate(clampedDate),
     }, SetOptions(merge: true));
   }
 }
