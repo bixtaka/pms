@@ -182,7 +182,7 @@ const double _miniMapHeight = 40.0;
 const Color kGanttPlannedBarColor = Color(0xFFCFD8DC);
 const Color kGanttActualInProgressColor = Color(0xFFFFB300);
 const Color kGanttActualDoneColor = Color(0xFF42A5F5);
-const double kGanttPlannedBarHeight = 6.0;
+const double kGanttPlannedBarHeight = 4.0;
 const double kGanttActualBarHeight = 12.0;
 const double kGanttPlannedBarRadius = 4.0;
 const double kGanttActualBarRadius = 6.0;
@@ -1852,9 +1852,6 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
   ) {
     final geo = _computeTaskGeometry(task, startDate, daysCount, _dayWidth);
     if (geo == null) return const SizedBox.shrink();
-    final progress = task.progress.clamp(0.0, 1.0);
-    final actualColor =
-        progress >= 1.0 ? kGanttActualDoneColor : kGanttActualInProgressColor;
 
     return Positioned(
       left: geo.left,
@@ -1865,12 +1862,6 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
             width: geo.width,
             color: kGanttPlannedBarColor,
           ),
-          if (progress > 0)
-            _buildLayeredBar(
-              width: geo.width,
-              baseColor: actualColor,
-              progress: progress,
-            ),
         ],
       ),
     );
@@ -1960,15 +1951,22 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
     if (bar.status == GanttBarStatus.notStarted) return const SizedBox.shrink();
     final color =
         bar.status == GanttBarStatus.done ? kGanttActualDoneColor : kGanttActualInProgressColor;
+    const double minWidth = 6.0;
+    final double width = geo.width < minWidth ? minWidth : geo.width;
+    final double left = geo.width < minWidth ? geo.left - (minWidth - geo.width) / 2 : geo.left;
     return Positioned(
-      left: geo.left,
+      left: left,
       top: (_rowHeight - kGanttActualBarHeight) / 2,
       child: Container(
-        width: geo.width,
+        width: width,
         height: kGanttActualBarHeight,
         decoration: BoxDecoration(
-          color: color,
+          color: color.withValues(alpha: 0.85),
           borderRadius: BorderRadius.circular(kGanttActualBarRadius),
+          border: Border.all(
+            color: color.withValues(alpha: 1.0),
+            width: 1,
+          ),
         ),
       ),
     );
