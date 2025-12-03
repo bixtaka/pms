@@ -1885,11 +1885,9 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
       height: _rowHeight,
       child: Stack(
         children: [
-          // Note: productヘッダ行は現状グリッドなし（必要ならヘッダ表現を追加）
-          Positioned.fill(child: Container()),
+          Positioned.fill(child: _buildRowGrid(daysCount, startDate)),
           _buildTodayLine(startDate, daysCount),
-          for (final task in product.tasks)
-            _buildTaskBar(task, daysCount, startDate),
+          // productヘッダ行ではバーは描かない（タスク行側で連続バーを表示）
         ],
       ),
     );
@@ -1925,67 +1923,6 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
               startDate: startDate,
               totalDays: daysCount,
             ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTaskBar(GanttTask task, int daysCount, DateTime startDate) {
-    final geo = _computeTaskGeometry(task, startDate, daysCount, _dayWidth);
-    if (geo == null) return const SizedBox.shrink();
-    final plannedColor = kGanttPlannedBarColor;
-    final progress = task.progress.clamp(0.0, 1.0);
-    final actualColor =
-        progress >= 1.0 ? kGanttActualDoneColor : kGanttActualInProgressColor;
-
-    return Positioned(
-      left: geo.left,
-      top: (_rowHeight - kGanttActualBarHeight) / 2,
-      child: Stack(
-        children: [
-          _buildPlannedBar(
-            width: geo.width,
-            color: plannedColor,
-          ),
-          if (progress > 0)
-            _buildLayeredBar(
-              width: geo.width,
-              baseColor: actualColor,
-              progress: progress,
-            ),
-        ],
-      ),
-    );
-  }
-
-  /// 予定(細)＋実績(太)の2レイヤー構造バーを描画する。
-  /// - 予定バー: full width・高さ10・淡い色
-  /// - 実績バー: progressに応じた幅・高さ14・濃い色
-  Widget _buildLayeredBar({
-    required double width,
-    required Color baseColor,
-    required double progress,
-  }) {
-    const double actualHeight = kGanttActualBarHeight;
-    final double clampedProgress = progress.clamp(0.0, 1.0);
-
-    return SizedBox(
-      width: width,
-      height: actualHeight,
-      child: Stack(
-        alignment: Alignment.centerLeft,
-        children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Container(
-              width: width * clampedProgress,
-              height: actualHeight,
-              decoration: BoxDecoration(
-                color: baseColor,
-                borderRadius: BorderRadius.circular(kGanttActualBarRadius),
-              ),
-            ),
-          ),
         ],
       ),
     );
