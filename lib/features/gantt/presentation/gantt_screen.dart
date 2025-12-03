@@ -726,6 +726,20 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
     return result;
   }
 
+  List<_MatrixStep> _uniqueSteps(List<_MatrixStep> steps) {
+    final List<_MatrixStep> result = [];
+    final Set<String> seen = {};
+    for (final s in steps) {
+      final parentLabel = (s.groupName).trim();
+      final childLabel = s.label.trim();
+      final key = '$parentLabel::$childLabel';
+      if (seen.add(key)) {
+        result.add(s);
+      }
+    }
+    return result;
+  }
+
   List<ProductGanttBar> _barsForProductStep(
     Map<String, List<ProductGanttBar>> map,
     String productId,
@@ -1493,7 +1507,7 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
               ],
             );
 
-            final statusSteps = _buildUiStepsForStatusView(groups, steps);
+            final statusSteps = _uniqueSteps(_buildUiStepsForStatusView(groups, steps));
 
             final matrixView = _buildProductProcessStatusView(
               productRows: rows,
@@ -1658,18 +1672,20 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
       );
     }
 
+    final uniqueSteps = _uniqueSteps(steps);
+
     final statusMap = <String, Map<String, ProcessCellStatus>>{};
     for (final product in products) {
       final productBars = barsMap[product.id] ?? <String, List<ProductGanttBar>>{};
       final stepStatuses = <String, ProcessCellStatus>{};
-      for (final step in steps) {
+      for (final step in uniqueSteps) {
         final barsForStep = productBars[step.id] ?? const <ProductGanttBar>[];
         stepStatuses[step.id] = _statusFromBars(barsForStep);
       }
       statusMap[product.id] = stepStatuses;
     }
 
-    final headerGroups = _buildHeaderGroups(steps);
+    final headerGroups = _buildHeaderGroups(uniqueSteps);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1709,7 +1725,7 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
                     Row(
                       children: [
                         const SizedBox(width: productColWidth, height: headerRowHeight),
-                        for (final step in steps)
+                        for (final step in uniqueSteps)
                           Container(
                             width: cellWidth,
                             height: headerRowHeight,
@@ -1742,7 +1758,7 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        for (final step in steps)
+                        for (final step in uniqueSteps)
                           _buildStatusCellFor(
                             product: product,
                             step: step,
