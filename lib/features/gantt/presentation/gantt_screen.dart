@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
@@ -183,9 +185,10 @@ const Color kGanttPlannedBarColor = Color(0xFFCFD8DC);
 const Color kGanttActualInProgressColor = Color(0xFFFFB300);
 const Color kGanttActualDoneColor = Color(0xFF42A5F5);
 const double kGanttPlannedBarHeight = 4.0;
-const double kGanttActualBarHeight = 12.0;
+const double kGanttActualBarHeight = 8.0;
 const double kGanttPlannedBarRadius = 4.0;
-const double kGanttActualBarRadius = 6.0;
+const double kGanttActualBarRadius = 3.0;
+const double kGanttActualBarMinWidth = 6.0;
 
 DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 typedef DayCellBuilder = Widget Function(
@@ -1951,9 +1954,11 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
     if (bar.status == GanttBarStatus.notStarted) return const SizedBox.shrink();
     final color =
         bar.status == GanttBarStatus.done ? kGanttActualDoneColor : kGanttActualInProgressColor;
-    const double minWidth = 6.0;
-    final double width = geo.width < minWidth ? minWidth : geo.width;
-    final double left = geo.width < minWidth ? geo.left - (minWidth - geo.width) / 2 : geo.left;
+    final double dayWidth = _dayWidth;
+    final double minWidth = math.max(kGanttActualBarMinWidth, dayWidth * 0.8);
+    final double rawWidth = geo.width;
+    final double width = rawWidth < minWidth ? minWidth : rawWidth;
+    final double left = rawWidth < minWidth ? geo.left - (minWidth - rawWidth) / 2 : geo.left;
     return Positioned(
       left: left,
       top: (_rowHeight - kGanttActualBarHeight) / 2,
