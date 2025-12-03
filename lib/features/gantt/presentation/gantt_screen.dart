@@ -27,6 +27,32 @@ enum GanttDateScale { day, week, month }
 /// 計画バーのドラッグモード（スライド／左右リサイズ）
 enum _DragMode { move, resizeLeft, resizeRight }
 
+/// 製品別タブのビュー切り替え
+enum ProductViewMode { schedule, processStatus }
+
+/// 工程ステータスマトリクス用ステータス
+enum ProcessCellStatus { notStarted, inProgress, done }
+
+class _MatrixProduct {
+  final String id;
+  final String label;
+
+  const _MatrixProduct({
+    required this.id,
+    required this.label,
+  });
+}
+
+class _MatrixStep {
+  final String id;
+  final String label;
+
+  const _MatrixStep({
+    required this.id,
+    required this.label,
+  });
+}
+
 /// 1タスク（工種）を表すモデル
 class GanttTask {
   final String id;
@@ -242,6 +268,7 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
   static const double _rowHeight = kGanttRowHeight;
   static const double _timelineMonthRowHeight = 18;
   static const double _timelineDayRowHeight = 18;
+  ProductViewMode _productViewMode = ProductViewMode.schedule;
   // 日付スケール
   GanttDateScale _dateScale = GanttDateScale.month;
   int _dayZoomIndex = 0; // 日ビューのズーム段階（0:標準,1:中,2:最大）
@@ -643,6 +670,32 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
     return map;
   }
 
+  List<_MatrixStep> _buildUiStepsForStatusView(
+    List<ProcessGroup> groups,
+    List<ProcessStep> steps,
+  ) {
+    final List<_MatrixStep> uiSteps = [];
+    final sortedGroups = [...groups]..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+
+    for (final group in sortedGroups) {
+      final groupSteps = steps
+          .where((s) => s.groupId == group.id)
+          .toList()
+        ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+
+      for (final step in groupSteps) {
+        uiSteps.add(
+          _MatrixStep(
+            id: step.id,
+            label: '${group.label} ${step.label}',
+          ),
+        );
+      }
+    }
+
+    return uiSteps;
+  }
+
   List<ProductGanttBar> _barsForProductStep(
     Map<String, List<ProductGanttBar>> map,
     String productId,
@@ -869,6 +922,8 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
                 content = _buildTimelineByProduct(
                   rowEntries,
                   asyncProductBars,
+                  spec.groups,
+                  spec.steps,
                 );
               }
 
@@ -1108,15 +1163,7 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
     required List<ProcessVisibleRow> visibleProcessRows,
     AsyncValue<List<ProductGanttBar>>? productBars,
   }) {
-    switch (_viewMode) {
-      case GanttViewMode.byProduct:
-        return _buildTimelineByProduct(
-          rowEntries,
-          productBars ?? const AsyncValue.data(<ProductGanttBar>[]),
-        );
-      case GanttViewMode.byProcess:
-        return _buildTimelineByProcess(visibleProcessRows);
-    }
+    return _buildTimelineByProcess(visibleProcessRows);
   }
 
   /// 工程別ビューを「左セル＋右セル」を1行にまとめた単一ListViewで描画する。
@@ -1290,12 +1337,21 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
   Widget _buildTimelineByProduct(
     List<GanttRowEntry> rows,
     AsyncValue<List<ProductGanttBar>> barsAsync,
+    List<ProcessGroup> groups,
+    List<ProcessStep> steps,
   ) {
     return barsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(child: Text('実績の取得に失敗しました: $e')),
       data: (bars) {
         final barsMap = _groupBarsByProductStep(bars);
+        final matrixBarsMap = <String, Map<String, List<ProductGanttBar>>>{};
+        for (final bar in bars) {
+          matrixBarsMap.putIfAbsent(bar.productId, () => <String, List<ProductGanttBar>>{});
+          matrixBarsMap[bar.productId]!
+              .putIfAbsent(bar.stepId, () => <ProductGanttBar>[])
+              .add(bar);
+        }
         return LayoutBuilder(
           builder: (context, constraints) {
             final displayStart = _displayStartDate;
@@ -1326,7 +1382,7 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
             final headerHeight =
                 _timelineMonthRowHeight + _timelineDayRowHeight;
 
-            return Column(
+            final scheduleView = Column(
               children: [
                 Row(
                   children: [
@@ -1406,9 +1462,289 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
                 ),
               ],
             );
+
+            final statusSteps = _buildUiStepsForStatusView(groups, steps);
+
+            final matrixView = _buildProductProcessStatusView(
+              productRows: rows,
+              steps: statusSteps,
+              barsMap: matrixBarsMap,
+            );
+
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: _buildProductViewModeToggle(),
+                  ),
+                ),
+                Expanded(
+                  child: _productViewMode == ProductViewMode.schedule
+                      ? scheduleView
+                      : matrixView,
+                ),
+              ],
+            );
           },
         );
       },
+    );
+  }
+
+  Widget _buildProductViewModeToggle() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildProductViewModeButton(
+          label: '日程ガント',
+          mode: ProductViewMode.schedule,
+        ),
+        const SizedBox(width: 8),
+        _buildProductViewModeButton(
+          label: '工程ステータス',
+          mode: ProductViewMode.processStatus,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProductViewModeButton({
+    required String label,
+    required ProductViewMode mode,
+  }) {
+    final selected = _productViewMode == mode;
+    return OutlinedButton(
+      onPressed: () {
+        if (!selected) {
+          setState(() => _productViewMode = mode);
+        }
+      },
+      style: OutlinedButton.styleFrom(
+        backgroundColor:
+            selected ? Theme.of(context).colorScheme.primary : Colors.white,
+        foregroundColor: selected ? Colors.white : null,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      ),
+      child: Text(label),
+    );
+  }
+
+  ProcessCellStatus _statusFromBars(List<ProductGanttBar> bars) {
+    final actualBars = bars.where((b) => b.kind == GanttBarKind.actual);
+    final hasDone = actualBars.any((b) => b.status == GanttBarStatus.done);
+    if (hasDone) return ProcessCellStatus.done;
+    final hasInProgress =
+        actualBars.any((b) => b.status == GanttBarStatus.inProgress);
+    if (hasInProgress) return ProcessCellStatus.inProgress;
+    return ProcessCellStatus.notStarted;
+  }
+
+  Color _statusColor(ProcessCellStatus status) {
+    switch (status) {
+      case ProcessCellStatus.notStarted:
+        return const Color(0xFFE0E0E0);
+      case ProcessCellStatus.inProgress:
+        return kGanttActualInProgressColor.withValues(alpha: 0.85);
+      case ProcessCellStatus.done:
+        return kGanttActualDoneColor.withValues(alpha: 0.9);
+    }
+  }
+
+  Widget _buildStatusLegend() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        _legendItem(
+          color: _statusColor(ProcessCellStatus.notStarted),
+          label: '未',
+        ),
+        const SizedBox(width: 8),
+        _legendItem(
+          color: _statusColor(ProcessCellStatus.inProgress),
+          label: '作業中',
+        ),
+        const SizedBox(width: 8),
+        _legendItem(
+          color: _statusColor(ProcessCellStatus.done),
+          label: '完了',
+        ),
+      ],
+    );
+  }
+
+  Widget _legendItem({required Color color, required String label}) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 16,
+          height: 16,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(3),
+            border: Border.all(color: Colors.black12),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(label, style: const TextStyle(fontSize: 12)),
+      ],
+    );
+  }
+
+  Widget _buildProductProcessStatusView({
+    required List<GanttRowEntry> productRows,
+    required List<_MatrixStep> steps,
+    required Map<String, Map<String, List<ProductGanttBar>>> barsMap,
+  }) {
+    const double rowHeight = 28;
+    const double productColWidth = 140;
+    const double stepColWidth = 80;
+    const double headerHeight = 36;
+
+    // 製品リスト（行順は rows の productHeader 順）
+    final products = <_MatrixProduct>[];
+    for (final entry in productRows) {
+      if (entry.kind == GanttRowKind.productHeader) {
+        products.add(
+          _MatrixProduct(
+            id: entry.product.id,
+            label: entry.product.code.isNotEmpty
+                ? entry.product.code
+                : entry.product.name,
+          ),
+        );
+      }
+    }
+
+    if (steps.isEmpty) {
+      return const Center(
+        child: Text(
+          '工程が0件です（ステータスビュー用の工程リストを取得できませんでした）',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.redAccent),
+        ),
+      );
+    }
+
+    // ステータスマップ productId -> stepId -> status
+    final statusMap = <String, Map<String, ProcessCellStatus>>{};
+    for (final product in products) {
+      final productBars = barsMap[product.id] ?? <String, List<ProductGanttBar>>{};
+      final stepStatuses = <String, ProcessCellStatus>{};
+      for (final step in steps) {
+        final barsForStep = productBars[step.id] ?? const <ProductGanttBar>[];
+        stepStatuses[step.id] = _statusFromBars(barsForStep);
+      }
+      statusMap[product.id] = stepStatuses;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          child: _buildStatusLegend(),
+        ),
+        Expanded(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SingleChildScrollView(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 左：製品名
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        width: productColWidth,
+                        height: headerHeight,
+                      ),
+                      for (final product in products)
+                        Container(
+                          width: productColWidth,
+                          height: rowHeight,
+                          alignment: Alignment.centerLeft,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: Colors.grey.shade300,
+                              width: 0.5,
+                            ),
+                          ),
+                          child: Text(
+                            product.label,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                  ),
+                  // 右：工程ヘッダー + セル
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          for (final step in steps)
+                            Container(
+                              width: stepColWidth,
+                              height: headerHeight,
+                              alignment: Alignment.center,
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 6),
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: Colors.grey.shade300,
+                                  width: 0.5,
+                                ),
+                              ),
+                              child: Text(
+                                step.label,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                textAlign: TextAlign.center,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                        ],
+                      ),
+                      for (final product in products)
+                        Row(
+                          children: [
+                            for (final step in steps)
+                              Container(
+                                width: stepColWidth,
+                                height: rowHeight,
+                                decoration: BoxDecoration(
+                                  color: _statusColor(
+                                    statusMap[product.id]?[step.id] ??
+                                        ProcessCellStatus.notStarted,
+                                  ),
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 1,
+                                  ),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                              ),
+                          ],
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
