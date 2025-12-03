@@ -771,6 +771,29 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
     return avg.clamp(0.0, 1.0);
   }
 
+  Color _statusViewParentHeaderColor(String groupName) {
+    switch (groupName) {
+      case '一次加工':
+        return const Color(0xFFFFF5E6); // very light orange
+      case 'コア部':
+        return const Color(0xFFE9F2FF); // very light blue
+      case '仕口部':
+        return const Color(0xFFE8F7F0); // very light green
+      case '大組部':
+        return const Color(0xFFF3E9FF); // very light purple
+      default:
+        return Colors.grey.shade50; // default light background
+    }
+  }
+
+  Color _statusViewChildHeaderColor(String groupName) {
+    final base = _statusViewParentHeaderColor(groupName);
+    final isFallback = base.value == Colors.grey.shade50.value;
+    final Color vividBase = isFallback ? const Color(0xFFF2F2F2) : base;
+    // 親色を少しだけ薄め、視認できる濃さを確保
+    return vividBase.withOpacity(0.35);
+  }
+
   @override
   Widget build(BuildContext context) {
     final asyncProducts = ref.watch(ganttProductsProvider(widget.project));
@@ -1648,7 +1671,9 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
     const double rowHeight = 28;
     const double productColWidth = 140;
     const double cellWidth = 80;
-    const double headerRowHeight = 18;
+    // 工程ステータスビュー専用のヘッダー高さ
+    const double kProcessStatusHeaderParentHeight = 28;
+    const double kProcessStatusHeaderChildHeight = 24;
 
     final products = <_MatrixProduct>[];
     for (final entry in productRows) {
@@ -1705,12 +1730,20 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
                   children: [
                     Row(
                       children: [
-                        const SizedBox(width: productColWidth, height: headerRowHeight),
+                        const SizedBox(
+                          width: productColWidth,
+                          height: kProcessStatusHeaderParentHeight,
+                        ),
                         for (final group in headerGroups)
                           Container(
+                            height: kProcessStatusHeaderParentHeight,
                             alignment: Alignment.center,
                             width: group.steps.length * cellWidth,
-                            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 2,
+                              horizontal: 4,
+                            ),
+                            color: _statusViewParentHeaderColor(group.groupName),
                             child: Text(
                               group.groupName,
                               style: const TextStyle(
@@ -1724,13 +1757,32 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
                     ),
                     Row(
                       children: [
-                        const SizedBox(width: productColWidth, height: headerRowHeight),
+                        const SizedBox(
+                          width: productColWidth,
+                          height: kProcessStatusHeaderChildHeight,
+                        ),
                         for (final step in uniqueSteps)
                           Container(
                             width: cellWidth,
-                            height: headerRowHeight,
-                            padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 2),
+                            height: kProcessStatusHeaderChildHeight,
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 2,
+                              horizontal: 2,
+                            ),
                             alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: _statusViewChildHeaderColor(step.groupName),
+                              border: Border(
+                                bottom: BorderSide(
+                                  color: Colors.grey.shade300,
+                                  width: 1,
+                                ),
+                                right: BorderSide(
+                                  color: Colors.grey.shade300,
+                                  width: 1,
+                                ),
+                              ),
+                            ),
                             child: Text(
                               step.label,
                               style: const TextStyle(fontSize: 11),
@@ -1741,6 +1793,12 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
                           ),
                       ],
                     ),
+                    Container(
+                      width: productColWidth + uniqueSteps.length * cellWidth,
+                      height: 1,
+                      color: Colors.grey.shade300,
+                    ),
+                    const SizedBox(height: 4),
                   ],
                 ),
                 const SizedBox(height: 4),
