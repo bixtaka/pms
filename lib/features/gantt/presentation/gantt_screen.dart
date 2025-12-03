@@ -70,6 +70,7 @@ class GanttProduct {
   final String id;
   final String code;
   final String name;
+  final String memberType;
   final double progress;
   final int quantity;
   final List<GanttTask> tasks;
@@ -78,6 +79,7 @@ class GanttProduct {
     required this.id,
     required this.code,
     required this.name,
+    this.memberType = '',
     required this.progress,
     required this.quantity,
     required this.tasks,
@@ -505,12 +507,70 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
         : minScrollableDays;
   }
 
-  List<GanttRowEntry> _buildRowEntries(List<GanttProduct> products) {
+  String _memberTypePrefix(String memberType) {
+    switch (memberType.toLowerCase()) {
+      case 'column':
+        return 'column_';
+      case 'girder':
+        return 'girder_';
+      case 'beam':
+        return 'beam_';
+      case 'intermediate':
+        return 'intermediate_';
+      default:
+        return '';
+    }
+  }
+
+  List<GanttTask> _filterAndOrderTasksByMemberType(
+    GanttProduct product,
+    List<ProcessGroup> groups,
+    List<ProcessStep> steps,
+  ) {
+    final prefix = _memberTypePrefix(product.memberType);
+    final stepsMap = {for (final s in steps) s.id: s};
+    final groupsMap = {for (final g in groups) g.id: g};
+
+    final filtered = prefix.isEmpty
+        ? product.tasks
+        : product.tasks.where((t) => t.id.startsWith(prefix)).toList();
+
+    filtered.sort((a, b) {
+      final stepA = stepsMap[a.id];
+      final stepB = stepsMap[b.id];
+      final groupA = stepA != null ? groupsMap[stepA.groupId] : null;
+      final groupB = stepB != null ? groupsMap[stepB.groupId] : null;
+
+      final groupSortA = groupA?.sortOrder ?? 9999;
+      final groupSortB = groupB?.sortOrder ?? 9999;
+      if (groupSortA != groupSortB) {
+        return groupSortA.compareTo(groupSortB);
+      }
+
+      final stepSortA = stepA?.sortOrder ?? 9999;
+      final stepSortB = stepB?.sortOrder ?? 9999;
+      if (stepSortA != stepSortB) {
+        return stepSortA.compareTo(stepSortB);
+      }
+
+      return a.name.compareTo(b.name);
+    });
+
+    return filtered;
+  }
+
+  List<GanttRowEntry> _buildRowEntries(
+    List<GanttProduct> products,
+    List<ProcessGroup> groups,
+    List<ProcessStep> steps,
+  ) {
     final entries = <GanttRowEntry>[];
     for (final product in products) {
       entries.add(GanttRowEntry.productHeader(product));
       if (_expandedProductIds.contains(product.id)) {
-        for (final task in product.tasks) {
+        final orderedTasks =
+            _filterAndOrderTasksByMemberType(product, groups, steps);
+        for (final task in orderedTasks) {
           entries.add(GanttRowEntry.taskRow(product, task));
         }
       }
@@ -785,7 +845,7 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
               _updateDateRange(products);
               final filteredProducts = _filteredProductsFromList(products);
               final rowEntries = _filterRowsByKeyword(
-                _buildRowEntries(filteredProducts),
+                _buildRowEntries(filteredProducts, spec.groups, spec.steps),
               );
               final allTasks =
                   filteredProducts.expand((p) => p.tasks).toList();

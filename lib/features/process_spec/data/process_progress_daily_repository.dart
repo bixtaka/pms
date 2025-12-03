@@ -149,6 +149,24 @@ class ProcessProgressDailyRepository {
       'updatedAt': Timestamp.fromDate(clampedDate),
     }, SetOptions(merge: true));
   }
+
+  /// productId + stepId + date をキーに削除する
+  Future<void> deleteDaily({
+    required String projectId,
+    required String productId,
+    required String stepId,
+    required DateTime date,
+  }) async {
+    final requestedDate = DateTime(date.year, date.month, date.day);
+    final today = DateTime.now();
+    final todayOnly = DateTime(today.year, today.month, today.day);
+    final clampedDate =
+        requestedDate.isAfter(todayOnly) ? todayOnly : requestedDate;
+    final docId =
+        '${stepId}_${clampedDate.year.toString().padLeft(4, '0')}${clampedDate.month.toString().padLeft(2, '0')}${clampedDate.day.toString().padLeft(2, '0')}';
+    final col = _col(projectId, productId);
+    await col.doc(docId).delete();
+  }
 }
 
 class _AggRow {

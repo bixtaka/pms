@@ -33,6 +33,25 @@ class ProcessProgressSaveService {
     );
   }
 
+  Future<void> deleteDaily({
+    required String projectId,
+    required String productId,
+    required String stepId,
+    required DateTime date,
+  }) async {
+    final requestedDate = DateTime(date.year, date.month, date.day);
+    final today = DateTime.now();
+    final todayOnly = DateTime(today.year, today.month, today.day);
+    final clampedDate =
+        requestedDate.isAfter(todayOnly) ? todayOnly : requestedDate;
+    await _dailyRepo.deleteDaily(
+      projectId: projectId,
+      productId: productId,
+      stepId: stepId,
+      date: clampedDate,
+    );
+  }
+
   /// UI などが渡してくる既存 ProcessProgressDaily をそのまま上書き保存するヘルパー
   Future<void> upsertDailyModel({
     required String projectId,

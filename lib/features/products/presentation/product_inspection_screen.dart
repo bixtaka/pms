@@ -4,10 +4,22 @@ import '../../../models/product.dart';
 import '../../../models/project.dart';
 import '../../../providers/product_providers.dart';
 import '../../process_spec/domain/process_progress_daily.dart';
+import '../../process_spec/domain/process_group.dart';
 import '../../process_spec/domain/process_step.dart';
 import '../application/product_inspection_providers.dart';
+import '../../process_spec/data/process_progress_save_service.dart';
 
 enum InspectionStatus { notStarted, inProgress, done }
+
+InspectionStatus statusFromDailyRecord(ProcessProgressDaily? record) {
+  if (record == null) {
+    return InspectionStatus.notStarted;
+  }
+  if (record.doneQty <= 0) {
+    return InspectionStatus.inProgress;
+  }
+  return InspectionStatus.done;
+}
 
 class ProductInspectionScreen extends ConsumerStatefulWidget {
   final Project project;
@@ -61,6 +73,60 @@ class _ProductInspectionScreenState
       if (p.id == id) return p;
     }
     return null;
+  }
+
+  String _memberTypePrefix(String memberType) {
+    switch (memberType.toLowerCase()) {
+      case 'column':
+        return 'column_';
+      case 'girder':
+        return 'girder_';
+      case 'beam':
+        return 'beam_';
+      case 'intermediate':
+        return 'intermediate_';
+      default:
+        return '';
+    }
+  }
+
+  List<ProcessStep> _filterStepsByMemberType(
+    List<ProcessStep> steps,
+    String memberType,
+  ) {
+    final prefix = _memberTypePrefix(memberType);
+    if (prefix.isEmpty) return steps;
+    return steps.where((s) => s.id.startsWith(prefix)).toList();
+  }
+
+  List<_UiProcessStep> _buildUiSteps(
+    List<ProcessStep> steps,
+    List<ProcessGroup> groups,
+  ) {
+    final sortedGroups = List<ProcessGroup>.from(groups)
+      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    final uiSteps = <_UiProcessStep>[];
+    for (final g in sortedGroups) {
+      final groupSteps = steps
+          .where((s) => s.groupId == g.id)
+          .toList()
+        ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+      for (final s in groupSteps) {
+        uiSteps.add(_UiProcessStep(group: g, step: s));
+      }
+    }
+
+    // グループが見つからなかった工程を最後に並べる（安定化）
+    final groupedIds = sortedGroups.map((g) => g.id).toSet();
+    final orphanSteps = steps
+        .where((s) => !groupedIds.contains(s.groupId))
+        .toList()
+      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    for (final s in orphanSteps) {
+      uiSteps.add(_UiProcessStep(group: null, step: s));
+    }
+
+    return uiSteps;
   }
 
   InspectionStatus _statusFromQty(int doneQty, int quantity) {
@@ -168,11 +234,11 @@ class _ProductInspectionScreenState
     required DailyProgressKey dailyKey,
     ProcessProgressDaily? existing,
   }) async {
-    final repo = ref.read(processProgressDailyRepositoryProvider);
+    final saveService = ProcessProgressSaveService();
     final messenger = ScaffoldMessenger.of(context);
     final maxQty = product.quantity > 0 ? product.quantity : 0;
     int doneQty = existing?.doneQty ?? 0;
-    InspectionStatus status = _statusFromQty(doneQty, product.quantity);
+    InspectionStatus status = statusFromDailyRecord(existing);
     final qtyCtrl = TextEditingController(text: doneQty.toString());
     final noteCtrl = TextEditingController(text: existing?.note ?? '');
 
@@ -186,6 +252,8 @@ class _ProductInspectionScreenState
               setSheetState(() {
                 status = s;
                 if (s == InspectionStatus.notStarted) {
+                  doneQty = 0;
+                } else if (s == InspectionStatus.inProgress) {
                   doneQty = 0;
                 } else if (s == InspectionStatus.done) {
                   doneQty = maxQty > 0 ? maxQty : doneQty;
@@ -231,13 +299,11 @@ class _ProductInspectionScreenState
                         selected: status == InspectionStatus.notStarted,
                         onSelected: (_) => updateStatus(InspectionStatus.notStarted),
                       ),
-                      if (maxQty > 1)
-                        ChoiceChip(
-                          label: Text(_statusLabel(InspectionStatus.inProgress)),
-                          selected: status == InspectionStatus.inProgress,
-                          onSelected: (_) =>
-                              updateStatus(InspectionStatus.inProgress),
-                        ),
+                      ChoiceChip(
+                        label: Text(_statusLabel(InspectionStatus.inProgress)),
+                        selected: status == InspectionStatus.inProgress,
+                        onSelected: (_) => updateStatus(InspectionStatus.inProgress),
+                      ),
                       ChoiceChip(
                         label: Text(_statusLabel(InspectionStatus.done)),
                         selected: status == InspectionStatus.done,
@@ -288,14 +354,23 @@ class _ProductInspectionScreenState
                                   ? parsed.clamp(0, maxQty).toInt()
                                   : parsed);
                           try {
-                            await repo.upsertDaily(
-                              projectId: dailyKey.projectId,
-                              productId: dailyKey.productId,
-                              stepId: step.id,
-                              date: dailyKey.dateOnly,
-                              doneQty: safeQty,
-                              note: noteCtrl.text.trim(),
-                            );
+                            if (status == InspectionStatus.notStarted) {
+                              await saveService.deleteDaily(
+                                projectId: dailyKey.projectId,
+                                productId: dailyKey.productId,
+                                stepId: step.id,
+                                date: dailyKey.dateOnly,
+                              );
+                            } else {
+                              await saveService.upsertDaily(
+                                projectId: dailyKey.projectId,
+                                productId: dailyKey.productId,
+                                stepId: step.id,
+                                date: dailyKey.dateOnly,
+                                doneQty: safeQty,
+                                note: noteCtrl.text.trim(),
+                              );
+                            }
                             ref.invalidate(
                               dailyProgressByProductProvider(dailyKey),
                             );
@@ -335,6 +410,7 @@ class _ProductInspectionScreenState
     final productsAsync = ref.watch(
       productsByProjectProvider(widget.project.id),
     );
+    final groupsAsync = ref.watch(inspectionProcessGroupsProvider);
     final stepsAsync = ref.watch(inspectionProcessStepsProvider);
 
     return Scaffold(
@@ -492,37 +568,49 @@ class _ProductInspectionScreenState
                             const Center(child: CircularProgressIndicator()),
                         error: (e, _) =>
                             Center(child: Text('工程の取得に失敗しました: $e')),
-                        data: (steps) {
-                          final dailyKey = DailyProgressKey(
-                            projectId: widget.project.id,
-                            productId: selectedProduct.id,
-                            date: _today,
-                          );
-                          final dailyAsync =
-                              ref.watch(dailyProgressByProductProvider(dailyKey));
-                          return dailyAsync.when(
-                            loading: () => const Center(
-                              child: CircularProgressIndicator(),
-                            ),
-                            error: (e, _) =>
-                                Center(child: Text('進捗の取得に失敗しました: $e')),
-                            data: (daily) => _StepList(
-                              steps: steps,
-                              daily: daily,
-                              product: selectedProduct,
-                              statusLabel: _statusLabel,
-                              statusColor: _statusColor,
-                              statusFromQty: _statusFromQty,
-                              findTodayForStep: _findTodayForStep,
-                              onEdit: (step, existing) => _openEditSheet(
-                                step: step,
-                                product: selectedProduct,
-                                dailyKey: dailyKey,
-                                existing: existing,
+                        data: (steps) => groupsAsync.when(
+                          loading: () =>
+                              const Center(child: CircularProgressIndicator()),
+                          error: (e, _) =>
+                              Center(child: Text('工程グループ取得に失敗しました: $e')),
+                          data: (groups) {
+                            final filteredSteps = _filterStepsByMemberType(
+                              steps,
+                              selectedProduct.memberType,
+                            );
+                            final uiSteps = _buildUiSteps(filteredSteps, groups);
+                            final dailyKey = DailyProgressKey(
+                              projectId: widget.project.id,
+                              productId: selectedProduct.id,
+                              date: _today,
+                            );
+                            final dailyAsync = ref.watch(
+                              dailyProgressByProductProvider(dailyKey),
+                            );
+                            return dailyAsync.when(
+                              loading: () => const Center(
+                                child: CircularProgressIndicator(),
                               ),
-                            ),
-                          );
-                        },
+                              error: (e, _) =>
+                                  Center(child: Text('進捗の取得に失敗しました: $e')),
+                              data: (daily) => _StepList(
+                                steps: uiSteps,
+                                daily: daily,
+                                product: selectedProduct,
+                                statusLabel: _statusLabel,
+                                statusColor: _statusColor,
+                                statusFromQty: _statusFromQty,
+                                findTodayForStep: _findTodayForStep,
+                                onEdit: (uiStep, existing) => _openEditSheet(
+                                  step: uiStep.step,
+                                  product: selectedProduct,
+                                  dailyKey: dailyKey,
+                                  existing: existing,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
                       ),
               ),
             ],
@@ -534,7 +622,7 @@ class _ProductInspectionScreenState
 }
 
 class _StepList extends StatelessWidget {
-  final List<ProcessStep> steps;
+  final List<_UiProcessStep> steps;
   final List<ProcessProgressDaily> daily;
   final Product product;
   final String Function(InspectionStatus) statusLabel;
@@ -542,7 +630,7 @@ class _StepList extends StatelessWidget {
   final InspectionStatus Function(int, int) statusFromQty;
   final ProcessProgressDaily? Function(List<ProcessProgressDaily>, String)
       findTodayForStep;
-  final void Function(ProcessStep, ProcessProgressDaily?) onEdit;
+  final void Function(_UiProcessStep, ProcessProgressDaily?) onEdit;
 
   const _StepList({
     required this.steps,
@@ -560,8 +648,6 @@ class _StepList extends StatelessWidget {
     if (steps.isEmpty) {
       return const Center(child: Text('工程が登録されていません'));
     }
-    final sorted = List<ProcessStep>.from(steps)
-      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -619,20 +705,20 @@ class _StepList extends StatelessWidget {
         Expanded(
           child: ListView.separated(
             padding: const EdgeInsets.all(12),
-            itemCount: sorted.length,
+            itemCount: steps.length,
             separatorBuilder: (_, __) => const SizedBox(height: 8),
             itemBuilder: (_, index) {
-              final step = sorted[index];
+              final uiStep = steps[index];
+              final step = uiStep.step;
               final today = findTodayForStep(daily, step.id);
-              final doneQty = today?.doneQty ?? 0;
-              final status = statusFromQty(doneQty, product.quantity);
+              final status = statusFromDailyRecord(today);
               final chipColor = statusColor(context, status);
               final chipTextColor = status == InspectionStatus.notStarted
                   ? Theme.of(context).colorScheme.onSurface
                   : Colors.white;
               final subtitle = <String>[
                 'キー: ${step.key}',
-                '今日: $doneQty 台'
+                '今日: ${today?.doneQty ?? 0} 台'
               ];
               if (today?.note.isNotEmpty == true) {
                 subtitle.add('メモ: ${today!.note}');
@@ -640,7 +726,7 @@ class _StepList extends StatelessWidget {
 
               return Card(
                 child: ListTile(
-                  title: Text(step.label),
+                  title: Text(uiStep.displayLabel),
                   subtitle: Text(subtitle.join(' / ')),
                   trailing: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -660,7 +746,7 @@ class _StepList extends StatelessWidget {
                         ),
                     ],
                   ),
-                  onTap: () => onEdit(step, today),
+                  onTap: () => onEdit(uiStep, today),
                 ),
               );
             },
@@ -668,5 +754,18 @@ class _StepList extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+class _UiProcessStep {
+  final ProcessGroup? group;
+  final ProcessStep step;
+
+  const _UiProcessStep({required this.group, required this.step});
+
+  String get displayLabel {
+    final prefix =
+        group != null && group!.label.isNotEmpty ? '${group!.label} ' : '';
+    return '$prefix${step.label}';
   }
 }

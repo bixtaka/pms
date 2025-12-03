@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart';
-
 import '../../process_spec/data/process_progress_daily_repository.dart';
 
 DateTime _toDateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
@@ -24,6 +22,14 @@ class ProductStepDailyProgress {
 enum GanttBarKind { planned, actual }
 
 enum GanttBarStatus { notStarted, inProgress, done }
+
+GanttBarStatus _statusFromDoneQty({
+  required int doneQty,
+  required bool isCompleted,
+}) {
+  if (doneQty <= 0) return GanttBarStatus.inProgress;
+  return isCompleted ? GanttBarStatus.done : GanttBarStatus.inProgress;
+}
 
 /// ガントに描画する連続実績バー
 class ProductGanttBar {
@@ -105,47 +111,55 @@ class ProductGanttProgressService {
     final bars = <ProductGanttBar>[];
     grouped.forEach((key, values) {
       values.sort((a, b) => a.date.compareTo(b.date));
-      ProductStepDailyProgress? currentStart;
-      DateTime? currentEnd;
-      int accQty = 0;
-      bool allCompleted = true;
 
       final parts = key.split('__');
       final productId = parts.first;
       final stepId = parts.length > 1 ? parts.last : '';
 
+      ProductStepDailyProgress? currentStart;
+      DateTime? currentEnd;
+      GanttBarStatus? currentStatus;
+      int accQty = 0;
+
       for (final d in values) {
+        final status =
+            d.doneQty > 0 ? GanttBarStatus.done : GanttBarStatus.inProgress;
+
         if (currentStart == null) {
           currentStart = d;
           currentEnd = d.date;
+          currentStatus = status;
           accQty = d.doneQty;
-          allCompleted = d.doneQty > 0;
           continue;
         }
-        final gap = d.date.difference(currentEnd!).inDays;
-        if (gap <= 1) {
+
+        final isContinuous = d.date.difference(currentEnd!).inDays == 1;
+        if (isContinuous && status == currentStatus) {
           currentEnd = d.date;
           accQty += d.doneQty;
-          allCompleted = allCompleted && d.doneQty > 0;
-        } else {
-          bars.add(
-            _logAndBuildBar(
-              productId: productId,
-              stepId: stepId,
-              start: currentStart!.date,
-              end: currentEnd!,
-              totalQty: accQty,
-              isCompleted: allCompleted,
-              productQuantity: productQuantities?[productId],
-            ),
-          );
-          currentStart = d;
-          currentEnd = d.date;
-          accQty = d.doneQty;
-          allCompleted = d.doneQty > 0;
+          continue;
         }
+
+        // シーケンスを確定
+        bars.add(
+          _logAndBuildBar(
+            productId: productId,
+            stepId: stepId,
+            start: currentStart.date,
+            end: currentEnd!,
+            totalQty: accQty,
+            isCompleted: currentStatus == GanttBarStatus.done,
+          ),
+        );
+
+        // 次のシーケンス開始
+        currentStart = d;
+        currentEnd = d.date;
+        currentStatus = status;
+        accQty = d.doneQty;
       }
-      if (currentStart != null && currentEnd != null) {
+
+      if (currentStart != null && currentEnd != null && currentStatus != null) {
         bars.add(
           _logAndBuildBar(
             productId: productId,
@@ -153,8 +167,7 @@ class ProductGanttProgressService {
             start: currentStart.date,
             end: currentEnd,
             totalQty: accQty,
-            isCompleted: allCompleted,
-            productQuantity: productQuantities?[productId],
+            isCompleted: currentStatus == GanttBarStatus.done,
           ),
         );
       }
@@ -169,18 +182,11 @@ class ProductGanttProgressService {
     required DateTime end,
     required int totalQty,
     required bool isCompleted,
-    int? productQuantity,
   }) {
-    GanttBarStatus _resolveStatus() {
-      if (totalQty <= 0) return GanttBarStatus.notStarted;
-      if (productQuantity != null && productQuantity > 0) {
-        if (totalQty >= productQuantity) return GanttBarStatus.done;
-        return GanttBarStatus.inProgress;
-      }
-      return isCompleted ? GanttBarStatus.done : GanttBarStatus.inProgress;
-    }
-
-    final status = _resolveStatus();
+    final status = _statusFromDoneQty(
+      doneQty: totalQty,
+      isCompleted: isCompleted,
+    );
     final bar = ProductGanttBar(
       productId: productId,
       stepId: stepId,

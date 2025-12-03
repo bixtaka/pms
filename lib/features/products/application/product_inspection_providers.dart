@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../process_spec/data/process_progress_daily_repository.dart';
+import '../../process_spec/data/process_groups_repository.dart';
 import '../../process_spec/data/process_steps_repository.dart';
 import '../../process_spec/domain/process_progress_daily.dart';
+import '../../process_spec/domain/process_group.dart';
 import '../../process_spec/domain/process_step.dart';
 
 /// 日別進捗のキー（product + 日付 + step を組み合わせる前段階）
@@ -37,6 +39,12 @@ class DailyProgressKey {
 final inspectionProcessStepsProvider =
     FutureProvider.autoDispose<List<ProcessStep>>((ref) async {
   final repo = ProcessStepsRepository();
+  return repo.fetchAll();
+});
+
+final inspectionProcessGroupsProvider =
+    FutureProvider.autoDispose<List<ProcessGroup>>((ref) async {
+  final repo = ProcessGroupsRepository();
   return repo.fetchAll();
 });
 

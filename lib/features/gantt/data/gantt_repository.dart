@@ -1,4 +1,3 @@
-import 'package:collection/collection.dart';
 import '../../../models/product.dart';
 import '../../process_spec/data/process_groups_repository.dart';
 import '../../process_spec/data/process_progress_daily_repository.dart';
@@ -60,13 +59,17 @@ class FirestoreGanttRepository implements GanttRepository {
         final taskList = _buildTasks(product, steps, groups, dailies);
         final avgProgress = taskList.isEmpty
             ? 0.0
-            : taskList.map((t) => t.progress).average;
+            : taskList
+                .map((t) => t.progress)
+                .fold<double>(0.0, (a, b) => a + b) /
+                taskList.length;
         return GanttProduct(
           id: product.id,
           code: product.productCode.isNotEmpty
               ? product.productCode
               : product.name,
           name: product.name.isNotEmpty ? product.name : product.productCode,
+          memberType: product.memberType,
           progress: avgProgress.isNaN ? 0.0 : avgProgress,
           quantity: product.quantity,
           tasks: taskList,
@@ -81,7 +84,6 @@ class FirestoreGanttRepository implements GanttRepository {
     List<ProcessGroup> groups,
     List<ProcessProgressDaily> dailies,
   ) {
-    // 製品レベルの予定完了日（プレゼンテーション用のみ）
     final DateTime? plannedEnd = product.overallEndDate ?? product.endDate;
     final stepsMap = {for (final s in steps) s.id: s};
     final groupsMap = {for (final g in groups) g.id: g};
@@ -94,21 +96,12 @@ class FirestoreGanttRepository implements GanttRepository {
           .add(d);
     }
 
-    // ラベル（工程名）単位で集約することで、同じ工程名が複数 stepId にまたがっていても 1 行にまとめる
-    final Map<String, _AggregatedTask> byLabel = {};
-
-    final stepIds = <String>{...stepsMap.keys, ...groupedByStep.keys};
-
-    for (final stepId in stepIds) {
-      final step = stepsMap[stepId];
-      final dailyList = groupedByStep[stepId] ?? [];
-      final label = (step?.label ?? stepId).trim();
-      final group =
-          step != null ? groupsMap[step.groupId] : null; // step -> group へ紐付け
-
-      if (label.isEmpty) {
-        continue;
-      }
+    final tasks = <GanttTask>[];
+    for (final entry in stepsMap.entries) {
+      final stepId = entry.key;
+      final step = entry.value;
+      final group = groupsMap[step.groupId];
+      final dailyList = groupedByStep[stepId] ?? const <ProcessProgressDaily>[];
 
       DateTime start;
       DateTime end;
@@ -127,63 +120,81 @@ class FirestoreGanttRepository implements GanttRepository {
 
       final totalQty = product.quantity > 0 ? product.quantity : 1;
       final doneSum = dailyList.fold<int>(0, (prev, e) => prev + e.doneQty);
+      final progress =
+          (doneSum / (totalQty > 0 ? totalQty : 1)).clamp(0.0, 1.0);
 
-      final existing = byLabel[label];
-      if (existing == null) {
-        byLabel[label] = _AggregatedTask(
-          label: label,
-          stepId: stepId,
-          stepKey: step?.key,
-          stepLabel: step?.label ?? label,
+      tasks.add(
+        GanttTask(
+          id: stepId,
+          name: step.label,
+          type: _mapProcessType(step.label, groups, step),
           start: start,
           end: end,
-          doneQty: doneSum,
-          totalQty: totalQty,
-          sortOrder: step?.sortOrder ?? 999,
-          stepSort: step?.sortOrder,
+          progress: progress.isNaN ? 0.0 : progress,
+          plannedEnd: plannedEnd,
+          stepId: step.id,
+          stepKey: step.key,
+          stepLabel: step.label,
+          stepSort: step.sortOrder,
           processGroupId: group?.id,
           processGroupKey: group?.key,
           processGroupLabel: group?.label,
           processGroupSort: group?.sortOrder,
-        );
-      } else {
-        byLabel[label] = existing.merge(
-          otherStart: start,
-          otherEnd: end,
-          otherDoneQty: doneSum,
-          otherSortOrder: step?.sortOrder,
-        );
-      }
+        ),
+      );
     }
 
-    final tasks =
-        byLabel.values.map((agg) {
-          final progress = (agg.doneQty / (agg.totalQty > 0 ? agg.totalQty : 1))
-              .clamp(0.0, 1.0);
-          return GanttTask(
-            id: agg.stepId,
-            name: agg.label,
-            type: _mapProcessType(agg.label, groups, stepsMap[agg.stepId]),
-            start: agg.start,
-            end: agg.end,
-            progress: progress.isNaN ? 0.0 : progress,
-            plannedEnd: plannedEnd,
-            stepId: agg.stepId,
-            stepKey: agg.stepKey,
-            stepLabel: agg.stepLabel ?? agg.label,
-            stepSort: agg.stepSort ?? agg.sortOrder,
-            processGroupId: agg.processGroupId,
-             processGroupKey: agg.processGroupKey,
-             processGroupLabel: agg.processGroupLabel,
-             processGroupSort: agg.processGroupSort,
-           );
-        }).toList()..sort((a, b) {
-          final orderA =
-              byLabel[a.name]?.stepSort ?? byLabel[a.name]?.sortOrder ?? 999;
-          final orderB =
-              byLabel[b.name]?.stepSort ?? byLabel[b.name]?.sortOrder ?? 999;
-          return orderA.compareTo(orderB);
-        });
+    // 進捗のみ存在しているが steps にない stepId も補完
+    for (final entry in groupedByStep.entries) {
+      final stepId = entry.key;
+      if (stepsMap.containsKey(stepId)) continue;
+      final dailyList = entry.value;
+      DateTime start = dailyList
+          .map((d) => d.date)
+          .reduce((a, b) => a.isBefore(b) ? a : b);
+      DateTime end = dailyList
+          .map((d) => d.date)
+          .reduce((a, b) => a.isAfter(b) ? a : b);
+      if (end.isBefore(start)) end = start;
+      final totalQty = product.quantity > 0 ? product.quantity : 1;
+      final doneSum = dailyList.fold<int>(0, (prev, e) => prev + e.doneQty);
+      final progress =
+          (doneSum / (totalQty > 0 ? totalQty : 1)).clamp(0.0, 1.0);
+
+      tasks.add(
+        GanttTask(
+          id: stepId,
+          name: stepId,
+          type: _mapProcessType(stepId, groups, null),
+          start: start,
+          end: end,
+          progress: progress.isNaN ? 0.0 : progress,
+          plannedEnd: plannedEnd,
+          stepId: stepId,
+          stepKey: stepId,
+          stepLabel: stepId,
+          stepSort: 9999,
+          processGroupId: null,
+          processGroupKey: null,
+          processGroupLabel: null,
+          processGroupSort: 9999,
+        ),
+      );
+    }
+
+    tasks.sort((a, b) {
+      final groupSortA = a.processGroupSort ?? 9999;
+      final groupSortB = b.processGroupSort ?? 9999;
+      if (groupSortA != groupSortB) {
+        return groupSortA.compareTo(groupSortB);
+      }
+      final stepSortA = a.stepSort ?? 9999;
+      final stepSortB = b.stepSort ?? 9999;
+      if (stepSortA != stepSortB) {
+        return stepSortA.compareTo(stepSortB);
+      }
+      return a.name.compareTo(b.name);
+    });
 
     return tasks;
   }
@@ -207,70 +218,5 @@ class FirestoreGanttRepository implements GanttRepository {
       return ProcessType.jointWeld;
     }
     return ProcessType.other;
-  }
-}
-
-/// 1 製品内の同名工程（ラベル）を集約するための中間モデル
-class _AggregatedTask {
-  final String label;
-  final String stepId;
-  final String? stepKey;
-  final String? stepLabel;
-  final DateTime start;
-  final DateTime end;
-  final int doneQty;
-  final int totalQty;
-  final int sortOrder;
-  final int? stepSort;
-  final String? processGroupId;
-  final String? processGroupKey;
-  final String? processGroupLabel;
-  final int? processGroupSort;
-
-  const _AggregatedTask({
-    required this.label,
-    required this.stepId,
-    this.stepKey,
-    this.stepLabel,
-    required this.start,
-    required this.end,
-    required this.doneQty,
-    required this.totalQty,
-    required this.sortOrder,
-    this.stepSort,
-    this.processGroupId,
-    this.processGroupKey,
-    this.processGroupLabel,
-    this.processGroupSort,
-  });
-
-  _AggregatedTask merge({
-    required DateTime otherStart,
-    required DateTime otherEnd,
-    required int otherDoneQty,
-    int? otherSortOrder,
-  }) {
-    final mergedStart = otherStart.isBefore(start) ? otherStart : start;
-    final mergedEnd = otherEnd.isAfter(end) ? otherEnd : end;
-    final mergedDone = doneQty + otherDoneQty;
-    final mergedSort = otherSortOrder != null
-        ? (otherSortOrder < sortOrder ? otherSortOrder : sortOrder)
-        : sortOrder;
-    return _AggregatedTask(
-      label: label,
-      stepId: stepId,
-      stepKey: stepKey,
-      stepLabel: stepLabel,
-      start: mergedStart,
-      end: mergedEnd,
-      doneQty: mergedDone,
-      totalQty: totalQty,
-      sortOrder: mergedSort,
-      stepSort: mergedSort,
-      processGroupId: processGroupId,
-      processGroupKey: processGroupKey,
-      processGroupLabel: processGroupLabel,
-      processGroupSort: processGroupSort,
-    );
   }
 }
