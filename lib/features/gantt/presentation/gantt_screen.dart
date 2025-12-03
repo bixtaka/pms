@@ -46,10 +46,22 @@ class _MatrixProduct {
 class _MatrixStep {
   final String id;
   final String label;
+  final String groupName;
 
   const _MatrixStep({
     required this.id,
     required this.label,
+    required this.groupName,
+  });
+}
+
+class _ProcessHeaderGroup {
+  final String groupName;
+  final List<_MatrixStep> steps;
+
+  _ProcessHeaderGroup({
+    required this.groupName,
+    required this.steps,
   });
 }
 
@@ -687,13 +699,31 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
         uiSteps.add(
           _MatrixStep(
             id: step.id,
-            label: '${group.label} ${step.label}',
+            label: step.label,
+            groupName: group.label,
           ),
         );
       }
     }
 
     return uiSteps;
+  }
+
+  List<_ProcessHeaderGroup> _buildHeaderGroups(List<_MatrixStep> steps) {
+    final Map<String, List<_MatrixStep>> grouped = {};
+    for (final step in steps) {
+      grouped.putIfAbsent(step.groupName, () => <_MatrixStep>[]).add(step);
+    }
+    final List<_ProcessHeaderGroup> result = [];
+    grouped.forEach((groupName, groupSteps) {
+      result.add(
+        _ProcessHeaderGroup(
+          groupName: groupName,
+          steps: groupSteps,
+        ),
+      );
+    });
+    return result;
   }
 
   List<ProductGanttBar> _barsForProductStep(
@@ -1603,19 +1633,16 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
   }) {
     const double rowHeight = 28;
     const double productColWidth = 140;
-    const double stepColWidth = 80;
-    const double headerHeight = 36;
+    const double cellWidth = 80;
+    const double headerRowHeight = 18;
 
-    // 製品リスト（行順は rows の productHeader 順）
     final products = <_MatrixProduct>[];
     for (final entry in productRows) {
       if (entry.kind == GanttRowKind.productHeader) {
         products.add(
           _MatrixProduct(
             id: entry.product.id,
-            label: entry.product.code.isNotEmpty
-                ? entry.product.code
-                : entry.product.name,
+            label: entry.product.code.isNotEmpty ? entry.product.code : entry.product.name,
           ),
         );
       }
@@ -1631,7 +1658,6 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
       );
     }
 
-    // ステータスマップ productId -> stepId -> status
     final statusMap = <String, Map<String, ProcessCellStatus>>{};
     for (final product in products) {
       final productBars = barsMap[product.id] ?? <String, List<ProductGanttBar>>{};
@@ -1643,6 +1669,8 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
       statusMap[product.id] = stepStatuses;
     }
 
+    final headerGroups = _buildHeaderGroups(steps);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1653,98 +1681,105 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
         Expanded(
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            child: SingleChildScrollView(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 左：製品名
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(
-                        width: productColWidth,
-                        height: headerHeight,
-                      ),
-                      for (final product in products)
-                        Container(
-                          width: productColWidth,
-                          height: rowHeight,
-                          alignment: Alignment.centerLeft,
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                              color: Colors.grey.shade300,
-                              width: 0.5,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const SizedBox(width: productColWidth, height: headerRowHeight),
+                        for (final group in headerGroups)
+                          Container(
+                            alignment: Alignment.center,
+                            width: group.steps.length * cellWidth,
+                            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                            child: Text(
+                              group.groupName,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        const SizedBox(width: productColWidth, height: headerRowHeight),
+                        for (final step in steps)
+                          Container(
+                            width: cellWidth,
+                            height: headerRowHeight,
+                            padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 2),
+                            alignment: Alignment.center,
+                            child: Text(
+                              step.label,
+                              style: const TextStyle(fontSize: 11),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                for (final product in products)
+                  SizedBox(
+                    height: rowHeight,
+                    child: Row(
+                      children: [
+                        Container(
+                          width: productColWidth,
+                          alignment: Alignment.centerLeft,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
                           child: Text(
                             product.label,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                    ],
+                        for (final step in steps)
+                          _buildStatusCellFor(
+                            product: product,
+                            step: step,
+                            width: cellWidth,
+                            height: rowHeight,
+                            statusMap: statusMap,
+                          ),
+                      ],
+                    ),
                   ),
-                  // 右：工程ヘッダー + セル
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          for (final step in steps)
-                            Container(
-                              width: stepColWidth,
-                              height: headerHeight,
-                              alignment: Alignment.center,
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 6),
-                              decoration: BoxDecoration(
-                                border: Border.all(
-                                  color: Colors.grey.shade300,
-                                  width: 0.5,
-                                ),
-                              ),
-                              child: Text(
-                                step.label,
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                textAlign: TextAlign.center,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                        ],
-                      ),
-                      for (final product in products)
-                        Row(
-                          children: [
-                            for (final step in steps)
-                              Container(
-                                width: stepColWidth,
-                                height: rowHeight,
-                                decoration: BoxDecoration(
-                                  color: _statusColor(
-                                    statusMap[product.id]?[step.id] ??
-                                        ProcessCellStatus.notStarted,
-                                  ),
-                                  border: Border.all(
-                                    color: Colors.white,
-                                    width: 1,
-                                  ),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                              ),
-                          ],
-                        ),
-                    ],
-                  ),
-                ],
-              ),
+              ],
             ),
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildStatusCellFor({
+    required _MatrixProduct product,
+    required _MatrixStep step,
+    required double width,
+    required double height,
+    required Map<String, Map<String, ProcessCellStatus>> statusMap,
+  }) {
+    final status = statusMap[product.id]?[step.id] ?? ProcessCellStatus.notStarted;
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: _statusColor(status),
+        border: Border.all(
+          color: Colors.white,
+          width: 1,
+        ),
+        borderRadius: BorderRadius.circular(4),
+      ),
     );
   }
 
