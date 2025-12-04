@@ -5,6 +5,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../models/project.dart';
+import '../../../models/product.dart';
 import '../../process_spec/domain/process_group.dart';
 import '../../process_spec/domain/process_step.dart';
 import '../../process_spec/presentation/process_colors.dart';
@@ -36,10 +37,14 @@ enum ProcessCellStatus { notStarted, inProgress, done }
 class _MatrixProduct {
   final String id;
   final String label;
+  final String code;
+  final String memberType;
 
   const _MatrixProduct({
     required this.id,
     required this.label,
+    required this.code,
+    required this.memberType,
   });
 }
 
@@ -1536,6 +1541,7 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
               productRows: rows,
               steps: statusSteps,
               barsMap: matrixBarsMap,
+              project: widget.project,
             );
 
             return Column(
@@ -1622,25 +1628,36 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
     }
   }
 
-  Widget _buildStatusLegend() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: [
-        _legendItem(
-          color: _statusColor(ProcessCellStatus.notStarted),
-          label: '未',
+  Widget _buildStatusLegend(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface.withOpacity(0.9),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.black.withOpacity(0.06)),
         ),
-        const SizedBox(width: 8),
-        _legendItem(
-          color: _statusColor(ProcessCellStatus.inProgress),
-          label: '作業中',
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _legendItem(
+              color: _statusColor(ProcessCellStatus.notStarted),
+              label: '未',
+            ),
+            const SizedBox(width: 12),
+            _legendItem(
+              color: _statusColor(ProcessCellStatus.inProgress),
+              label: '作業中',
+            ),
+            const SizedBox(width: 12),
+            _legendItem(
+              color: _statusColor(ProcessCellStatus.done),
+              label: '完了',
+            ),
+          ],
         ),
-        const SizedBox(width: 8),
-        _legendItem(
-          color: _statusColor(ProcessCellStatus.done),
-          label: '完了',
-        ),
-      ],
+      ),
     );
   }
 
@@ -1649,16 +1666,18 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 16,
-          height: 16,
+          width: 10,
+          height: 10,
           decoration: BoxDecoration(
             color: color,
             borderRadius: BorderRadius.circular(3),
-            border: Border.all(color: Colors.black12),
           ),
         ),
-        const SizedBox(width: 4),
-        Text(label, style: const TextStyle(fontSize: 12)),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12, color: Colors.black87),
+        ),
       ],
     );
   }
@@ -1667,6 +1686,7 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
     required List<GanttRowEntry> productRows,
     required List<_MatrixStep> steps,
     required Map<String, Map<String, List<ProductGanttBar>>> barsMap,
+    required Project project,
   }) {
     const double rowHeight = 28;
     const double productColWidth = 140;
@@ -1682,6 +1702,8 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
           _MatrixProduct(
             id: entry.product.id,
             label: entry.product.code.isNotEmpty ? entry.product.code : entry.product.name,
+            code: entry.product.code,
+            memberType: entry.product.memberType,
           ),
         );
       }
@@ -1716,144 +1738,33 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          child: _buildStatusLegend(),
+          padding: const EdgeInsets.only(top: 8, left: 16, right: 16),
+          child: Row(
+            children: [
+              const Spacer(),
+              _buildStatusLegend(context),
+            ],
+          ),
         ),
+        const SizedBox(height: 8),
         Expanded(
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const SizedBox(
-                          width: productColWidth,
-                          height: kProcessStatusHeaderParentHeight,
-                        ),
-                        for (final group in headerGroups)
-                          Container(
-                            height: kProcessStatusHeaderParentHeight,
-                            alignment: Alignment.center,
-                            width: group.steps.length * cellWidth,
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 2,
-                              horizontal: 4,
-                            ),
-                            color: _statusViewParentHeaderColor(group.groupName),
-                            child: Text(
-                              group.groupName,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                      ],
-                    ),
-                    Row(
-                      children: [
-                        const SizedBox(
-                          width: productColWidth,
-                          height: kProcessStatusHeaderChildHeight,
-                        ),
-                        for (final step in uniqueSteps)
-                          Container(
-                            width: cellWidth,
-                            height: kProcessStatusHeaderChildHeight,
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 2,
-                              horizontal: 2,
-                            ),
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: _statusViewChildHeaderColor(step.groupName),
-                              border: Border(
-                                bottom: BorderSide(
-                                  color: Colors.grey.shade300,
-                                  width: 1,
-                                ),
-                                right: BorderSide(
-                                  color: Colors.grey.shade300,
-                                  width: 1,
-                                ),
-                              ),
-                            ),
-                            child: Text(
-                              step.label,
-                              style: const TextStyle(fontSize: 11),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                      ],
-                    ),
-                    Container(
-                      width: productColWidth + uniqueSteps.length * cellWidth,
-                      height: 1,
-                      color: Colors.grey.shade300,
-                    ),
-                    const SizedBox(height: 4),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                for (final product in products)
-                  SizedBox(
-                    height: rowHeight,
-                    child: Row(
-                      children: [
-                        Container(
-                          width: productColWidth,
-                          alignment: Alignment.centerLeft,
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          child: Text(
-                            product.label,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        for (final step in uniqueSteps)
-                          _buildStatusCellFor(
-                            product: product,
-                            step: step,
-                            width: cellWidth,
-                            height: rowHeight,
-                            statusMap: statusMap,
-                          ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
+          child: _ProductProcessStatusMatrixView(
+            products: products,
+            steps: uniqueSteps,
+            headerGroups: headerGroups,
+            statusMap: statusMap,
+            rowHeight: rowHeight,
+            productColWidth: productColWidth,
+            cellWidth: cellWidth,
+            parentHeaderHeight: kProcessStatusHeaderParentHeight,
+            childHeaderHeight: kProcessStatusHeaderChildHeight,
+            parentColorBuilder: _statusViewParentHeaderColor,
+            childColorBuilder: _statusViewChildHeaderColor,
+            statusColorBuilder: _statusColor,
+            project: project,
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildStatusCellFor({
-    required _MatrixProduct product,
-    required _MatrixStep step,
-    required double width,
-    required double height,
-    required Map<String, Map<String, ProcessCellStatus>> statusMap,
-  }) {
-    final status = statusMap[product.id]?[step.id] ?? ProcessCellStatus.notStarted;
-    return Container(
-      width: width,
-      height: height,
-      decoration: BoxDecoration(
-        color: _statusColor(status),
-        border: Border.all(
-          color: Colors.white,
-          width: 1,
-        ),
-        borderRadius: BorderRadius.circular(4),
-      ),
     );
   }
 
@@ -2829,6 +2740,250 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
     }
     debugPrint(
       '[_updateDateRange] _startDate=$_startDate, _endDate=$_endDate, _totalDays=$_totalDays',
+    );
+  }
+}
+
+class _ProductProcessStatusMatrixView extends StatefulWidget {
+  const _ProductProcessStatusMatrixView({
+    required this.products,
+    required this.steps,
+    required this.headerGroups,
+    required this.statusMap,
+    required this.rowHeight,
+    required this.productColWidth,
+    required this.cellWidth,
+    required this.parentHeaderHeight,
+    required this.childHeaderHeight,
+    required this.parentColorBuilder,
+    required this.childColorBuilder,
+    required this.statusColorBuilder,
+    required this.project,
+  });
+
+  final List<_MatrixProduct> products;
+  final List<_MatrixStep> steps;
+  final List<_ProcessHeaderGroup> headerGroups;
+  final Map<String, Map<String, ProcessCellStatus>> statusMap;
+  final double rowHeight;
+  final double productColWidth;
+  final double cellWidth;
+  final double parentHeaderHeight;
+  final double childHeaderHeight;
+  final Color Function(String) parentColorBuilder;
+  final Color Function(String) childColorBuilder;
+  final Color Function(ProcessCellStatus) statusColorBuilder;
+  final Project project;
+
+  @override
+  State<_ProductProcessStatusMatrixView> createState() =>
+      _ProductProcessStatusMatrixViewState();
+}
+
+class _ProductProcessStatusMatrixViewState
+    extends State<_ProductProcessStatusMatrixView> {
+  late final ScrollController _horizontalController;
+
+  @override
+  void initState() {
+    super.initState();
+    _horizontalController = ScrollController();
+  }
+
+  @override
+  void dispose() {
+    _horizontalController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final headerWidth =
+        widget.productColWidth + widget.steps.length * widget.cellWidth;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height:
+              widget.parentHeaderHeight + widget.childHeaderHeight + 1 /* divider */,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            controller: _horizontalController,
+            child: _buildHeader(headerWidth),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Expanded(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            controller: _horizontalController,
+            child: _buildBody(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHeader(double totalWidth) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            SizedBox(
+              width: widget.productColWidth,
+              height: widget.parentHeaderHeight,
+            ),
+            for (final group in widget.headerGroups)
+              Container(
+                height: widget.parentHeaderHeight,
+                alignment: Alignment.center,
+                width: group.steps.length * widget.cellWidth,
+                padding: const EdgeInsets.symmetric(
+                  vertical: 2,
+                  horizontal: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: widget.parentColorBuilder(group.groupName),
+                  border: Border(
+                    top: BorderSide(
+                      color: Colors.black.withOpacity(0.15),
+                      width: 1,
+                    ),
+                    bottom: BorderSide(
+                      color: Colors.black.withOpacity(0.15),
+                      width: 1,
+                    ),
+                  ),
+                ),
+                child: Text(
+                  group.groupName,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+          ],
+        ),
+        Row(
+          children: [
+            SizedBox(
+              width: widget.productColWidth,
+              height: widget.childHeaderHeight,
+            ),
+            for (final step in widget.steps)
+              Container(
+                width: widget.cellWidth,
+                height: widget.childHeaderHeight,
+                padding: const EdgeInsets.symmetric(
+                  vertical: 2,
+                  horizontal: 2,
+                ),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: widget.childColorBuilder(step.groupName),
+                  border: Border(
+                    bottom: BorderSide(
+                      color: Colors.grey.shade300,
+                      width: 1,
+                    ),
+                    right: BorderSide(
+                      color: Colors.grey.shade300,
+                      width: 1,
+                    ),
+                  ),
+                ),
+                child: Text(
+                  step.label,
+                  style: const TextStyle(fontSize: 11),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                ),
+              ),
+          ],
+        ),
+        Container(
+          width: totalWidth,
+          height: 1,
+          color: Colors.grey.shade300,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBody() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 4),
+        for (final product in widget.products)
+          SizedBox(
+            height: widget.rowHeight,
+            child: Row(
+              children: [
+                Container(
+                  width: widget.productColWidth,
+                  alignment: Alignment.centerLeft,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Text(
+                    product.label,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                for (final step in widget.steps)
+                  _buildStatusCell(
+                    product: product,
+                    step: step,
+                    status: widget.statusMap[product.id]?[step.id] ??
+                        ProcessCellStatus.notStarted,
+                  ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildStatusCell({
+    required _MatrixProduct product,
+    required _MatrixStep step,
+    required ProcessCellStatus status,
+  }) {
+    final cell = Container(
+      width: widget.cellWidth,
+      height: widget.rowHeight,
+      decoration: BoxDecoration(
+        color: widget.statusColorBuilder(status),
+        border: Border.all(
+          color: Colors.white,
+          width: 1,
+        ),
+        borderRadius: BorderRadius.circular(4),
+      ),
+    );
+
+    return InkWell(
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => ProductInspectionScreen(
+              project: widget.project,
+              initiallySelectedProduct: Product(
+                id: product.id,
+                projectId: widget.project.id,
+                productCode: product.code,
+                memberType: product.memberType,
+                name: product.label,
+              ),
+            ),
+          ),
+        );
+      },
+      child: cell,
     );
   }
 }
