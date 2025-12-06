@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../models/project.dart';
 import '../../../models/product.dart';
 import '../../../providers/product_providers.dart';
+import '../../products/application/product_filter_state.dart';
 import '../../process_spec/domain/process_group.dart';
 import '../../process_spec/domain/process_step.dart';
 import '../../process_spec/presentation/process_colors.dart';
@@ -3222,23 +3223,28 @@ class ProductResultInputPage extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Column(
               children: [
-                _HeaderBar(project: project),
+                const _HeaderBar(),
                 Expanded(
-                  child: Row(
+                  child: TabBarView(
                     children: [
-                      Expanded(flex: 3, child: ProductFilterPane(project: project)),
-                      VerticalDivider(
-                        width: 1,
-                        thickness: 0.9,
-                        color: Theme.of(context).dividerColor,
+                      Row(
+                        children: [
+                          Expanded(flex: 3, child: ProductFilterPane(project: project)),
+                          VerticalDivider(
+                            width: 1,
+                            thickness: 0.9,
+                            color: Theme.of(context).dividerColor,
+                          ),
+                          Expanded(flex: 4, child: ProcessListPane(project: project)),
+                          VerticalDivider(
+                            width: 1,
+                            thickness: 0.9,
+                            color: Theme.of(context).dividerColor,
+                          ),
+                          Expanded(flex: 5, child: ProcessInputPane(project: project)),
+                        ],
                       ),
-                      Expanded(flex: 4, child: ProcessListPane(project: project)),
-                      VerticalDivider(
-                        width: 1,
-                        thickness: 0.9,
-                        color: Theme.of(context).dividerColor,
-                      ),
-                      Expanded(flex: 5, child: ProcessInputPane(project: project)),
+                      ProductStatusTabContent(project: project),
                     ],
                   ),
                 ),
@@ -3251,128 +3257,277 @@ class ProductResultInputPage extends ConsumerWidget {
   }
 }
 
-class _HeaderBar extends ConsumerWidget {
-  final Project project;
+class ProductStatusTabContent extends ConsumerWidget {
+  const ProductStatusTabContent({super.key, required this.project});
 
-  const _HeaderBar({required this.project});
+  final Project project;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final date = ref.watch(inspectionDateProvider);
+    final filteredProducts = ref.watch(filteredProductsProvider(project.id));
     final filter = ref.watch(productFilterProvider);
-    final filterNotifier = ref.read(productFilterProvider.notifier);
-    final productsAsync = ref.watch(productsByProjectProvider(project.id));
-    final isIncompleteOnly = ref.watch(inspectionIncompleteOnlyProvider);
+    final asyncProducts = ref.watch(ganttProductsProvider(project));
+    final asyncProcessSpec = ref.watch(ganttProcessSpecProvider);
+    final asyncProductBars = ref.watch(productGanttBarsProvider(project));
 
-    final stories = productsAsync.maybeWhen(
-      data: (products) => products
-          .map((p) => p.storyOrSet)
-          .where((v) => v.isNotEmpty)
-          .toSet()
-          .take(6)
-          .toList(),
-      orElse: () => const <String>[],
-    );
-    final grids = productsAsync.maybeWhen(
-      data: (products) =>
-          products.map((p) => p.grid).where((v) => v.isNotEmpty).toSet().take(6).toList(),
-      orElse: () => const <String>[],
-    );
+    return asyncProcessSpec.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(child: Text('工程仕様の取得に失敗しました: $e')),
+      data: (spec) => asyncProducts.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('製品の取得に失敗しました: $e')),
+        data: (ganttProducts) {
+          final filteredIds = filteredProducts.map((p) => p.id).toSet();
+          final products = ganttProducts
+              .where((p) => filteredIds.isEmpty || filteredIds.contains(p.id))
+              .where((p) => !filter.incompleteOnly || p.progress < 1)
+              .toList();
+          if (products.isEmpty) {
+            return const Center(child: Text('表示対象の製品がありません'));
+          }
 
-    return Material(
-      color: Theme.of(context).colorScheme.surface,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const TabBar(
-              tabs: [
-                Tab(text: '検査入力'),
-                Tab(text: '製品別ステータス'),
-              ],
-            ),
-            const Divider(height: 1),
-            const SizedBox(height: 12),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.calendar_today, size: 18),
-                    label: Text('検査日: ${_formatYmd(date)}'),
-                    onPressed: () async {
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: date,
-                        firstDate: DateTime.now().subtract(
-                          const Duration(days: 365),
-                        ),
-                        lastDate: DateTime.now().add(
-                          const Duration(days: 365),
-                        ),
-                      );
-                      if (picked != null) {
-                        ref.read(inspectionDateProvider.notifier).state =
-                            DateTime(picked.year, picked.month, picked.day);
-                      }
-                    },
-                  ),
-                ),
-                Expanded(
-                  flex: 4,
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final story in stories)
-                        FilterChip(
-                          label: Text('工区 $story'),
-                          selected: filter.storyOrSet == story,
-                          onSelected: (selected) =>
-                              filterNotifier.setStoryOrSet(selected ? story : null),
-                        ),
-                      for (final grid in grids)
-                        FilterChip(
-                          label: Text('節 $grid'),
-                          selected: filter.grid == grid,
-                          onSelected: (selected) =>
-                              filterNotifier.setGrid(selected ? grid : null),
-                        ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  flex: 2,
-                  child: Align(
-                    alignment: Alignment.centerRight,
+          final productRows = products.map(GanttRowEntry.productHeader).toList();
+
+          return asyncProductBars.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => Center(child: Text('実績の取得に失敗しました: $e')),
+            data: (bars) {
+              final barsMap = <String, Map<String, List<ProductGanttBar>>>{};
+              for (final bar in bars) {
+                barsMap.putIfAbsent(bar.productId, () => <String, List<ProductGanttBar>>{});
+                barsMap[bar.productId]!.putIfAbsent(bar.stepId, () => <ProductGanttBar>[]);
+                barsMap[bar.productId]![bar.stepId]!.add(bar);
+              }
+
+              final steps = _uniqueStatusSteps(_buildStatusUiSteps(spec.groups, spec.steps));
+              final headerGroups = _buildStatusHeaderGroups(steps);
+
+              final statusMap = <String, Map<String, ProcessCellStatus>>{};
+              for (final product in products) {
+                final stepStatuses = <String, ProcessCellStatus>{};
+                for (final step in steps) {
+                  final barsForStep = barsMap[product.id]?[step.id] ?? const <ProductGanttBar>[];
+                  stepStatuses[step.id] = _statusFromBarsForStatusTab(barsForStep);
+                }
+                statusMap[product.id] = stepStatuses;
+              }
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8, left: 16, right: 16),
                     child: Row(
-                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          '未完了のみ',
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyMedium
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(width: 8),
-                        Switch.adaptive(
-                          value: isIncompleteOnly,
-                          onChanged: (value) {
-                            ref.read(inspectionIncompleteOnlyProvider.notifier).state =
-                                value;
-                          },
-                        ),
+                        const Spacer(),
+                        _buildStatusLegend(context),
                       ],
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: _ProductProcessStatusMatrixView(
+                      products: productRows
+                          .map(
+                            (p) => _MatrixProduct(
+                              id: p.product.id,
+                              label: p.product.code.isNotEmpty ? p.product.code : p.product.name,
+                              code: p.product.code,
+                              memberType: p.product.memberType,
+                            ),
+                          )
+                          .toList(),
+                      steps: steps,
+                      headerGroups: headerGroups,
+                      statusMap: statusMap,
+                      rowHeight: 28,
+                      productColWidth: 140,
+                      cellWidth: 80,
+                      parentHeaderHeight: 28,
+                      childHeaderHeight: 24,
+                      parentColorBuilder: _statusViewParentHeaderColorForStatusTab,
+                      childColorBuilder: _statusViewChildHeaderColorForStatusTab,
+                      statusColorBuilder: _statusColorForStatusTab,
+                      project: project,
+                    ),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  List<_MatrixStep> _buildStatusUiSteps(List<ProcessGroup> groups, List<ProcessStep> steps) {
+    final List<_MatrixStep> uiSteps = [];
+    final sortedGroups = [...groups]..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+
+    for (final group in sortedGroups) {
+      final groupSteps = steps.where((s) => s.groupId == group.id).toList()
+        ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+
+      for (final step in groupSteps) {
+        uiSteps.add(
+          _MatrixStep(
+            id: step.id,
+            label: step.label,
+            groupName: group.label,
+          ),
+        );
+      }
+    }
+
+    return uiSteps;
+  }
+
+  List<_MatrixStep> _uniqueStatusSteps(List<_MatrixStep> steps) {
+    final List<_MatrixStep> result = [];
+    final Set<String> seen = {};
+    for (final s in steps) {
+      final parentLabel = (s.groupName).trim();
+      final childLabel = s.label.trim();
+      final key = '$parentLabel::$childLabel';
+      if (seen.add(key)) {
+        result.add(s);
+      }
+    }
+    return result;
+  }
+
+  List<_ProcessHeaderGroup> _buildStatusHeaderGroups(List<_MatrixStep> steps) {
+    final Map<String, List<_MatrixStep>> grouped = {};
+    for (final step in steps) {
+      grouped.putIfAbsent(step.groupName, () => <_MatrixStep>[]).add(step);
+    }
+    final List<_ProcessHeaderGroup> result = [];
+    grouped.forEach((groupName, groupSteps) {
+      result.add(
+        _ProcessHeaderGroup(
+          groupName: groupName,
+          steps: groupSteps,
+        ),
+      );
+    });
+    return result;
+  }
+
+  ProcessCellStatus _statusFromBarsForStatusTab(List<ProductGanttBar> bars) {
+    final actualBars = bars.where((b) => b.kind == GanttBarKind.actual);
+    final hasDone = actualBars.any((b) => b.status == GanttBarStatus.done);
+    if (hasDone) return ProcessCellStatus.done;
+    final hasInProgress = actualBars.any((b) => b.status == GanttBarStatus.inProgress);
+    if (hasInProgress) return ProcessCellStatus.inProgress;
+    return ProcessCellStatus.notStarted;
+  }
+
+  Color _statusViewParentHeaderColorForStatusTab(String groupName) {
+    switch (groupName) {
+      case '一次加工':
+        return const Color(0xFFFFF5E6);
+      case 'コア部':
+        return const Color(0xFFE9F2FF);
+      case '仕口部':
+        return const Color(0xFFE8F7F0);
+      case '大組立部':
+        return const Color(0xFFF3E9FF);
+      default:
+        return Colors.grey.shade50;
+    }
+  }
+
+  Color _statusViewChildHeaderColorForStatusTab(String groupName) {
+    final base = _statusViewParentHeaderColorForStatusTab(groupName);
+    final isFallback = base.value == Colors.grey.shade50.value;
+    final Color vividBase = isFallback ? const Color(0xFFF2F2F2) : base;
+    return vividBase.withOpacity(0.35);
+  }
+
+  Color _statusColorForStatusTab(ProcessCellStatus status) {
+    switch (status) {
+      case ProcessCellStatus.notStarted:
+        return const Color(0xFFE0E0E0);
+      case ProcessCellStatus.inProgress:
+        return kGanttActualInProgressColor.withValues(alpha: 0.85);
+      case ProcessCellStatus.done:
+        return kGanttActualDoneColor.withValues(alpha: 0.9);
+    }
+  }
+
+  Widget _buildStatusLegend(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface.withOpacity(0.9),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.black.withOpacity(0.06)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _legendItem(
+              color: _statusColorForStatusTab(ProcessCellStatus.notStarted),
+              label: '未',
+            ),
+            const SizedBox(width: 12),
+            _legendItem(
+              color: _statusColorForStatusTab(ProcessCellStatus.inProgress),
+              label: '作業中',
+            ),
+            const SizedBox(width: 12),
+            _legendItem(
+              color: _statusColorForStatusTab(ProcessCellStatus.done),
+              label: '完了',
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _legendItem({required Color color, required String label}) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(3),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12, color: Colors.black87),
+        ),
+      ],
+    );
+  }
+}
+
+class _HeaderBar extends StatelessWidget {
+  const _HeaderBar();
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TabBar(
+            tabs: [
+              Tab(text: '検査入力'),
+              Tab(text: '製品別ステータス'),
+            ],
+          ),
+          Divider(height: 1),
+        ],
       ),
     );
   }
@@ -3387,8 +3542,8 @@ class ProductFilterPane extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final filter = ref.watch(productFilterProvider);
     final filterNotifier = ref.read(productFilterProvider.notifier);
+    final inspectionDate = ref.watch(inspectionDateProvider);
     final selectedProductId = ref.watch(inspectionSelectedProductIdProvider);
-    final incompleteOnly = ref.watch(inspectionIncompleteOnlyProvider);
     final productsAsync = ref.watch(productsByProjectProvider(project.id));
     final filteredProducts = ref.watch(filteredProductsProvider(project.id));
     final ganttProductsAsync = ref.watch(ganttProductsProvider(project));
@@ -3408,7 +3563,7 @@ class ProductFilterPane extends ConsumerWidget {
 
     final displayProducts = filteredProducts
         .where(
-          (p) => !incompleteOnly || incompleteIds?.contains(p.id) == true,
+          (p) => !filter.incompleteOnly || incompleteIds?.contains(p.id) == true,
         )
         .toList();
 
@@ -3421,63 +3576,815 @@ class ProductFilterPane extends ConsumerWidget {
       });
     }
 
+    List<String> _options(Iterable<String> values) {
+      final set = values.where((v) => v.isNotEmpty).toSet().toList()..sort();
+      return set;
+    }
+
     final storyFilters = productsAsync.maybeWhen(
-      data: (products) => products
-          .map((p) => p.storyOrSet)
-          .where((v) => v.isNotEmpty)
-          .toSet()
-          .take(6)
-          .toList(),
+      data: (products) => _options(products.map((p) => p.area.isNotEmpty ? p.area : p.storyOrSet)),
       orElse: () => const <String>[],
     );
     final gridFilters = productsAsync.maybeWhen(
-      data: (products) =>
-          products.map((p) => p.grid).where((v) => v.isNotEmpty).toSet().take(6).toList(),
+      data: (products) => _options(products.map((p) => p.grid)),
       orElse: () => const <String>[],
     );
+    final floorFilters = productsAsync.maybeWhen(
+      data: (products) => _options(products.map((p) => p.floor)),
+      orElse: () => const <String>[],
+    );
+    List<String> _memberTypeOptions(Iterable<String> values) {
+      final list = values.where((v) => v.isNotEmpty).toSet().toList();
+      int order(String v) {
+        switch (v) {
+          case 'COLUMN':
+            return 0;
+          case 'GIRDER':
+            return 1;
+          default:
+            return 2;
+        }
+      }
+
+      list.sort((a, b) {
+        final oa = order(a);
+        final ob = order(b);
+        if (oa != ob) return oa.compareTo(ob);
+        return a.compareTo(b);
+      });
+      return list;
+    }
+
+    final memberTypeFilters = productsAsync.maybeWhen(
+      data: (products) => _memberTypeOptions(products.map((p) => p.memberType)),
+      orElse: () => const <String>[],
+    );
+    final sectionFilters = productsAsync.maybeWhen(
+      data: (products) => _options(products.map((p) => p.section)),
+      orElse: () => const <String>[],
+    );
+
+    String _memberTypeLabel(String code) {
+      switch (code) {
+        case 'COLUMN':
+          return '柱';
+        case 'GIRDER':
+          return '大梁・小梁・間柱・他';
+        default:
+          return code;
+      }
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        _ProductFilterPanel(
+          inspectionDate: inspectionDate,
+          ref: ref,
+          stories: storyFilters,
+          grids: gridFilters,
+          floors: floorFilters,
+          memberTypes: memberTypeFilters,
+          sections: sectionFilters,
+          allBlocks: storyFilters,
+          filter: filter,
+          onToggleBlock: filterNotifier.toggleBlock,
+          onToggleSegment: filterNotifier.toggleSegment,
+          onToggleFloor: filterNotifier.toggleFloor,
+          onToggleMemberType: filterNotifier.toggleMemberType,
+          onToggleSection: filterNotifier.toggleSection,
+          onClearFilters: filterNotifier.clearAll,
+          onToggleIncompleteOnly: filterNotifier.setIncompleteOnly,
+          onPickDate: (picked) =>
+              ref.read(inspectionDateProvider.notifier).state = picked,
+        ),
+        const SizedBox(height: 8),
+        const Divider(height: 1),
+        const SizedBox(height: 4),
+        Expanded(
+          child: _ProductListView(
+            displayProducts: displayProducts,
+            selectedProductId: selectedProductId,
+            productProgressMap: productProgressMap,
+            onSelectProduct: (product) {
+              ref.read(inspectionSelectedProductIdProvider.notifier).state = product.id;
+              ref.read(inspectionSelectedStepIdProvider.notifier).state = null;
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ProductFilterPanel extends StatelessWidget {
+  const _ProductFilterPanel({
+    required this.inspectionDate,
+    required this.ref,
+    required this.stories,
+    required this.grids,
+    required this.floors,
+    required this.memberTypes,
+    required this.sections,
+    required this.allBlocks,
+    required this.filter,
+    required this.onToggleBlock,
+    required this.onToggleSegment,
+    required this.onToggleFloor,
+    required this.onToggleMemberType,
+    required this.onToggleSection,
+    required this.onClearFilters,
+    required this.onToggleIncompleteOnly,
+    required this.onPickDate,
+  });
+
+  final DateTime inspectionDate;
+  final WidgetRef ref;
+  final List<String> stories;
+  final List<String> grids;
+  final List<String> floors;
+  final List<String> memberTypes;
+  final List<String> sections;
+  final List<String> allBlocks;
+  final ProductFilterState filter;
+  final ValueChanged<String> onToggleBlock;
+  final ValueChanged<String> onToggleSegment;
+  final ValueChanged<String> onToggleFloor;
+  final ValueChanged<String> onToggleMemberType;
+  final ValueChanged<String> onToggleSection;
+  final VoidCallback onClearFilters;
+  final ValueChanged<bool> onToggleIncompleteOnly;
+  final ValueChanged<DateTime> onPickDate;
+
+  String _memberTypeLabel(String code) {
+    switch (code) {
+      case 'COLUMN':
+        return '柱';
+      case 'GIRDER':
+        return '大梁・小梁・間柱・他';
+      default:
+        return code;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    String _buildSummaryLabel({
+      required String prefix,
+      required List<String> allOptions,
+      required Set<String> selected,
+    }) {
+      if (allOptions.isEmpty) {
+        return '$prefix: なし';
+      }
+      if (selected.isEmpty) {
+        return '$prefix: すべて';
+      }
+      final ordered = allOptions.where((o) => selected.contains(o)).toList();
+      if (ordered.length <= 3) {
+        final joined = ordered.join(', ');
+        return '$prefix: $joined';
+      }
+      return '$prefix: 複数選択（${ordered.length}件）';
+    }
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '製品フィルタ',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.calendar_today, size: 18),
+            label: Text('検査日: ${_formatYmd(inspectionDate)}'),
+            onPressed: () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: inspectionDate,
+                firstDate: DateTime.now().subtract(
+                  const Duration(days: 365),
+                ),
+                lastDate: DateTime.now().add(
+                  const Duration(days: 365),
+                ),
+              );
+              if (picked != null) {
+                onPickDate(DateTime(picked.year, picked.month, picked.day));
+              }
+            },
+          ),
+          const SizedBox(height: 12),
+          _MultiSelectChips(
+            label: '部材',
+            options: memberTypes,
+            selected: filter.selectedMemberTypes,
+            onToggled: onToggleMemberType,
+            labelBuilder: _memberTypeLabel,
+          ),
+          Text(
+            '工区',
+            style: Theme.of(context)
+                .textTheme
+                .labelMedium
+                ?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 4),
+          OutlinedButton(
+            onPressed: () => _showBlockMultiSelectSheet(context, ref, allBlocks),
+            child: Text(
+              _buildSummaryLabel(
+                prefix: '工区',
+                allOptions: allBlocks,
+                selected: filter.selectedBlocks,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (grids.length <= 10)
+            _MultiSelectChips(
+              label: '節',
+              options: grids,
+              selected: filter.selectedSegments,
+              onToggled: onToggleSegment,
+            )
+          else
+            _SegmentFilterButton(
+              segments: grids,
+              selected: filter.selectedSegments,
+              labelBuilder: (selected) => _buildSummaryLabel(
+                prefix: '節',
+                allOptions: grids,
+                selected: selected,
+              ),
+            ),
+          if (floors.length <= 10)
+            _MultiSelectChips(
+              label: '階',
+              options: floors,
+              selected: filter.selectedFloors,
+              onToggled: onToggleFloor,
+            )
+          else
+            _FloorFilterButton(
+              floors: floors,
+              selected: filter.selectedFloors,
+              labelBuilder: (selected) => _buildSummaryLabel(
+                prefix: '階',
+                allOptions: floors,
+                selected: selected,
+              ),
+            ),
+          _SectionFilterButton(
+            sections: sections,
+            selected: filter.selectedSections,
+            labelBuilder: (selected) => _buildSummaryLabel(
+              prefix: '断面',
+              allOptions: sections,
+              selected: selected,
+            ),
+          ),
+          FilterChip(
+            label: const Text('クリア'),
+            selected: false,
+            onSelected: (_) => onClearFilters(),
+          ),
+          const SizedBox(height: 12),
+          Row(
             children: [
               Text(
-                '製品フィルタ',
-                style: Theme.of(context).textTheme.titleMedium,
+                '未完了のみ',
+                style:
+                    Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final story in storyFilters)
-                    FilterChip(
-                      label: Text('工区 $story'),
-                      selected: filter.storyOrSet == story,
-                      onSelected: (selected) =>
-                          filterNotifier.setStoryOrSet(selected ? story : null),
-                    ),
-                  for (final grid in gridFilters)
-                    FilterChip(
-                      label: Text('節 $grid'),
-                      selected: filter.grid == grid,
-                      onSelected: (selected) =>
-                          filterNotifier.setGrid(selected ? grid : null),
-                    ),
-                  FilterChip(
-                    label: const Text('クリア'),
-                    selected: false,
-                    onSelected: (_) => filterNotifier.clearAll(),
-                  ),
-                ],
+              const SizedBox(width: 8),
+              Switch.adaptive(
+                value: filter.incompleteOnly,
+                onChanged: onToggleIncompleteOnly,
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MultiSelectChips extends StatelessWidget {
+  const _MultiSelectChips({
+    required this.label,
+    required this.options,
+    required this.selected,
+    required this.onToggled,
+    this.labelBuilder,
+  });
+
+  final String label;
+  final List<String> options;
+  final Set<String> selected;
+  final ValueChanged<String> onToggled;
+  final String Function(String value)? labelBuilder;
+
+  @override
+  Widget build(BuildContext context) {
+    if (options.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 4,
+            runSpacing: 4,
+            children: [
+              for (final value in options)
+                FilterChip(
+                  label: Text(labelBuilder != null ? labelBuilder!(value) : value),
+                  showCheckmark: false,
+                  selected: selected.contains(value),
+                  onSelected: (_) => onToggled(value),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+Future<void> _showBlockMultiSelectSheet(
+  BuildContext context,
+  WidgetRef ref,
+  List<String> allBlocks,
+) async {
+  final filter = ref.read(productFilterProvider);
+  final localSelected = {...filter.selectedBlocks};
+
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    builder: (context) {
+      return SafeArea(
+        child: SizedBox(
+          height: MediaQuery.of(context).size.height * 0.6,
+          child: StatefulBuilder(
+            builder: (context, setState) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ListTile(
+                    title: const Text('工区を選択'),
+                    trailing: TextButton(
+                      onPressed: () {
+                        setState(() => localSelected.clear());
+                      },
+                      child: const Text('すべてクリア'),
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: allBlocks.length,
+                      itemBuilder: (context, index) {
+                        final block = allBlocks[index];
+                        final isChecked = localSelected.contains(block);
+                        return CheckboxListTile(
+                          title: Text(block),
+                          value: isChecked,
+                          onChanged: (value) {
+                            setState(() {
+                              if (value == true) {
+                                localSelected.add(block);
+                              } else {
+                                localSelected.remove(block);
+                              }
+                            });
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text('キャンセル'),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: () {
+                            ref.read(productFilterProvider.notifier).setBlocks(localSelected);
+                            Navigator.of(context).pop();
+                          },
+                          child: const Text('決定'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
         ),
-        const Divider(height: 1),
+      );
+    },
+  );
+}
+
+class _SegmentFilterButton extends ConsumerWidget {
+  const _SegmentFilterButton({
+    required this.segments,
+    required this.selected,
+    required this.labelBuilder,
+  });
+
+  final List<String> segments;
+  final Set<String> selected;
+  final String Function(Set<String> selected) labelBuilder;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final label = labelBuilder(selected);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '節',
+          style:
+              Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 4),
+        OutlinedButton(
+          onPressed: () => _showSegmentMultiSelectSheet(context, ref, segments),
+          child: Text(
+            label,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _FloorFilterButton extends ConsumerWidget {
+  const _FloorFilterButton({
+    required this.floors,
+    required this.selected,
+    required this.labelBuilder,
+  });
+
+  final List<String> floors;
+  final Set<String> selected;
+  final String Function(Set<String> selected) labelBuilder;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final label = labelBuilder(selected);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '階',
+          style:
+              Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 4),
+        OutlinedButton(
+          onPressed: () => _showFloorMultiSelectSheet(context, ref, floors),
+          child: Text(
+            label,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SectionFilterButton extends ConsumerWidget {
+  const _SectionFilterButton({
+    required this.sections,
+    required this.selected,
+    required this.labelBuilder,
+  });
+
+  final List<String> sections;
+  final Set<String> selected;
+  final String Function(Set<String> selected) labelBuilder;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final label = labelBuilder(selected);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '断面',
+          style:
+              Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 4),
+        OutlinedButton(
+          onPressed: () => _showSectionMultiSelectSheet(context, ref, sections),
+          child: Text(
+            label,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+Future<void> _showSegmentMultiSelectSheet(
+  BuildContext context,
+  WidgetRef ref,
+  List<String> segments,
+) async {
+  final filter = ref.read(productFilterProvider);
+  final localSelected = {...filter.selectedSegments};
+
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    builder: (context) {
+      return SafeArea(
+        child: SizedBox(
+          height: MediaQuery.of(context).size.height * 0.6,
+          child: StatefulBuilder(
+            builder: (context, setState) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ListTile(
+                    title: const Text('節を選択'),
+                    trailing: TextButton(
+                      onPressed: () {
+                        setState(() => localSelected.clear());
+                      },
+                      child: const Text('すべてクリア'),
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: segments.length,
+                      itemBuilder: (context, index) {
+                        final seg = segments[index];
+                        final isChecked = localSelected.contains(seg);
+                        return CheckboxListTile(
+                          title: Text(seg),
+                          value: isChecked,
+                          onChanged: (value) {
+                            setState(() {
+                              if (value == true) {
+                                localSelected.add(seg);
+                              } else {
+                                localSelected.remove(seg);
+                              }
+                            });
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text('キャンセル'),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: () {
+                            ref.read(productFilterProvider.notifier).setSegments(localSelected);
+                            Navigator.of(context).pop();
+                          },
+                          child: const Text('決定'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      );
+    },
+  );
+}
+
+Future<void> _showFloorMultiSelectSheet(
+  BuildContext context,
+  WidgetRef ref,
+  List<String> floors,
+) async {
+  final filter = ref.read(productFilterProvider);
+  final localSelected = {...filter.selectedFloors};
+
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    builder: (context) {
+      return SafeArea(
+        child: SizedBox(
+          height: MediaQuery.of(context).size.height * 0.6,
+          child: StatefulBuilder(
+            builder: (context, setState) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ListTile(
+                    title: const Text('階を選択'),
+                    trailing: TextButton(
+                      onPressed: () {
+                        setState(() => localSelected.clear());
+                      },
+                      child: const Text('すべてクリア'),
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: floors.length,
+                      itemBuilder: (context, index) {
+                        final floor = floors[index];
+                        final isChecked = localSelected.contains(floor);
+                        return CheckboxListTile(
+                          title: Text(floor),
+                          value: isChecked,
+                          onChanged: (value) {
+                            setState(() {
+                              if (value == true) {
+                                localSelected.add(floor);
+                              } else {
+                                localSelected.remove(floor);
+                              }
+                            });
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text('キャンセル'),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: () {
+                            ref.read(productFilterProvider.notifier).setFloors(localSelected);
+                            Navigator.of(context).pop();
+                          },
+                          child: const Text('決定'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      );
+    },
+  );
+}
+
+Future<void> _showSectionMultiSelectSheet(
+  BuildContext context,
+  WidgetRef ref,
+  List<String> sections,
+) async {
+  final filter = ref.read(productFilterProvider);
+  final localSelected = {...filter.selectedSections};
+
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    builder: (context) {
+      return SafeArea(
+        child: SizedBox(
+          height: MediaQuery.of(context).size.height * 0.6,
+          child: StatefulBuilder(
+            builder: (context, setState) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ListTile(
+                    title: const Text('断面を選択'),
+                    trailing: TextButton(
+                      onPressed: () {
+                        setState(() => localSelected.clear());
+                      },
+                      child: const Text('すべてクリア'),
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: sections.length,
+                      itemBuilder: (context, index) {
+                        final section = sections[index];
+                        final isChecked = localSelected.contains(section);
+                        return CheckboxListTile(
+                          title: Text(section),
+                          value: isChecked,
+                          onChanged: (value) {
+                            setState(() {
+                              if (value == true) {
+                                localSelected.add(section);
+                              } else {
+                                localSelected.remove(section);
+                              }
+                            });
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text('キャンセル'),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: () {
+                            ref.read(productFilterProvider.notifier).setSections(localSelected);
+                            Navigator.of(context).pop();
+                          },
+                          child: const Text('決定'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      );
+    },
+  );
+}
+
+class _ProductListView extends StatelessWidget {
+  const _ProductListView({
+    required this.displayProducts,
+    required this.selectedProductId,
+    required this.productProgressMap,
+    required this.onSelectProduct,
+  });
+
+  final List<Product> displayProducts;
+  final String? selectedProductId;
+  final Map<String, GanttProduct> productProgressMap;
+  final ValueChanged<Product> onSelectProduct;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Text(
+            '製品（フィルタ結果）',
+            style: Theme.of(context)
+                .textTheme
+                .labelMedium
+                ?.copyWith(fontWeight: FontWeight.bold),
+          ),
+        ),
         Expanded(
           child: ListView.separated(
             itemCount: displayProducts.length,
@@ -3548,11 +4455,7 @@ class ProductFilterPane extends ConsumerWidget {
                   selected: isSelected,
                   selectedTileColor:
                       Theme.of(context).colorScheme.primary.withOpacity(0.08),
-                  onTap: () {
-                    ref.read(inspectionSelectedProductIdProvider.notifier).state =
-                        product.id;
-                    ref.read(inspectionSelectedStepIdProvider.notifier).state = null;
-                  },
+                  onTap: () => onSelectProduct(product),
                 ),
               );
             },

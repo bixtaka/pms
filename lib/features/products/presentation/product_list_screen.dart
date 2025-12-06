@@ -29,8 +29,12 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
   void initState() {
     super.initState();
     final filter = ref.read(productFilterProvider);
-    _storyCtrl = TextEditingController(text: filter.storyOrSet ?? '');
-    _gridCtrl = TextEditingController(text: filter.grid ?? '');
+    _storyCtrl = TextEditingController(
+      text: filter.selectedBlocks.isNotEmpty ? filter.selectedBlocks.first : '',
+    );
+    _gridCtrl = TextEditingController(
+      text: filter.selectedSegments.isNotEmpty ? filter.selectedSegments.first : '',
+    );
     _keywordCtrl = TextEditingController(text: filter.keyword);
   }
 
@@ -122,7 +126,9 @@ class _ProductFilterPanel extends StatelessWidget {
                 Expanded(
                   child: DropdownButtonFormField<String>(
                     decoration: const InputDecoration(labelText: '部材種別'),
-                    value: filter.memberType ?? '',
+                    value: filter.selectedMemberTypes.isNotEmpty
+                        ? filter.selectedMemberTypes.first
+                        : '',
                     items: const [
                       DropdownMenuItem(value: '', child: Text('指定なし')),
                       DropdownMenuItem(value: 'COLUMN', child: Text('COLUMN')),

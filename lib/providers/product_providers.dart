@@ -30,38 +30,54 @@ final filteredProductsProvider =
 
   return productsAsync.maybeWhen(
     data: (products) {
-      var list = List<Product>.from(products);
+      String _blockOf(Product p) {
+        if (p.area.isNotEmpty) return p.area;
+        // TODO: area が空の場合の暫定フォールバック
+        return p.storyOrSet;
+      }
 
-      if (filter.memberType != null && filter.memberType!.isNotEmpty) {
-        list = list
-            .where((p) => p.memberType == filter.memberType)
-            .toList();
-      }
-      if (filter.storyOrSet != null && filter.storyOrSet!.isNotEmpty) {
-        list = list
-            .where((p) => p.storyOrSet == filter.storyOrSet)
-            .toList();
-      }
-      if (filter.grid != null && filter.grid!.isNotEmpty) {
-        list = list.where((p) => p.grid == filter.grid).toList();
-      }
-      if (filter.status != null && filter.status!.isNotEmpty) {
-        list = list
-            .where((p) => p.overallStatus == filter.status)
-            .toList();
-      }
-      if (filter.keyword.isNotEmpty) {
-        final kw = filter.keyword.toLowerCase();
-        list = list.where((p) {
+      return products.where((p) {
+        final block = _blockOf(p);
+        if (filter.selectedBlocks.isNotEmpty &&
+            !filter.selectedBlocks.contains(block)) {
+          return false;
+        }
+        if (filter.selectedSegments.isNotEmpty &&
+            !filter.selectedSegments.contains(p.grid)) {
+          return false;
+        }
+        if (filter.selectedFloors.isNotEmpty &&
+            !filter.selectedFloors.contains(p.floor)) {
+          return false;
+        }
+        if (filter.selectedMemberTypes.isNotEmpty &&
+            !filter.selectedMemberTypes.contains(p.memberType)) {
+          return false;
+        }
+        if (filter.selectedSections.isNotEmpty &&
+            !filter.selectedSections.contains(p.section)) {
+          return false;
+        }
+        if (filter.status != null &&
+            filter.status!.isNotEmpty &&
+            p.overallStatus != filter.status) {
+          return false;
+        }
+        if (filter.keyword.isNotEmpty) {
+          final kw = filter.keyword.toLowerCase();
           final code = p.productCode.toLowerCase();
           final name = p.name.toLowerCase();
           final remarks = (p.remarks).toLowerCase();
-          return code.contains(kw) ||
-              name.contains(kw) ||
-              remarks.contains(kw);
-        }).toList();
-      }
-      return list;
+          if (!(code.contains(kw) || name.contains(kw) || remarks.contains(kw))) {
+            return false;
+          }
+        }
+        if (filter.incompleteOnly &&
+            (p.overallStatus == 'completed' || p.overallStatus == 'completed_all')) {
+          return false;
+        }
+        return true;
+      }).toList();
     },
     orElse: () => <Product>[],
   );
