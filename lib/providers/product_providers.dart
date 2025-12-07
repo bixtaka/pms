@@ -4,6 +4,11 @@ import '../features/products/application/product_filter_state.dart';
 import '../features/products/application/product_filter_notifier.dart';
 import '../models/product.dart';
 
+bool _isColumnType(String memberType) {
+  // TODO: COLUMN_XX などの派生コードが増えたらここに追加する
+  return memberType == 'COLUMN';
+}
+
 // リポジトリのプロバイダ
 final productRepositoryProvider = Provider<ProductRepository>((ref) {
   return ProductRepository();
@@ -37,27 +42,41 @@ final filteredProductsProvider =
       }
 
       return products.where((p) {
+        final memberType = p.memberType;
+        final isColumn = _isColumnType(memberType);
         final block = _blockOf(p);
+
+        if (filter.selectedMemberTypes.isNotEmpty &&
+            !filter.selectedMemberTypes.contains(memberType)) {
+          return false;
+        }
+
         if (filter.selectedBlocks.isNotEmpty &&
             !filter.selectedBlocks.contains(block)) {
           return false;
         }
-        if (filter.selectedSegments.isNotEmpty &&
-            !filter.selectedSegments.contains(p.grid)) {
-          return false;
-        }
-        if (filter.selectedFloors.isNotEmpty &&
-            !filter.selectedFloors.contains(p.floor)) {
-          return false;
-        }
-        if (filter.selectedMemberTypes.isNotEmpty &&
-            !filter.selectedMemberTypes.contains(p.memberType)) {
-          return false;
-        }
+
         if (filter.selectedSections.isNotEmpty &&
             !filter.selectedSections.contains(p.section)) {
           return false;
         }
+
+        // storyOrSet を節・階の一時的なキーとして共通利用する
+        // TODO: 非柱系は専用の floor フィールドを追加したら置き換える
+        final storyOrSet = p.storyOrSet;
+
+        if (isColumn) {
+          if (filter.selectedSegments.isNotEmpty &&
+              !filter.selectedSegments.contains(storyOrSet)) {
+            return false;
+          }
+        } else {
+          if (filter.selectedFloors.isNotEmpty &&
+              !filter.selectedFloors.contains(storyOrSet)) {
+            return false;
+          }
+        }
+
         if (filter.status != null &&
             filter.status!.isNotEmpty &&
             p.overallStatus != filter.status) {

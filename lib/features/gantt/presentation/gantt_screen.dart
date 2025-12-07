@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../models/project.dart';
 import '../../../models/product.dart';
 import '../../../providers/product_providers.dart';
@@ -38,6 +39,10 @@ enum ProductViewMode { schedule, processStatus }
 
 /// 工程ステータスマトリクス用ステータス
 enum ProcessCellStatus { notStarted, inProgress, done }
+
+// TODO: テスト用。あとで正式な drawingPdfUrl に置き換えること。
+const String kTestDrawingPdfUrl =
+    'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf';
 
 class _MatrixProduct {
   final String id;
@@ -3229,19 +3234,28 @@ class ProductResultInputPage extends ConsumerWidget {
                     children: [
                       Row(
                         children: [
-                          Expanded(flex: 3, child: ProductFilterPane(project: project)),
+                          SizedBox(
+                            width: 280,
+                            child: _LeftPane(project: project),
+                          ),
                           VerticalDivider(
                             width: 1,
                             thickness: 0.9,
                             color: Theme.of(context).dividerColor,
                           ),
-                          Expanded(flex: 4, child: ProcessListPane(project: project)),
+                          Expanded(
+                            flex: 3,
+                            child: ProductListPane(project: project),
+                          ),
                           VerticalDivider(
                             width: 1,
                             thickness: 0.9,
                             color: Theme.of(context).dividerColor,
                           ),
-                          Expanded(flex: 5, child: ProcessInputPane(project: project)),
+                          SizedBox(
+                            width: 380,
+                            child: ProcessInputPane(project: project),
+                          ),
                         ],
                       ),
                       ProductStatusTabContent(project: project),
@@ -3533,18 +3547,226 @@ class _HeaderBar extends StatelessWidget {
   }
 }
 
-class ProductFilterPane extends ConsumerWidget {
+bool _isColumnType(String memberType) {
+  // TODO: COLUMN_XX などの派生コードが増えたらここに追加する
+  return memberType == 'COLUMN';
+}
+
+class _LeftPane extends StatelessWidget {
   final Project project;
 
-  const ProductFilterPane({super.key, required this.project});
+  const _LeftPane({required this.project});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _CollapsibleFilterPanel(project: project),
+        const SizedBox(height: 8),
+        Expanded(child: ProcessListPane(project: project)),
+      ],
+    );
+  }
+}
+
+class _CollapsibleFilterPanel extends ConsumerStatefulWidget {
+  final Project project;
+
+  const _CollapsibleFilterPanel({super.key, required this.project});
+
+  @override
+  ConsumerState<_CollapsibleFilterPanel> createState() =>
+      _CollapsibleFilterPanelState();
+}
+
+class _CollapsibleFilterPanelState extends ConsumerState<_CollapsibleFilterPanel> {
+  bool _expanded = false;
+
+  List<String> _options(Iterable<String> values) {
+    final set = values.where((v) => v.isNotEmpty).toSet().toList()..sort();
+    return set;
+  }
+
+  List<String> _memberTypeOptions(Iterable<String> values) {
+    final list = values.where((v) => v.isNotEmpty).toSet().toList();
+    int order(String v) {
+      switch (v) {
+        case 'COLUMN':
+          return 0;
+        case 'GIRDER':
+          return 1;
+        default:
+          return 2;
+      }
+    }
+
+    list.sort((a, b) {
+      final oa = order(a);
+      final ob = order(b);
+      if (oa != ob) return oa.compareTo(ob);
+      return a.compareTo(b);
+    });
+    return list;
+  }
+
+  String _memberTypeLabel(String code) {
+    switch (code) {
+      case 'COLUMN':
+        return '柱';
+      case 'GIRDER':
+        return '大梁・小梁・間柱・他';
+      default:
+        return code;
+    }
+  }
+
+  String _buildSummaryLabel({
+    required String prefix,
+    required List<String> allOptions,
+    required Set<String> selected,
+    int limit = 3,
+  }) {
+    if (allOptions.isEmpty) {
+      return '$prefix: なし';
+    }
+    if (selected.isEmpty) {
+      return '$prefix: すべて';
+    }
+    final ordered = allOptions.where((o) => selected.contains(o)).toList();
+    if (ordered.length <= limit) {
+      final joined = ordered.join(', ');
+      return '$prefix: $joined';
+    }
+    final head = ordered.take(limit).join(', ');
+    final rest = ordered.length - limit;
+    return '$prefix: $head 他${rest}件';
+  }
+
+  String _summaryPart(
+    String label,
+    Set<String> values, {
+    int limit = 3,
+    String Function(String value)? labelBuilder,
+  }) {
+    if (values.isEmpty) return '$label: すべて';
+    final mapped = values.map(labelBuilder ?? (v) => v).toList();
+    if (mapped.length <= limit) return '$label: ${mapped.join(', ')}';
+    final head = mapped.take(limit).join(', ');
+    final rest = mapped.length - limit;
+    return '$label: $head 他${rest}件';
+  }
+
+  String _buildFilterSummary(ProductFilterState filter) {
+    final parts = <String>[];
+    parts.add(_summaryPart('工区', filter.selectedBlocks, limit: 3));
+    parts.add(
+      _summaryPart(
+        '部材',
+        filter.selectedMemberTypes,
+        labelBuilder: _memberTypeLabel,
+        limit: 2,
+      ),
+    );
+    parts.add(_summaryPart('節', filter.selectedSegments, limit: 3));
+    parts.add(_summaryPart('階', filter.selectedFloors, limit: 3));
+    parts.add(_summaryPart('断面', filter.selectedSections, limit: 1));
+    parts.add('未完了:${filter.incompleteOnly ? 'ON' : 'OFF'}');
+    return parts.join('   ');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filter = ref.watch(productFilterProvider);
+    final filterNotifier = ref.read(productFilterProvider.notifier);
+    final inspectionDate = ref.watch(inspectionDateProvider);
+    final productsAsync = ref.watch(productsByProjectProvider(widget.project.id));
+    final allProducts = productsAsync.asData?.value ?? const <Product>[];
+
+    final columnProducts =
+        allProducts.where((p) => _isColumnType(p.memberType)).toList();
+    final nonColumnProducts =
+        allProducts.where((p) => !_isColumnType(p.memberType)).toList();
+
+    final blockFilters =
+        _options(allProducts.map((p) => p.area.isNotEmpty ? p.area : p.storyOrSet));
+    final segmentOptions = _options(columnProducts.map((p) => p.storyOrSet));
+    final floorOptions = _options(
+      nonColumnProducts.map((p) => p.storyOrSet),
+    ); // TODO: floor フィールドを導入したら storyOrSet の代わりに floor を使う
+    final memberTypeFilters = _memberTypeOptions(allProducts.map((p) => p.memberType));
+    final sectionFilters = _options(allProducts.map((p) => p.section));
+
+    final summary = _buildFilterSummary(filter);
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Divider(height: 1),
+            InkWell(
+              onTap: () => setState(() => _expanded = !_expanded),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        summary,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Icon(_expanded ? Icons.expand_less : Icons.expand_more),
+                  ],
+                ),
+              ),
+            ),
+            AnimatedCrossFade(
+              firstChild: const SizedBox.shrink(),
+              secondChild: _ProductFilterPanel(
+                inspectionDate: inspectionDate,
+                ref: ref,
+                segments: segmentOptions,
+                floors: floorOptions,
+                memberTypes: memberTypeFilters,
+                sections: sectionFilters,
+                allBlocks: blockFilters,
+                filter: filter,
+                onToggleBlock: filterNotifier.toggleBlock,
+                onToggleSegment: filterNotifier.toggleSegment,
+                onToggleFloor: filterNotifier.toggleFloor,
+                onToggleMemberType: filterNotifier.toggleMemberType,
+                onToggleSection: filterNotifier.toggleSection,
+                onClearFilters: filterNotifier.clearAll,
+                onToggleIncompleteOnly: filterNotifier.setIncompleteOnly,
+                onPickDate: (picked) =>
+                    ref.read(inspectionDateProvider.notifier).state = picked,
+              ),
+              crossFadeState:
+                  _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+              duration: const Duration(milliseconds: 200),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class ProductListPane extends ConsumerWidget {
+  final Project project;
+
+  const ProductListPane({super.key, required this.project});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final filter = ref.watch(productFilterProvider);
-    final filterNotifier = ref.read(productFilterProvider.notifier);
-    final inspectionDate = ref.watch(inspectionDateProvider);
     final selectedProductId = ref.watch(inspectionSelectedProductIdProvider);
-    final productsAsync = ref.watch(productsByProjectProvider(project.id));
     final filteredProducts = ref.watch(filteredProductsProvider(project.id));
     final ganttProductsAsync = ref.watch(ganttProductsProvider(project));
 
@@ -3572,107 +3794,19 @@ class ProductFilterPane extends ConsumerWidget {
         if (ref.read(inspectionSelectedProductIdProvider) == null) {
           ref.read(inspectionSelectedProductIdProvider.notifier).state =
               displayProducts.first.id;
+          ref.read(inspectionSelectedStepIdProvider.notifier).state = null;
         }
       });
     }
 
-    List<String> _options(Iterable<String> values) {
-      final set = values.where((v) => v.isNotEmpty).toSet().toList()..sort();
-      return set;
-    }
-
-    final storyFilters = productsAsync.maybeWhen(
-      data: (products) => _options(products.map((p) => p.area.isNotEmpty ? p.area : p.storyOrSet)),
-      orElse: () => const <String>[],
-    );
-    final gridFilters = productsAsync.maybeWhen(
-      data: (products) => _options(products.map((p) => p.grid)),
-      orElse: () => const <String>[],
-    );
-    final floorFilters = productsAsync.maybeWhen(
-      data: (products) => _options(products.map((p) => p.floor)),
-      orElse: () => const <String>[],
-    );
-    List<String> _memberTypeOptions(Iterable<String> values) {
-      final list = values.where((v) => v.isNotEmpty).toSet().toList();
-      int order(String v) {
-        switch (v) {
-          case 'COLUMN':
-            return 0;
-          case 'GIRDER':
-            return 1;
-          default:
-            return 2;
-        }
-      }
-
-      list.sort((a, b) {
-        final oa = order(a);
-        final ob = order(b);
-        if (oa != ob) return oa.compareTo(ob);
-        return a.compareTo(b);
-      });
-      return list;
-    }
-
-    final memberTypeFilters = productsAsync.maybeWhen(
-      data: (products) => _memberTypeOptions(products.map((p) => p.memberType)),
-      orElse: () => const <String>[],
-    );
-    final sectionFilters = productsAsync.maybeWhen(
-      data: (products) => _options(products.map((p) => p.section)),
-      orElse: () => const <String>[],
-    );
-
-    String _memberTypeLabel(String code) {
-      switch (code) {
-        case 'COLUMN':
-          return '柱';
-        case 'GIRDER':
-          return '大梁・小梁・間柱・他';
-        default:
-          return code;
-      }
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _ProductFilterPanel(
-          inspectionDate: inspectionDate,
-          ref: ref,
-          stories: storyFilters,
-          grids: gridFilters,
-          floors: floorFilters,
-          memberTypes: memberTypeFilters,
-          sections: sectionFilters,
-          allBlocks: storyFilters,
-          filter: filter,
-          onToggleBlock: filterNotifier.toggleBlock,
-          onToggleSegment: filterNotifier.toggleSegment,
-          onToggleFloor: filterNotifier.toggleFloor,
-          onToggleMemberType: filterNotifier.toggleMemberType,
-          onToggleSection: filterNotifier.toggleSection,
-          onClearFilters: filterNotifier.clearAll,
-          onToggleIncompleteOnly: filterNotifier.setIncompleteOnly,
-          onPickDate: (picked) =>
-              ref.read(inspectionDateProvider.notifier).state = picked,
-        ),
-        const SizedBox(height: 8),
-        const Divider(height: 1),
-        const SizedBox(height: 4),
-        Expanded(
-          child: _ProductListView(
-            displayProducts: displayProducts,
-            selectedProductId: selectedProductId,
-            productProgressMap: productProgressMap,
-            onSelectProduct: (product) {
-              ref.read(inspectionSelectedProductIdProvider.notifier).state = product.id;
-              ref.read(inspectionSelectedStepIdProvider.notifier).state = null;
-            },
-          ),
-        ),
-      ],
+    return _ProductListView(
+      displayProducts: displayProducts,
+      selectedProductId: selectedProductId,
+      productProgressMap: productProgressMap,
+      onSelectProduct: (product) {
+        ref.read(inspectionSelectedProductIdProvider.notifier).state = product.id;
+        ref.read(inspectionSelectedStepIdProvider.notifier).state = null;
+      },
     );
   }
 }
@@ -3681,8 +3815,7 @@ class _ProductFilterPanel extends StatelessWidget {
   const _ProductFilterPanel({
     required this.inspectionDate,
     required this.ref,
-    required this.stories,
-    required this.grids,
+    required this.segments,
     required this.floors,
     required this.memberTypes,
     required this.sections,
@@ -3700,8 +3833,7 @@ class _ProductFilterPanel extends StatelessWidget {
 
   final DateTime inspectionDate;
   final WidgetRef ref;
-  final List<String> stories;
-  final List<String> grids;
+  final List<String> segments;
   final List<String> floors;
   final List<String> memberTypes;
   final List<String> sections;
@@ -3727,117 +3859,96 @@ class _ProductFilterPanel extends StatelessWidget {
     }
   }
 
+  String _buildSummaryLabel({
+    required String prefix,
+    required List<String> allOptions,
+    required Set<String> selected,
+    int limit = 3,
+  }) {
+    if (allOptions.isEmpty) {
+      return '$prefix: なし';
+    }
+    if (selected.isEmpty) {
+      return '$prefix: すべて';
+    }
+    final ordered = allOptions.where((o) => selected.contains(o)).toList();
+    if (ordered.length <= limit) {
+      final joined = ordered.join(', ');
+      return '$prefix: $joined';
+    }
+    final head = ordered.take(limit).join(', ');
+    final rest = ordered.length - limit;
+    return '$prefix: $head 他${rest}件';
+  }
+
   @override
   Widget build(BuildContext context) {
-    String _buildSummaryLabel({
-      required String prefix,
-      required List<String> allOptions,
-      required Set<String> selected,
-    }) {
-      if (allOptions.isEmpty) {
-        return '$prefix: なし';
-      }
-      if (selected.isEmpty) {
-        return '$prefix: すべて';
-      }
-      final ordered = allOptions.where((o) => selected.contains(o)).toList();
-      if (ordered.length <= 3) {
-        final joined = ordered.join(', ');
-        return '$prefix: $joined';
-      }
-      return '$prefix: 複数選択（${ordered.length}件）';
-    }
+    final selectedMemberTypes = filter.selectedMemberTypes;
+    final includeColumns =
+        selectedMemberTypes.isEmpty || selectedMemberTypes.contains('COLUMN');
+    final includeNonColumns =
+        selectedMemberTypes.isEmpty ||
+        selectedMemberTypes.any((t) => !_isColumnType(t));
+
+    final showSegmentFilter = includeColumns && segments.isNotEmpty;
+    final showFloorFilter = includeNonColumns && floors.isNotEmpty;
 
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '製品フィルタ',
-            style: Theme.of(context).textTheme.titleMedium,
+          const SizedBox(height: 8),
+          FilledButton.tonal(
+            onPressed: () => _showBlockMultiSelectSheet(context, ref, allBlocks),
+            child: const Text('工区を選択'),
           ),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            icon: const Icon(Icons.calendar_today, size: 18),
-            label: Text('検査日: ${_formatYmd(inspectionDate)}'),
-            onPressed: () async {
-              final picked = await showDatePicker(
-                context: context,
-                initialDate: inspectionDate,
-                firstDate: DateTime.now().subtract(
-                  const Duration(days: 365),
+          const SizedBox(height: 8),
+          if (showSegmentFilter)
+            if (segments.length <= 10)
+              _MultiSelectChips(
+                label: '節',
+                options: segments,
+                selected: filter.selectedSegments,
+                onToggled: onToggleSegment,
+              )
+            else
+              _SegmentFilterButton(
+                segments: segments,
+                selected: filter.selectedSegments,
+                labelBuilder: (selected) => _buildSummaryLabel(
+                  prefix: '節',
+                  allOptions: segments,
+                  selected: selected,
                 ),
-                lastDate: DateTime.now().add(
-                  const Duration(days: 365),
+              ),
+          if (showFloorFilter)
+            if (floors.length <= 10)
+              _MultiSelectChips(
+                label: '階',
+                options: floors,
+                selected: filter.selectedFloors,
+                onToggled: onToggleFloor,
+              )
+            else
+              _FloorFilterButton(
+                floors: floors,
+                selected: filter.selectedFloors,
+                labelBuilder: (selected) => _buildSummaryLabel(
+                  prefix: '階',
+                  allOptions: floors,
+                  selected: selected,
                 ),
-              );
-              if (picked != null) {
-                onPickDate(DateTime(picked.year, picked.month, picked.day));
-              }
-            },
-          ),
-          const SizedBox(height: 12),
-          _MultiSelectChips(
+              ),
+          const SizedBox(height: 8),
+          _HorizontalChipSelector(
             label: '部材',
             options: memberTypes,
             selected: filter.selectedMemberTypes,
             onToggled: onToggleMemberType,
             labelBuilder: _memberTypeLabel,
           ),
-          Text(
-            '工区',
-            style: Theme.of(context)
-                .textTheme
-                .labelMedium
-                ?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 4),
-          OutlinedButton(
-            onPressed: () => _showBlockMultiSelectSheet(context, ref, allBlocks),
-            child: Text(
-              _buildSummaryLabel(
-                prefix: '工区',
-                allOptions: allBlocks,
-                selected: filter.selectedBlocks,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          if (grids.length <= 10)
-            _MultiSelectChips(
-              label: '節',
-              options: grids,
-              selected: filter.selectedSegments,
-              onToggled: onToggleSegment,
-            )
-          else
-            _SegmentFilterButton(
-              segments: grids,
-              selected: filter.selectedSegments,
-              labelBuilder: (selected) => _buildSummaryLabel(
-                prefix: '節',
-                allOptions: grids,
-                selected: selected,
-              ),
-            ),
-          if (floors.length <= 10)
-            _MultiSelectChips(
-              label: '階',
-              options: floors,
-              selected: filter.selectedFloors,
-              onToggled: onToggleFloor,
-            )
-          else
-            _FloorFilterButton(
-              floors: floors,
-              selected: filter.selectedFloors,
-              labelBuilder: (selected) => _buildSummaryLabel(
-                prefix: '階',
-                allOptions: floors,
-                selected: selected,
-              ),
-            ),
+          const SizedBox(height: 8),
           _SectionFilterButton(
             sections: sections,
             selected: filter.selectedSections,
@@ -3847,28 +3958,71 @@ class _ProductFilterPanel extends StatelessWidget {
               selected: selected,
             ),
           ),
-          FilterChip(
-            label: const Text('クリア'),
-            selected: false,
-            onSelected: (_) => onClearFilters(),
+          const SizedBox(height: 8),
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('未完了のみ'),
+            value: filter.incompleteOnly,
+            onChanged: onToggleIncompleteOnly,
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Text(
-                '未完了のみ',
-                style:
-                    Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(width: 8),
-              Switch.adaptive(
-                value: filter.incompleteOnly,
-                onChanged: onToggleIncompleteOnly,
-              ),
-            ],
+          Align(
+            alignment: Alignment.centerLeft,
+            child: FilterChip(
+              label: const Text('クリア'),
+              selected: false,
+              onSelected: (_) => onClearFilters(),
+            ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _HorizontalChipSelector extends StatelessWidget {
+  const _HorizontalChipSelector({
+    required this.label,
+    required this.options,
+    required this.selected,
+    required this.onToggled,
+    this.labelBuilder,
+  });
+
+  final String label;
+  final List<String> options;
+  final Set<String> selected;
+  final ValueChanged<String> onToggled;
+  final String Function(String value)? labelBuilder;
+
+  @override
+  Widget build(BuildContext context) {
+    if (options.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 4),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              for (final value in options)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: FilterChip(
+                    label: Text(labelBuilder != null ? labelBuilder!(value) : value),
+                    showCheckmark: false,
+                    selected: selected.contains(value),
+                    onSelected: (_) => onToggled(value),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -3942,11 +4096,26 @@ Future<void> _showBlockMultiSelectSheet(
                 children: [
                   ListTile(
                     title: const Text('工区を選択'),
-                    trailing: TextButton(
-                      onPressed: () {
-                        setState(() => localSelected.clear());
-                      },
-                      child: const Text('すべてクリア'),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextButton(
+                          onPressed: () {
+                            setState(() {
+                              localSelected
+                                ..clear()
+                                ..addAll(allBlocks);
+                            });
+                          },
+                          child: const Text('すべて選択'),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            setState(() => localSelected.clear());
+                          },
+                          child: const Text('選択解除'),
+                        ),
+                      ],
                     ),
                   ),
                   const Divider(height: 1),
@@ -4281,6 +4450,8 @@ Future<void> _showSectionMultiSelectSheet(
 ) async {
   final filter = ref.read(productFilterProvider);
   final localSelected = {...filter.selectedSections};
+  String keyword = '';
+  final controller = TextEditingController();
 
   await showModalBottomSheet<void>(
     context: context,
@@ -4291,6 +4462,12 @@ Future<void> _showSectionMultiSelectSheet(
           height: MediaQuery.of(context).size.height * 0.6,
           child: StatefulBuilder(
             builder: (context, setState) {
+              final filteredSections = sections
+                  .where(
+                    (s) => keyword.isEmpty ||
+                        s.toLowerCase().contains(keyword.toLowerCase()),
+                  )
+                  .toList();
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -4304,11 +4481,22 @@ Future<void> _showSectionMultiSelectSheet(
                     ),
                   ),
                   const Divider(height: 1),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: TextField(
+                      controller: controller,
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.search),
+                        hintText: '断面を検索 (例: H-400)',
+                      ),
+                      onChanged: (v) => setState(() => keyword = v.trim()),
+                    ),
+                  ),
                   Expanded(
                     child: ListView.builder(
-                      itemCount: sections.length,
+                      itemCount: filteredSections.length,
                       itemBuilder: (context, index) {
-                        final section = sections[index];
+                        final section = filteredSections[index];
                         final isChecked = localSelected.contains(section);
                         return CheckboxListTile(
                           title: Text(section),
@@ -4395,6 +4583,19 @@ class _ProductListView extends StatelessWidget {
               final gantt = productProgressMap[product.id];
               final remainingCount =
                   gantt?.tasks.where((t) => t.progress < 1).length;
+              // TODO: 今はPDFビューア動作確認のために先頭1件だけテストURLを使用している。
+              //       本番では Product.drawingPdfUrl を正式に持たせて差し替えること。
+              String? drawingUrl;
+              try {
+                final dynamicUrl = (product as dynamic).drawingPdfUrl;
+                if (dynamicUrl is String && dynamicUrl.isNotEmpty) {
+                  drawingUrl = dynamicUrl;
+                }
+              } catch (_) {
+                drawingUrl = null;
+              }
+              drawingUrl ??= index == 0 ? kTestDrawingPdfUrl : null;
+              final hasDrawing = drawingUrl != null && drawingUrl.isNotEmpty;
               final isPriority = product.overallEndDate != null &&
                   product.overallStatus != 'completed' &&
                   product.overallEndDate!.isBefore(DateTime.now());
@@ -4428,30 +4629,65 @@ class _ProductListView extends StatelessWidget {
                       : null,
                 ),
                 child: ListTile(
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                   title: Text(
                     product.productCode.isNotEmpty
                         ? product.productCode
                         : product.name,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodyMedium
+                        ?.copyWith(fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
                   ),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        remainingCount != null
-                            ? '残工程: $remainingCount'
-                            : '工程読込中',
-                      ),
-                      if (product.storyOrSet.isNotEmpty || product.grid.isNotEmpty)
-                        Text(
-                          [
+                      Builder(
+                        builder: (context) {
+                          final sectionLabel =
+                              product.section.isNotEmpty ? product.section : '-';
+                          // TODO: 主材長さフィールド（例: product.mainLengthMm）を追加したら実値を表示する
+                          const String? lengthMm = null;
+                          final lengthLabel =
+                              lengthMm != null ? '長さ: $lengthMm mm' : '長さ: -';
+                          final remainingLabel = remainingCount != null
+                              ? '残: $remainingCount'
+                              : '残: ?';
+                          final locationLabel = [
                             if (product.storyOrSet.isNotEmpty) '工区: ${product.storyOrSet}',
                             if (product.grid.isNotEmpty) '節: ${product.grid}',
-                          ].join(' / '),
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
+                          ].join(' / ');
+                          final line = [
+                            '断面: $sectionLabel',
+                            lengthLabel,
+                            remainingLabel,
+                            if (locationLabel.isNotEmpty) locationLabel,
+                          ].join('   ');
+                          return Text(
+                            line,
+                            style: Theme.of(context).textTheme.bodySmall,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          );
+                        },
+                      ),
                     ],
                   ),
-                  trailing: badge,
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.picture_as_pdf),
+                        tooltip: hasDrawing ? '図面を開く' : '図面未登録',
+                        onPressed:
+                            !hasDrawing ? null : () => _openDrawingPdf(context, drawingUrl!),
+                      ),
+                      if (badge != null) badge,
+                    ],
+                  ),
                   selected: isSelected,
                   selectedTileColor:
                       Theme.of(context).colorScheme.primary.withOpacity(0.08),
@@ -4466,18 +4702,25 @@ class _ProductListView extends StatelessWidget {
   }
 }
 
-class ProcessListPane extends ConsumerWidget {
+class ProcessListPane extends ConsumerStatefulWidget {
   final Project project;
 
   const ProcessListPane({super.key, required this.project});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ProcessListPane> createState() => _ProcessListPaneState();
+}
+
+class _ProcessListPaneState extends ConsumerState<ProcessListPane> {
+  final Set<String> _expandedGroupIds = <String>{};
+
+  @override
+  Widget build(BuildContext context) {
     final selectedProductId = ref.watch(inspectionSelectedProductIdProvider);
     final selectedStepId = ref.watch(inspectionSelectedStepIdProvider);
-    final productsAsync = ref.watch(productsByProjectProvider(project.id));
-    final filteredProducts = ref.watch(filteredProductsProvider(project.id));
-    final ganttProductsAsync = ref.watch(ganttProductsProvider(project));
+    final productsAsync = ref.watch(productsByProjectProvider(widget.project.id));
+    final filteredProducts = ref.watch(filteredProductsProvider(widget.project.id));
+    final ganttProductsAsync = ref.watch(ganttProductsProvider(widget.project));
 
     Product? _findSelected(List<Product> products) {
       if (selectedProductId == null) return null;
@@ -4546,18 +4789,27 @@ class ProcessListPane extends ConsumerWidget {
               return ListView(
                 children: [
                   for (final entry in groups) ...[
-                    _ProcessGroupHeader(
+                    _ProcessGroupSection(
+                      groupId: entry.key,
                       title: entry.value.first.processGroupLabel ?? '未分類',
+                      steps: entry.value,
+                      isExpanded: _expandedGroupIds.contains(entry.key),
+                      onToggleExpanded: () {
+                        setState(() {
+                          if (_expandedGroupIds.contains(entry.key)) {
+                            _expandedGroupIds.remove(entry.key);
+                          } else {
+                            _expandedGroupIds.add(entry.key);
+                          }
+                        });
+                      },
+                      selectedStepId: selectedStepId,
+                      onSelectStep: (task) {
+                        ref.read(inspectionSelectedStepIdProvider.notifier).state =
+                            task.stepId;
+                      },
                     ),
-                    for (final task in entry.value)
-                      _ProcessStepRow(
-                        task: task,
-                        isSelected: selectedStepId == task.stepId,
-                        onTap: () {
-                          ref.read(inspectionSelectedStepIdProvider.notifier).state =
-                              task.stepId;
-                        },
-                      ),
+                    const SizedBox(height: 4),
                   ],
                 ],
               );
@@ -4569,24 +4821,94 @@ class ProcessListPane extends ConsumerWidget {
   }
 }
 
-class _ProcessGroupHeader extends StatelessWidget {
-  final String title;
+Future<void> _openDrawingPdf(BuildContext context, String urlString) async {
+  final uri = Uri.tryParse(urlString);
+  if (uri == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('図面のURLが不正です')),
+    );
+    return;
+  }
 
-  const _ProcessGroupHeader({required this.title});
+  if (!await canLaunchUrl(uri)) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('図面を開けませんでした')),
+    );
+    return;
+  }
+
+  final launched = await launchUrl(
+    uri,
+    mode: LaunchMode.externalApplication,
+  );
+
+  if (!launched && context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('図面を開けませんでした')),
+    );
+  }
+}
+
+class _ProcessGroupSection extends StatelessWidget {
+  final String groupId;
+  final String title;
+  final List<GanttTask> steps;
+  final bool isExpanded;
+  final VoidCallback onToggleExpanded;
+  final String? selectedStepId;
+  final ValueChanged<GanttTask> onSelectStep;
+
+  const _ProcessGroupSection({
+    required this.groupId,
+    required this.title,
+    required this.steps,
+    required this.isExpanded,
+    required this.onToggleExpanded,
+    required this.selectedStepId,
+    required this.onSelectStep,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      color: Theme.of(context).colorScheme.surfaceVariant,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Text(
-        title,
-        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        InkWell(
+          onTap: onToggleExpanded,
+          child: Container(
+            width: double.infinity,
+            color: theme.colorScheme.surfaceVariant,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+                Icon(
+                  isExpanded ? Icons.expand_less : Icons.expand_more,
+                  size: 20,
+                ),
+              ],
             ),
-      ),
+          ),
+        ),
+        if (isExpanded)
+          ...steps.map(
+            (task) => _ProcessStepRow(
+              task: task,
+              isSelected: selectedStepId == task.stepId,
+              onTap: () => onSelectStep(task),
+            ),
+          ),
+      ],
     );
   }
 }
