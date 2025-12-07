@@ -4681,7 +4681,9 @@ class _ProductListView extends StatelessWidget {
                     children: [
                       IconButton(
                         icon: const Icon(Icons.picture_as_pdf),
-                        tooltip: hasDrawing ? '図面を開く' : '図面未登録',
+                        tooltip: hasDrawing
+                            ? '図面を開く（Safari／マークアップ可）'
+                            : '図面未登録',
                         onPressed:
                             !hasDrawing ? null : () => _openDrawingPdf(context, drawingUrl!),
                       ),
@@ -4828,6 +4830,15 @@ Future<void> _openDrawingPdf(BuildContext context, String urlString) async {
       const SnackBar(content: Text('図面のURLが不正です')),
     );
     return;
+  }
+
+  if (context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('図面は Safari で開きます。右上の共有→「マークアップ」でPencilチェックできます。'),
+        duration: Duration(seconds: 4),
+      ),
+    );
   }
 
   if (!await canLaunchUrl(uri)) {
