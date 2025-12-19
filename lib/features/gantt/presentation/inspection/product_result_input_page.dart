@@ -1,4 +1,4 @@
-part of '../gantt_screen.dart';
+﻿part of '../gantt_screen.dart';
 
 // --- 製品実績入力画面（検査入力画面） ---
 
@@ -29,15 +29,148 @@ String _statusLabel(InspectionStatus status) {
   }
 }
 
-Color _statusColor(BuildContext context, InspectionStatus status) {
-  final scheme = Theme.of(context).colorScheme;
-  switch (status) {
-    case InspectionStatus.pending:
-      return scheme.outlineVariant;
-    case InspectionStatus.inProgress:
-      return scheme.secondary;
-    case InspectionStatus.done:
-      return scheme.primary;
+class _KoukuFilterBlock extends StatelessWidget {
+  const _KoukuFilterBlock({
+    required this.options,
+    required this.selected,
+    required this.onToggle,
+    required this.onClearAll,
+    required this.isAllSelected,
+    required this.isSelected,
+  });
+
+  final List<String> options;
+  final Set<String> selected;
+  final ValueChanged<String> onToggle;
+  final VoidCallback onClearAll;
+  final bool isAllSelected;
+  final bool Function(String) isSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    if (options.length >= 10) {
+      return Padding(
+        padding: const EdgeInsets.only(right: 12, bottom: 12),
+        child: _KoukuListSelector(
+          options: options,
+          selected: selected,
+          onToggle: onToggle,
+          onClearAll: onClearAll,
+          isAllSelected: isAllSelected,
+          isSelected: isSelected,
+        ),
+      );
+    }
+    return _MultiChoiceChips(
+      options: options,
+      selected: selected,
+      onToggle: onToggle,
+      onClearAll: onClearAll,
+      isAllSelected: isAllSelected,
+      isSelected: isSelected,
+    );
+  }
+}
+
+class _KoukuListSelector extends StatelessWidget {
+  const _KoukuListSelector({
+    required this.options,
+    required this.selected,
+    required this.onToggle,
+    required this.onClearAll,
+    required this.isAllSelected,
+    required this.isSelected,
+  });
+
+  final List<String> options;
+  final Set<String> selected;
+  final ValueChanged<String> onToggle;
+  final VoidCallback onClearAll;
+  final bool isAllSelected;
+  final bool Function(String) isSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final height = math.min(
+      math.max(MediaQuery.sizeOf(context).height * 0.35, 200.0),
+      320.0,
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: onClearAll,
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: isAllSelected
+                  ? theme.colorScheme.primary.withOpacity(0.08)
+                  : null,
+              border: Border.all(
+                color: isAllSelected
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.outlineVariant,
+              ),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              'すべて',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: isAllSelected ? FontWeight.bold : null,
+                color:
+                    isAllSelected ? theme.colorScheme.primary : theme.colorScheme.onSurface,
+              ),
+            ),
+          ),
+        ),
+        SizedBox(
+          height: height,
+          child: ListView.builder(
+            shrinkWrap: false,
+            physics: const ClampingScrollPhysics(),
+            padding: const EdgeInsets.only(right: 12, bottom: 12),
+            itemCount: options.length,
+            itemBuilder: (context, index) {
+              final kouku = options[index];
+              final selectedItem = isSelected(kouku);
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: InkWell(
+                  onTap: () => onToggle(kouku),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: selectedItem
+                          ? theme.colorScheme.primary.withOpacity(0.08)
+                          : null,
+                      border: Border.all(
+                        color: selectedItem
+                            ? theme.colorScheme.primary
+                            : theme.colorScheme.outlineVariant,
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    child: Text(
+                      kouku,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: selectedItem ? FontWeight.bold : null,
+                        color: selectedItem
+                            ? theme.colorScheme.primary
+                            : theme.colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -53,11 +186,21 @@ final inspectionSelectedProductIdProvider =
 
 final inspectionSelectedStepIdProvider = StateProvider<String?>((ref) => null);
 
+final _selectedProcessGroupIdProvider = StateProvider<String?>((ref) => null);
+
 final inspectionNextModeProvider =
     StateProvider<NextMode>((ref) => NextMode.nextStepSameProduct);
 
 final inspectionStatusProvider =
     StateProvider<InspectionStatus>((ref) => InspectionStatus.pending);
+
+void _setSelectedProcessStep(WidgetRef ref, String? stepId) {
+  ref.read(inspectionSelectedStepIdProvider.notifier).state = stepId;
+  ref.read(inspectionFilterProvider.notifier).setProcessStep(stepId);
+}
+
+// フィルタ展開領域の最大高さ（iPad 3ペインでの Bottom overflow 再発防止用）
+const double kFilterPanelMaxHeight = 360.0;
 
 class ProductResultInputPage extends ConsumerWidget {
   final Project project;
@@ -143,11 +286,6 @@ class _HeaderBar extends StatelessWidget {
   }
 }
 
-bool _isColumnType(String memberType) {
-  // TODO: COLUMN_XX などの派生コードが増えたらここに追加する
-  return memberType == 'COLUMN';
-}
-
 class _LeftPane extends StatelessWidget {
   final Project project;
 
@@ -157,10 +295,208 @@ class _LeftPane extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        _CollapsibleFilterPanel(project: project),
+        const _ProcessSelectionCard(),
         const SizedBox(height: 8),
-        Expanded(child: ProcessListPane(project: project)),
+        Expanded(
+          child: Column(
+            children: [
+              _CollapsibleFilterPanel(project: project),
+              const SizedBox(height: 8),
+              Expanded(child: ProcessListPane(project: project)),
+            ],
+          ),
+        ),
       ],
+    );
+  }
+}
+
+class _ProcessSelectionCard extends ConsumerWidget {
+  const _ProcessSelectionCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selectedGroupId = ref.watch(_selectedProcessGroupIdProvider);
+    final selectedStepId = ref.watch(inspectionSelectedStepIdProvider);
+    final groupsAsync = ref.watch(inspectionProcessGroupsProvider);
+    final stepsAsync = ref.watch(inspectionProcessStepsProvider);
+    final steps = stepsAsync.asData?.value ?? const <ProcessStep>[];
+    final groups = groupsAsync.asData?.value ?? const <ProcessGroup>[];
+
+    final theme = Theme.of(context);
+
+    final isLoading = groupsAsync.isLoading || stepsAsync.isLoading;
+    final hasError = groupsAsync.hasError || stepsAsync.hasError;
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  '工程を選択',
+                  style: theme.textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed:
+                      selectedStepId == null
+                          ? null
+                          : () {
+                              ref.read(_selectedProcessGroupIdProvider.notifier).state =
+                                  null;
+                              _setSelectedProcessStep(ref, null);
+                            },
+                  icon: const Icon(Icons.clear),
+                  label: const Text('クリア'),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+            if (hasError)
+              Text(
+                '工程の読み込みに失敗しました',
+                style:
+                    theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.error),
+              )
+            else if (isLoading && steps.isEmpty)
+              const LinearProgressIndicator(minHeight: 3)
+            else if (steps.isEmpty)
+              Text(
+                '工程マスタが取得できませんでした',
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(color: theme.colorScheme.error),
+              )
+            else ...[
+              DropdownButtonFormField<String>(
+                value: selectedGroupId,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: '親工程',
+                  hintText: '親工程を選択',
+                  border: OutlineInputBorder(),
+                ),
+                items: _sortedProcessGroups(groups)
+                    .map(
+                      (g) => DropdownMenuItem<String>(
+                        value: g.id,
+                        child: Text(g.label),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  ref.read(_selectedProcessGroupIdProvider.notifier).state = value;
+                  _setSelectedProcessStep(ref, null);
+                },
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Chip(
+                    label: Text(selectedStepId == null
+                        ? '工程未選択'
+                        : '現在: ${_labelForStep(steps, selectedStepId) ?? '工程未選択'}'),
+                    visualDensity: VisualDensity.compact,
+                    backgroundColor: selectedStepId == null
+                        ? theme.colorScheme.surfaceVariant
+                        : theme.colorScheme.primary.withOpacity(0.12),
+                    labelStyle: theme.textTheme.bodySmall?.copyWith(
+                      color: selectedStepId == null
+                          ? theme.colorScheme.onSurfaceVariant
+                          : theme.colorScheme.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              _StepChooser(
+                selectedGroupId: selectedGroupId,
+                selectedStepId: selectedStepId,
+                steps: steps,
+                onSelect: (stepId) => _setSelectedProcessStep(ref, stepId),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String? _labelForStep(List<ProcessStep> steps, String? stepId) {
+  if (stepId == null) return null;
+  for (final s in steps) {
+    if (s.id == stepId) return s.label;
+  }
+  return null;
+}
+
+List<ProcessGroup> _sortedProcessGroups(List<ProcessGroup> groups) {
+  return List<ProcessGroup>.from(groups)
+    ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+}
+
+List<ProcessStep> _sortedProcessSteps(Iterable<ProcessStep> steps) {
+  final list = steps.toList()..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+  return list;
+}
+
+class _StepChooser extends StatelessWidget {
+  final String? selectedGroupId;
+  final String? selectedStepId;
+  final List<ProcessStep> steps;
+  final ValueChanged<String> onSelect;
+
+  const _StepChooser({
+    required this.selectedGroupId,
+    required this.selectedStepId,
+    required this.steps,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    if (selectedGroupId == null) {
+      return const SizedBox.shrink();
+    }
+
+    final groupSteps =
+        _sortedProcessSteps(steps.where((s) => s.groupId == selectedGroupId));
+    if (groupSteps.isEmpty) {
+      return Text(
+        'この工程グループに工程がありません',
+        style:
+            theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.outline),
+      );
+    }
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 220),
+      child: SingleChildScrollView(
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          children: [
+            for (final step in groupSteps)
+              ChoiceChip(
+                label: Text(step.label),
+                selected: selectedStepId == step.id,
+                selectedColor:
+                    ProcessColors.fromLabels(stepLabel: step.label, groupLabel: null)
+                        .withOpacity(0.15),
+                onSelected: (_) => onSelect(step.id),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -177,122 +513,268 @@ class _CollapsibleFilterPanel extends ConsumerStatefulWidget {
 
 class _CollapsibleFilterPanelState extends ConsumerState<_CollapsibleFilterPanel> {
   bool _expanded = false;
+  late final TextEditingController _sectionController;
+  late final TextEditingController _productCodeController;
+  late final ProviderSubscription<InspectionFilterState> _filterSub;
 
-  List<String> _options(Iterable<String> values) {
-    final set = values.where((v) => v.isNotEmpty).toSet().toList()..sort();
-    return set;
-  }
-
-  List<String> _memberTypeOptions(Iterable<String> values) {
-    final list = values.where((v) => v.isNotEmpty).toSet().toList();
-    int order(String v) {
-      switch (v) {
-        case 'COLUMN':
-          return 0;
-        case 'GIRDER':
-          return 1;
-        default:
-          return 2;
-      }
-    }
-
-    list.sort((a, b) {
-      final oa = order(a);
-      final ob = order(b);
-      if (oa != ob) return oa.compareTo(ob);
-      return a.compareTo(b);
-    });
-    return list;
-  }
-
-  String _memberTypeLabel(String code) {
-    switch (code) {
-      case 'COLUMN':
-        return '柱';
-      case 'GIRDER':
-        return '大梁・小梁・間柱・他';
-      default:
-        return code;
-    }
-  }
-
-  String _buildSummaryLabel({
-    required String prefix,
-    required List<String> allOptions,
-    required Set<String> selected,
-    int limit = 3,
-  }) {
-    if (allOptions.isEmpty) {
-      return '$prefix: なし';
-    }
-    if (selected.isEmpty) {
-      return '$prefix: すべて';
-    }
-    final ordered = allOptions.where((o) => selected.contains(o)).toList();
-    if (ordered.length <= limit) {
-      final joined = ordered.join(', ');
-      return '$prefix: $joined';
-    }
-    final head = ordered.take(limit).join(', ');
-    final rest = ordered.length - limit;
-    return '$prefix: $head 他${rest}件';
-  }
-
-  String _summaryPart(
-    String label,
-    Set<String> values, {
-    int limit = 3,
-    String Function(String value)? labelBuilder,
-  }) {
-    if (values.isEmpty) return '$label: すべて';
-    final mapped = values.map(labelBuilder ?? (v) => v).toList();
-    if (mapped.length <= limit) return '$label: ${mapped.join(', ')}';
-    final head = mapped.take(limit).join(', ');
-    final rest = mapped.length - limit;
-    return '$label: $head 他${rest}件';
-  }
-
-  String _buildFilterSummary(ProductFilterState filter) {
-    final parts = <String>[];
-    parts.add(_summaryPart('工区', filter.selectedBlocks, limit: 3));
-    parts.add(
-      _summaryPart(
-        '部材',
-        filter.selectedMemberTypes,
-        labelBuilder: _memberTypeLabel,
-        limit: 2,
-      ),
+  Future<void> _showKoukuSheet(
+    BuildContext context,
+    List<String> options,
+    InspectionFilterNotifier filterNotifier,
+    Set<String> initialSelected,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) {
+        var selected = Set<String>.from(initialSelected);
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('工区を選択', style: Theme.of(ctx).textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  ListTile(
+                    title: const Text('すべて'),
+                    onTap: () {
+                      filterNotifier.clearKouku();
+                      selected.clear();
+                      setSheetState(() {});
+                    },
+                    trailing: selected.isEmpty
+                        ? Icon(Icons.check, color: Theme.of(ctx).colorScheme.primary)
+                        : null,
+                  ),
+                  const Divider(),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: options.length,
+                      itemBuilder: (_, index) {
+                        final kouku = options[index];
+                        final isSelected = selected.contains(kouku);
+                        return ListTile(
+                          title: Text(kouku),
+                          onTap: () {
+                            filterNotifier.toggleKouku(kouku);
+                            if (isSelected) {
+                              selected.remove(kouku);
+                            } else {
+                              selected.add(kouku);
+                            }
+                            setSheetState(() {});
+                          },
+                          trailing: isSelected
+                              ? Icon(Icons.check, color: Theme.of(ctx).colorScheme.primary)
+                              : null,
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
-    parts.add(_summaryPart('節', filter.selectedSegments, limit: 3));
-    parts.add(_summaryPart('階', filter.selectedFloors, limit: 3));
-    parts.add(_summaryPart('断面', filter.selectedSections, limit: 1));
-    parts.add('未完了:${filter.incompleteOnly ? 'ON' : 'OFF'}');
-    return parts.join('   ');
+  }
+
+  Future<void> _showSetsuSheet(
+    BuildContext context,
+    List<String> options,
+    InspectionFilterNotifier filterNotifier,
+    String? initialSelected,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) {
+        var current = initialSelected;
+        return Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('節を選択', style: Theme.of(ctx).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              ListTile(
+                title: const Text('すべて'),
+                onTap: () {
+                  filterNotifier.setSetsu(null);
+                  Navigator.of(ctx).pop();
+                },
+                trailing: current == null
+                    ? Icon(Icons.check, color: Theme.of(ctx).colorScheme.primary)
+                    : null,
+              ),
+              const Divider(),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: options.length,
+                  itemBuilder: (_, index) {
+                    final setsu = options[index];
+                    final isSelected = current == setsu;
+                    return ListTile(
+                      title: Text(setsu),
+                      onTap: () {
+                        filterNotifier.setSetsu(setsu);
+                        current = setsu;
+                        Navigator.of(ctx).pop();
+                      },
+                      trailing: isSelected
+                          ? Icon(Icons.check, color: Theme.of(ctx).colorScheme.primary)
+                          : null,
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _showFloorSheet(
+    BuildContext context,
+    List<int> options,
+    InspectionFilterNotifier filterNotifier,
+    int? initialSelected,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) {
+        var current = initialSelected;
+        return Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('階を選択', style: Theme.of(ctx).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              ListTile(
+                title: const Text('すべて'),
+                onTap: () {
+                  filterNotifier.setFloor(null);
+                  Navigator.of(ctx).pop();
+                },
+                trailing: current == null
+                    ? Icon(Icons.check, color: Theme.of(ctx).colorScheme.primary)
+                    : null,
+              ),
+              const Divider(),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: options.length,
+                  itemBuilder: (_, index) {
+                    final floor = options[index];
+                    final isSelected = current == floor;
+                    return ListTile(
+                      title: Text(floor.toString()),
+                      onTap: () {
+                        filterNotifier.setFloor(floor);
+                        current = floor;
+                        Navigator.of(ctx).pop();
+                      },
+                      trailing: isSelected
+                          ? Icon(Icons.check, color: Theme.of(ctx).colorScheme.primary)
+                          : null,
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _loadSampleCsv(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final content = await rootBundle.loadString('assets/sample/shipping_test_kuku_12.csv');
+      await ref
+          .read(shippingTableProvider.notifier)
+          .loadFromCsvString(content, logPreview: true);
+      final shippingState = ref.read(shippingTableProvider);
+      final rows = shippingState.rows.length;
+      final kukus = shippingState.rows.map((e) => e.kouku.trim()).toSet().length;
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('サンプルCSVを読み込みました rows=$rows kukus=$kukus')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text('サンプル読み込みに失敗しました: $e')));
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _sectionController = TextEditingController();
+    _productCodeController = TextEditingController();
+    _filterSub =
+        ref.listenManual<InspectionFilterState>(inspectionFilterProvider, (prev, next) {
+      if (_sectionController.text != next.sectionQuery) {
+        _sectionController.text = next.sectionQuery;
+      }
+      if (_productCodeController.text != next.productCodeQuery) {
+        _productCodeController.text = next.productCodeQuery;
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _filterSub.close();
+    _sectionController.dispose();
+    _productCodeController.dispose();
+    super.dispose();
+  }
+
+  String _buildFilterSummary(InspectionFilterState filter) {
+    final parts = <String>[];
+    if (filter.selectedKoukus.isEmpty) {
+      parts.add('工区: 未選択');
+    } else {
+      final koukuList = filter.selectedKoukus.toList()..sort();
+      parts.add('工区: ${koukuList.join(', ')}');
+    }
+    parts.add('種別: ${filter.selectedKind ?? '未選択'}');
+    if (filter.selectedKind == '柱') {
+      parts.add('節: ${filter.selectedSetsu ?? '未選択'}');
+    } else if (filter.selectedKind == '大梁' ||
+        filter.selectedKind == '小梁' ||
+        filter.selectedKind == '間柱') {
+      parts.add('階: ${filter.selectedFloor?.toString() ?? '未選択'}');
+    }
+    if (filter.sectionQuery.isNotEmpty) {
+      parts.add('断面: ${filter.sectionQuery}');
+    }
+    if (filter.productCodeQuery.isNotEmpty) {
+      parts.add('符号: ${filter.productCodeQuery}');
+    }
+    return parts.join(' / ');
   }
 
   @override
   Widget build(BuildContext context) {
-    final filter = ref.watch(productFilterProvider);
-    final filterNotifier = ref.read(productFilterProvider.notifier);
-    final inspectionDate = ref.watch(inspectionDateProvider);
-    final productsAsync = ref.watch(productsByProjectProvider(widget.project.id));
-    final allProducts = productsAsync.asData?.value ?? const <Product>[];
-
-    final columnProducts =
-        allProducts.where((p) => _isColumnType(p.memberType)).toList();
-    final nonColumnProducts =
-        allProducts.where((p) => !_isColumnType(p.memberType)).toList();
-
-    final blockFilters =
-        _options(allProducts.map((p) => p.area.isNotEmpty ? p.area : p.storyOrSet));
-    final segmentOptions = _options(columnProducts.map((p) => p.storyOrSet));
-    final floorOptions = _options(
-      nonColumnProducts.map((p) => p.storyOrSet),
-    ); // TODO: floor フィールドを導入したら storyOrSet の代わりに floor を使う
-    final memberTypeFilters = _memberTypeOptions(allProducts.map((p) => p.memberType));
-    final sectionFilters = _options(allProducts.map((p) => p.section));
-
-    final summary = _buildFilterSummary(filter);
+    final filter = ref.watch(inspectionFilterProvider);
+    final koukuOptions = ref.watch(koukuCandidatesProvider);
+    final kindOptions = ref.watch(kindCandidatesProvider);
+    final floorOptions = ref.watch(floorCandidatesProvider);
+    final setsuOptions = ref.watch(setsuCandidatesProvider);
+    final shippingState = ref.watch(shippingTableProvider);
+    final isLoading = shippingState.isLoading;
+    final incompleteOnly = ref.watch(inspectionIncompleteOnlyProvider);
+    final summary = _buildFilterSummary(filter) + (incompleteOnly ? ' / 未完了のみ' : '');
+    final filterNotifier = ref.read(inspectionFilterProvider.notifier);
 
     return Card(
       margin: EdgeInsets.zero,
@@ -302,6 +784,30 @@ class _CollapsibleFilterPanelState extends ConsumerState<_CollapsibleFilterPanel
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.bolt),
+                        label: const Text('サンプルを読み込む'),
+                        onPressed: isLoading ? null : () => _loadSampleCsv(context),
+                      ),
+                    ],
+                  ),
+                  if (isLoading)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 8),
+                      child: LinearProgressIndicator(minHeight: 3),
+                    ),
+                ],
+              ),
+            ),
             InkWell(
               onTap: () => setState(() => _expanded = !_expanded),
               child: Padding(
@@ -321,34 +827,425 @@ class _CollapsibleFilterPanelState extends ConsumerState<_CollapsibleFilterPanel
                 ),
               ),
             ),
-            AnimatedCrossFade(
-              firstChild: const SizedBox.shrink(),
-              secondChild: _ProductFilterPanel(
-                inspectionDate: inspectionDate,
-                ref: ref,
-                segments: segmentOptions,
-                floors: floorOptions,
-                memberTypes: memberTypeFilters,
-                sections: sectionFilters,
-                allBlocks: blockFilters,
-                filter: filter,
-                onToggleBlock: filterNotifier.toggleBlock,
-                onToggleSegment: filterNotifier.toggleSegment,
-                onToggleFloor: filterNotifier.toggleFloor,
-                onToggleMemberType: filterNotifier.toggleMemberType,
-                onToggleSection: filterNotifier.toggleSection,
-                onClearFilters: filterNotifier.clearAll,
-                onToggleIncompleteOnly: filterNotifier.setIncompleteOnly,
-                onPickDate: (picked) =>
-                    ref.read(inspectionDateProvider.notifier).state = picked,
+            if (_expanded)
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  // NOTE: Bottom overflow 再発防止のため、フィルタ領域は最大高さを持たせる。
+                  // 工区>=10の縦リストが伸びても、この範囲内でスクロールできればOK。
+                  maxHeight:
+                      math.min(kFilterPanelMaxHeight, MediaQuery.sizeOf(context).height * 0.6),
+                ),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.only(right: 12, bottom: 24),
+                  physics: const ClampingScrollPhysics(),
+                  child: _InspectionFilterPanel(
+                    filter: filter,
+                    ref: ref,
+                    koukuOptions: koukuOptions,
+                    kindOptions: kindOptions,
+                    floorOptions: floorOptions,
+                    setsuOptions: setsuOptions,
+                    sectionController: _sectionController,
+                    productCodeController: _productCodeController,
+                    incompleteOnly: incompleteOnly,
+                    onEditKouku: () =>
+                        _showKoukuSheet(context, koukuOptions, filterNotifier, filter.selectedKoukus),
+                    onEditSetsuOrFloor: () {
+                      if (filter.selectedKind == '柱') {
+                        _showSetsuSheet(
+                            context, setsuOptions, filterNotifier, filter.selectedSetsu);
+                      } else {
+                        _showFloorSheet(
+                            context, floorOptions, filterNotifier, filter.selectedFloor);
+                      }
+                    },
+                  ),
+                ),
               ),
-              crossFadeState:
-                  _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
-              duration: const Duration(milliseconds: 200),
-            ),
             const SizedBox(height: 8),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _InspectionFilterPanel extends StatelessWidget {
+  const _InspectionFilterPanel({
+    required this.filter,
+    required this.ref,
+    required this.koukuOptions,
+    required this.kindOptions,
+    required this.floorOptions,
+    required this.setsuOptions,
+    required this.sectionController,
+    required this.productCodeController,
+    required this.incompleteOnly,
+    required this.onEditKouku,
+    required this.onEditSetsuOrFloor,
+  });
+
+  final InspectionFilterState filter;
+  final bool incompleteOnly;
+  final List<String> koukuOptions;
+  final List<String> kindOptions;
+  final List<int> floorOptions;
+  final List<String> setsuOptions;
+  final TextEditingController sectionController;
+  final TextEditingController productCodeController;
+  final WidgetRef ref;
+  final VoidCallback onEditKouku;
+  final VoidCallback onEditSetsuOrFloor;
+
+  @override
+  Widget build(BuildContext context) {
+    final filterNotifier = ref.read(inspectionFilterProvider.notifier);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SummaryRow(
+            label: '工区',
+            value: _formatKoukuSummary(filter.selectedKoukus),
+            onPressed: onEditKouku,
+          ),
+          const SizedBox(height: 6),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '種別',
+                style: Theme.of(context)
+                    .textTheme
+                    .labelMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 4),
+              _KindSelector(
+                options: kindOptions,
+                selected: filter.selectedKind,
+                onSelected: (value) => filterNotifier.setKind(value),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          _SummaryRow(
+            label: '節',
+            value: filter.selectedKind == '柱'
+                ? (filter.selectedSetsu ?? 'すべて')
+                : '柱を選択',
+            onPressed: filter.selectedKind == '柱' ? onEditSetsuOrFloor : null,
+            enabled: filter.selectedKind == '柱',
+          ),
+          const SizedBox(height: 6),
+          _SummaryRow(
+            label: '階',
+            value: (filter.selectedKind == '大梁' ||
+                    filter.selectedKind == '小梁' ||
+                    filter.selectedKind == '間柱')
+                ? (filter.selectedFloor?.toString() ?? 'すべて')
+                : '梁/間柱を選択',
+            onPressed: (filter.selectedKind == '大梁' ||
+                    filter.selectedKind == '小梁' ||
+                    filter.selectedKind == '間柱')
+                ? onEditSetsuOrFloor
+                : null,
+            enabled: (filter.selectedKind == '大梁' ||
+                filter.selectedKind == '小梁' ||
+                filter.selectedKind == '間柱'),
+          ),
+          const SizedBox(height: 6),
+          _FilterSection(
+            label: '断面寸法',
+            child: TextField(
+              controller: sectionController,
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.search),
+                hintText: '断面寸法を検索',
+                suffixIcon: filter.sectionQuery.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          sectionController.clear();
+                          filterNotifier.setSectionQuery('');
+                        },
+                      ),
+              ),
+              onChanged: (v) => filterNotifier.setSectionQuery(v.trim()),
+            ),
+          ),
+          const SizedBox(height: 6),
+          _FilterSection(
+            label: '製品符号',
+            child: TextField(
+              controller: productCodeController,
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.search),
+                hintText: '製品符号を検索',
+                suffixIcon: filter.productCodeQuery.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          productCodeController.clear();
+                          filterNotifier.setProductCodeQuery('');
+                        },
+                      ),
+              ),
+              onChanged: (v) => filterNotifier.setProductCodeQuery(v.trim()),
+            ),
+          ),
+          const SizedBox(height: 6),
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('未完了のみ'),
+            value: incompleteOnly,
+            onChanged: (v) =>
+                ref.read(inspectionIncompleteOnlyProvider.notifier).state = v,
+          ),
+          const SizedBox(height: 4),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              icon: const Icon(Icons.refresh),
+              label: const Text('クリア'),
+              onPressed: () {
+                filterNotifier.clearAll();
+                ref.read(inspectionIncompleteOnlyProvider.notifier).state = false;
+                _setSelectedProcessStep(ref, null);
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _formatKoukuSummary(Set<String> koukus) {
+  if (koukus.isEmpty) return 'すべて';
+  final list = koukus.toList()..sort();
+  if (list.length <= 3) return list.join(',');
+  final head = list.take(3).join(',');
+  return '$head…（${list.length}）';
+}
+
+class _SummaryRow extends StatelessWidget {
+  const _SummaryRow({
+    required this.label,
+    required this.value,
+    required this.onPressed,
+    this.enabled = true,
+  });
+
+  final String label;
+  final String value;
+  final VoidCallback? onPressed;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: [
+          Text(
+            '$label: ',
+            style: Theme.of(context)
+                .textTheme
+                .bodyMedium
+                ?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          Expanded(
+            child: Text(
+              value.isEmpty ? 'すべて' : value,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: enabled
+                        ? Theme.of(context).colorScheme.onSurface
+                        : Theme.of(context).colorScheme.outline,
+                  ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 8),
+          TextButton(
+            onPressed: enabled ? onPressed : null,
+            child: const Text('変更'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _KindSelector extends StatelessWidget {
+  const _KindSelector({
+    required this.options,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final List<String> options;
+  final String? selected;
+  final ValueChanged<String?> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    if (options.isEmpty) return const SizedBox.shrink();
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Wrap(
+        spacing: 8,
+        children: [
+          for (final option in options)
+            ChoiceChip(
+              label: Text(option),
+              selected: selected == option,
+              onSelected: (_) => onSelected(option),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FilterSection extends StatelessWidget {
+  const _FilterSection({
+    required this.label,
+    required this.child,
+    this.helperText,
+  });
+
+  final String label;
+  final Widget child;
+  final String? helperText;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style:
+              Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 4),
+        child,
+        if (helperText != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            helperText!,
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: Theme.of(context).colorScheme.outline),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _ChoiceChips extends StatelessWidget {
+  const _ChoiceChips({
+    required this.options,
+    required this.selected,
+    required this.onSelected,
+    this.dense = false,
+  });
+
+  final List<String> options;
+  final String? selected;
+  final ValueChanged<String?> onSelected;
+  final bool dense;
+
+  @override
+  Widget build(BuildContext context) {
+    if (options.isEmpty) {
+      return Text(
+        '候補なし',
+        style: Theme.of(context)
+            .textTheme
+            .bodySmall
+            ?.copyWith(color: Theme.of(context).colorScheme.outline),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.only(right: 12, bottom: 12),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        clipBehavior: Clip.none,
+        child: Wrap(
+          spacing: dense ? 6 : 8,
+          runSpacing: dense ? 4 : 6,
+          children: [
+            ChoiceChip(
+              label: const Text('すべて'),
+              selected: selected == null,
+              onSelected: (_) => onSelected(null),
+            ),
+            for (final option in options)
+              ChoiceChip(
+                label: Text(option),
+                selected: selected == option,
+                onSelected: (_) => onSelected(option),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MultiChoiceChips extends StatelessWidget {
+  const _MultiChoiceChips({
+    required this.options,
+    required this.selected,
+    required this.onToggle,
+    required this.onClearAll,
+    required this.isAllSelected,
+    required this.isSelected,
+  });
+
+  final List<String> options;
+  final Set<String> selected;
+  final ValueChanged<String> onToggle;
+  final VoidCallback onClearAll;
+  final bool isAllSelected;
+  final bool Function(String) isSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    if (options.isEmpty) {
+      return Text(
+        '候補なし',
+        style: Theme.of(context)
+            .textTheme
+            .bodySmall
+            ?.copyWith(color: Theme.of(context).colorScheme.outline),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.only(right: 12, bottom: 12),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          ChoiceChip(
+            label: const Text('すべて'),
+            selected: isAllSelected,
+            onSelected: (_) => onClearAll(),
+          ),
+          for (final option in options)
+            ChoiceChip(
+              label: Text(option),
+              selected: isSelected(option),
+              onSelected: (_) => onToggle(option),
+            ),
+        ],
       ),
     );
   }
@@ -361,10 +1258,24 @@ class ProductListPane extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final filter = ref.watch(productFilterProvider);
     final selectedProductId = ref.watch(inspectionSelectedProductIdProvider);
-    final filteredProducts = ref.watch(filteredProductsProvider(project.id));
+    final filteredEntries = ref.watch(inspectionFilteredEntriesProvider(project.id));
     final ganttProductsAsync = ref.watch(ganttProductsProvider(project));
+    final hasShipping = ref.watch(shippingRowsProvider).isNotEmpty;
+    final selectedStepId = ref.watch(inspectionSelectedStepIdProvider);
+    final processStepsAsync = ref.watch(inspectionProcessStepsProvider);
+    final selectedStepLabel = processStepsAsync.maybeWhen(
+      data: (steps) {
+        for (final step in steps) {
+          if (step.id == selectedStepId) {
+            return step.label;
+          }
+        }
+        return null;
+      },
+      orElse: () => null,
+    );
+    final incompleteOnly = ref.watch(inspectionIncompleteOnlyProvider);
 
     final Set<String>? incompleteIds = ganttProductsAsync.maybeWhen(
       data: (products) =>
@@ -379,820 +1290,142 @@ class ProductListPane extends ConsumerWidget {
       orElse: () => <String, GanttProduct>{},
     );
 
-    final displayProducts = filteredProducts
-        .where(
-          (p) => !filter.incompleteOnly || incompleteIds?.contains(p.id) == true,
-        )
+    final displayEntries = filteredEntries
+        .where((entry) {
+          if (!incompleteOnly) return true;
+          final id = entry.product?.id;
+          if (id == null) return false;
+          return incompleteIds?.contains(id) == true;
+        })
         .toList();
 
-    if (selectedProductId == null && displayProducts.isNotEmpty) {
+    if (selectedProductId == null && displayEntries.isNotEmpty) {
+      InspectionProductEntry? firstSelectable;
+      for (final entry in displayEntries) {
+        if (entry.product != null) {
+          firstSelectable = entry;
+          break;
+        }
+      }
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (ref.read(inspectionSelectedProductIdProvider) == null) {
+        if (ref.read(inspectionSelectedProductIdProvider) == null &&
+            firstSelectable?.product != null) {
           ref.read(inspectionSelectedProductIdProvider.notifier).state =
-              displayProducts.first.id;
-          ref.read(inspectionSelectedStepIdProvider.notifier).state = null;
+              firstSelectable!.product!.id;
         }
       });
     }
 
     return _ProductListView(
-      displayProducts: displayProducts,
+      entries: displayEntries,
       selectedProductId: selectedProductId,
       productProgressMap: productProgressMap,
+      hasShipping: hasShipping,
+      selectedStepLabel: selectedStepLabel,
       onSelectProduct: (product) {
         ref.read(inspectionSelectedProductIdProvider.notifier).state = product.id;
-        ref.read(inspectionSelectedStepIdProvider.notifier).state = null;
       },
     );
   }
 }
 
-class _ProductFilterPanel extends StatelessWidget {
-  const _ProductFilterPanel({
-    required this.inspectionDate,
-    required this.ref,
-    required this.segments,
-    required this.floors,
-    required this.memberTypes,
-    required this.sections,
-    required this.allBlocks,
-    required this.filter,
-    required this.onToggleBlock,
-    required this.onToggleSegment,
-    required this.onToggleFloor,
-    required this.onToggleMemberType,
-    required this.onToggleSection,
-    required this.onClearFilters,
-    required this.onToggleIncompleteOnly,
-    required this.onPickDate,
-  });
-
-  final DateTime inspectionDate;
-  final WidgetRef ref;
-  final List<String> segments;
-  final List<String> floors;
-  final List<String> memberTypes;
-  final List<String> sections;
-  final List<String> allBlocks;
-  final ProductFilterState filter;
-  final ValueChanged<String> onToggleBlock;
-  final ValueChanged<String> onToggleSegment;
-  final ValueChanged<String> onToggleFloor;
-  final ValueChanged<String> onToggleMemberType;
-  final ValueChanged<String> onToggleSection;
-  final VoidCallback onClearFilters;
-  final ValueChanged<bool> onToggleIncompleteOnly;
-  final ValueChanged<DateTime> onPickDate;
-
-  String _memberTypeLabel(String code) {
-    switch (code) {
-      case 'COLUMN':
-        return '柱';
-      case 'GIRDER':
-        return '大梁・小梁・間柱・他';
-      default:
-        return code;
-    }
-  }
-
-  String _buildSummaryLabel({
-    required String prefix,
-    required List<String> allOptions,
-    required Set<String> selected,
-    int limit = 3,
-  }) {
-    if (allOptions.isEmpty) {
-      return '$prefix: なし';
-    }
-    if (selected.isEmpty) {
-      return '$prefix: すべて';
-    }
-    final ordered = allOptions.where((o) => selected.contains(o)).toList();
-    if (ordered.length <= limit) {
-      final joined = ordered.join(', ');
-      return '$prefix: $joined';
-    }
-    final head = ordered.take(limit).join(', ');
-    final rest = ordered.length - limit;
-    return '$prefix: $head 他${rest}件';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final selectedMemberTypes = filter.selectedMemberTypes;
-    final includeColumns =
-        selectedMemberTypes.isEmpty || selectedMemberTypes.contains('COLUMN');
-    final includeNonColumns =
-        selectedMemberTypes.isEmpty ||
-        selectedMemberTypes.any((t) => !_isColumnType(t));
-
-    final showSegmentFilter = includeColumns && segments.isNotEmpty;
-    final showFloorFilter = includeNonColumns && floors.isNotEmpty;
-
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(height: 8),
-          FilledButton.tonal(
-            onPressed: () => _showBlockMultiSelectSheet(context, ref, allBlocks),
-            child: const Text('工区を選択'),
-          ),
-          const SizedBox(height: 8),
-          if (showSegmentFilter)
-            if (segments.length <= 10)
-              _MultiSelectChips(
-                label: '節',
-                options: segments,
-                selected: filter.selectedSegments,
-                onToggled: onToggleSegment,
-              )
-            else
-              _SegmentFilterButton(
-                segments: segments,
-                selected: filter.selectedSegments,
-                labelBuilder: (selected) => _buildSummaryLabel(
-                  prefix: '節',
-                  allOptions: segments,
-                  selected: selected,
-                ),
-              ),
-          if (showFloorFilter)
-            if (floors.length <= 10)
-              _MultiSelectChips(
-                label: '階',
-                options: floors,
-                selected: filter.selectedFloors,
-                onToggled: onToggleFloor,
-              )
-            else
-              _FloorFilterButton(
-                floors: floors,
-                selected: filter.selectedFloors,
-                labelBuilder: (selected) => _buildSummaryLabel(
-                  prefix: '階',
-                  allOptions: floors,
-                  selected: selected,
-                ),
-              ),
-          const SizedBox(height: 8),
-          _HorizontalChipSelector(
-            label: '部材',
-            options: memberTypes,
-            selected: filter.selectedMemberTypes,
-            onToggled: onToggleMemberType,
-            labelBuilder: _memberTypeLabel,
-          ),
-          const SizedBox(height: 8),
-          _SectionFilterButton(
-            sections: sections,
-            selected: filter.selectedSections,
-            labelBuilder: (selected) => _buildSummaryLabel(
-              prefix: '断面',
-              allOptions: sections,
-              selected: selected,
-            ),
-          ),
-          const SizedBox(height: 8),
-          SwitchListTile.adaptive(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('未完了のみ'),
-            value: filter.incompleteOnly,
-            onChanged: onToggleIncompleteOnly,
-          ),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: FilterChip(
-              label: const Text('クリア'),
-              selected: false,
-              onSelected: (_) => onClearFilters(),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _HorizontalChipSelector extends StatelessWidget {
-  const _HorizontalChipSelector({
-    required this.label,
-    required this.options,
-    required this.selected,
-    required this.onToggled,
-    this.labelBuilder,
-  });
-
-  final String label;
-  final List<String> options;
-  final Set<String> selected;
-  final ValueChanged<String> onToggled;
-  final String Function(String value)? labelBuilder;
-
-  @override
-  Widget build(BuildContext context) {
-    if (options.isEmpty) return const SizedBox.shrink();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 4),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              for (final value in options)
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: FilterChip(
-                    label: Text(labelBuilder != null ? labelBuilder!(value) : value),
-                    showCheckmark: false,
-                    selected: selected.contains(value),
-                    onSelected: (_) => onToggled(value),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _MultiSelectChips extends StatelessWidget {
-  const _MultiSelectChips({
-    required this.label,
-    required this.options,
-    required this.selected,
-    required this.onToggled,
-    this.labelBuilder,
-  });
-
-  final String label;
-  final List<String> options;
-  final Set<String> selected;
-  final ValueChanged<String> onToggled;
-  final String Function(String value)? labelBuilder;
-
-  @override
-  Widget build(BuildContext context) {
-    if (options.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 4),
-          Wrap(
-            spacing: 4,
-            runSpacing: 4,
-            children: [
-              for (final value in options)
-                FilterChip(
-                  label: Text(labelBuilder != null ? labelBuilder!(value) : value),
-                  showCheckmark: false,
-                  selected: selected.contains(value),
-                  onSelected: (_) => onToggled(value),
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-Future<void> _showBlockMultiSelectSheet(
-  BuildContext context,
-  WidgetRef ref,
-  List<String> allBlocks,
-) async {
-  final filter = ref.read(productFilterProvider);
-  final localSelected = {...filter.selectedBlocks};
-
-  await showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    builder: (context) {
-      return SafeArea(
-        child: SizedBox(
-          height: MediaQuery.of(context).size.height * 0.6,
-          child: StatefulBuilder(
-            builder: (context, setState) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  ListTile(
-                    title: const Text('工区を選択'),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        TextButton(
-                          onPressed: () {
-                            setState(() {
-                              localSelected
-                                ..clear()
-                                ..addAll(allBlocks);
-                            });
-                          },
-                          child: const Text('すべて選択'),
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            setState(() => localSelected.clear());
-                          },
-                          child: const Text('選択解除'),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Divider(height: 1),
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: allBlocks.length,
-                      itemBuilder: (context, index) {
-                        final block = allBlocks[index];
-                        final isChecked = localSelected.contains(block);
-                        return CheckboxListTile(
-                          title: Text(block),
-                          value: isChecked,
-                          onChanged: (value) {
-                            setState(() {
-                              if (value == true) {
-                                localSelected.add(block);
-                              } else {
-                                localSelected.remove(block);
-                              }
-                            });
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                  const Divider(height: 1),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          child: const Text('キャンセル'),
-                        ),
-                        const SizedBox(width: 8),
-                        ElevatedButton(
-                          onPressed: () {
-                            ref.read(productFilterProvider.notifier).setBlocks(localSelected);
-                            Navigator.of(context).pop();
-                          },
-                          child: const Text('決定'),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-        ),
-      );
-    },
-  );
-}
-
-class _SegmentFilterButton extends ConsumerWidget {
-  const _SegmentFilterButton({
-    required this.segments,
-    required this.selected,
-    required this.labelBuilder,
-  });
-
-  final List<String> segments;
-  final Set<String> selected;
-  final String Function(Set<String> selected) labelBuilder;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final label = labelBuilder(selected);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '節',
-          style:
-              Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 4),
-        OutlinedButton(
-          onPressed: () => _showSegmentMultiSelectSheet(context, ref, segments),
-          child: Text(
-            label,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _FloorFilterButton extends ConsumerWidget {
-  const _FloorFilterButton({
-    required this.floors,
-    required this.selected,
-    required this.labelBuilder,
-  });
-
-  final List<String> floors;
-  final Set<String> selected;
-  final String Function(Set<String> selected) labelBuilder;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final label = labelBuilder(selected);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '階',
-          style:
-              Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 4),
-        OutlinedButton(
-          onPressed: () => _showFloorMultiSelectSheet(context, ref, floors),
-          child: Text(
-            label,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _SectionFilterButton extends ConsumerWidget {
-  const _SectionFilterButton({
-    required this.sections,
-    required this.selected,
-    required this.labelBuilder,
-  });
-
-  final List<String> sections;
-  final Set<String> selected;
-  final String Function(Set<String> selected) labelBuilder;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final label = labelBuilder(selected);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '断面',
-          style:
-              Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 4),
-        OutlinedButton(
-          onPressed: () => _showSectionMultiSelectSheet(context, ref, sections),
-          child: Text(
-            label,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-Future<void> _showSegmentMultiSelectSheet(
-  BuildContext context,
-  WidgetRef ref,
-  List<String> segments,
-) async {
-  final filter = ref.read(productFilterProvider);
-  final localSelected = {...filter.selectedSegments};
-
-  await showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    builder: (context) {
-      return SafeArea(
-        child: SizedBox(
-          height: MediaQuery.of(context).size.height * 0.6,
-          child: StatefulBuilder(
-            builder: (context, setState) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  ListTile(
-                    title: const Text('節を選択'),
-                    trailing: TextButton(
-                      onPressed: () {
-                        setState(() => localSelected.clear());
-                      },
-                      child: const Text('すべてクリア'),
-                    ),
-                  ),
-                  const Divider(height: 1),
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: segments.length,
-                      itemBuilder: (context, index) {
-                        final seg = segments[index];
-                        final isChecked = localSelected.contains(seg);
-                        return CheckboxListTile(
-                          title: Text(seg),
-                          value: isChecked,
-                          onChanged: (value) {
-                            setState(() {
-                              if (value == true) {
-                                localSelected.add(seg);
-                              } else {
-                                localSelected.remove(seg);
-                              }
-                            });
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                  const Divider(height: 1),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          child: const Text('キャンセル'),
-                        ),
-                        const SizedBox(width: 8),
-                        ElevatedButton(
-                          onPressed: () {
-                            ref.read(productFilterProvider.notifier).setSegments(localSelected);
-                            Navigator.of(context).pop();
-                          },
-                          child: const Text('決定'),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-        ),
-      );
-    },
-  );
-}
-
-Future<void> _showFloorMultiSelectSheet(
-  BuildContext context,
-  WidgetRef ref,
-  List<String> floors,
-) async {
-  final filter = ref.read(productFilterProvider);
-  final localSelected = {...filter.selectedFloors};
-
-  await showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    builder: (context) {
-      return SafeArea(
-        child: SizedBox(
-          height: MediaQuery.of(context).size.height * 0.6,
-          child: StatefulBuilder(
-            builder: (context, setState) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  ListTile(
-                    title: const Text('階を選択'),
-                    trailing: TextButton(
-                      onPressed: () {
-                        setState(() => localSelected.clear());
-                      },
-                      child: const Text('すべてクリア'),
-                    ),
-                  ),
-                  const Divider(height: 1),
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: floors.length,
-                      itemBuilder: (context, index) {
-                        final floor = floors[index];
-                        final isChecked = localSelected.contains(floor);
-                        return CheckboxListTile(
-                          title: Text(floor),
-                          value: isChecked,
-                          onChanged: (value) {
-                            setState(() {
-                              if (value == true) {
-                                localSelected.add(floor);
-                              } else {
-                                localSelected.remove(floor);
-                              }
-                            });
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                  const Divider(height: 1),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          child: const Text('キャンセル'),
-                        ),
-                        const SizedBox(width: 8),
-                        ElevatedButton(
-                          onPressed: () {
-                            ref.read(productFilterProvider.notifier).setFloors(localSelected);
-                            Navigator.of(context).pop();
-                          },
-                          child: const Text('決定'),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-        ),
-      );
-    },
-  );
-}
-
-Future<void> _showSectionMultiSelectSheet(
-  BuildContext context,
-  WidgetRef ref,
-  List<String> sections,
-) async {
-  final filter = ref.read(productFilterProvider);
-  final localSelected = {...filter.selectedSections};
-  String keyword = '';
-  final controller = TextEditingController();
-
-  await showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    builder: (context) {
-      return SafeArea(
-        child: SizedBox(
-          height: MediaQuery.of(context).size.height * 0.6,
-          child: StatefulBuilder(
-            builder: (context, setState) {
-              final filteredSections = sections
-                  .where(
-                    (s) => keyword.isEmpty ||
-                        s.toLowerCase().contains(keyword.toLowerCase()),
-                  )
-                  .toList();
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  ListTile(
-                    title: const Text('断面を選択'),
-                    trailing: TextButton(
-                      onPressed: () {
-                        setState(() => localSelected.clear());
-                      },
-                      child: const Text('すべてクリア'),
-                    ),
-                  ),
-                  const Divider(height: 1),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: TextField(
-                      controller: controller,
-                      decoration: const InputDecoration(
-                        prefixIcon: Icon(Icons.search),
-                        hintText: '断面を検索 (例: H-400)',
-                      ),
-                      onChanged: (v) => setState(() => keyword = v.trim()),
-                    ),
-                  ),
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: filteredSections.length,
-                      itemBuilder: (context, index) {
-                        final section = filteredSections[index];
-                        final isChecked = localSelected.contains(section);
-                        return CheckboxListTile(
-                          title: Text(section),
-                          value: isChecked,
-                          onChanged: (value) {
-                            setState(() {
-                              if (value == true) {
-                                localSelected.add(section);
-                              } else {
-                                localSelected.remove(section);
-                              }
-                            });
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                  const Divider(height: 1),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          child: const Text('キャンセル'),
-                        ),
-                        const SizedBox(width: 8),
-                        ElevatedButton(
-                          onPressed: () {
-                            ref.read(productFilterProvider.notifier).setSections(localSelected);
-                            Navigator.of(context).pop();
-                          },
-                          child: const Text('決定'),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-        ),
-      );
-    },
-  );
-}
-
 class _ProductListView extends StatelessWidget {
   const _ProductListView({
-    required this.displayProducts,
+    required this.entries,
     required this.selectedProductId,
     required this.productProgressMap,
+    required this.hasShipping,
+    required this.selectedStepLabel,
     required this.onSelectProduct,
   });
 
-  final List<Product> displayProducts;
+  final List<InspectionProductEntry> entries;
   final String? selectedProductId;
   final Map<String, GanttProduct> productProgressMap;
+  final bool hasShipping;
+  final String? selectedStepLabel;
   final ValueChanged<Product> onSelectProduct;
 
   @override
   Widget build(BuildContext context) {
+    if (!hasShipping) {
+      return Center(
+        child: Text(
+          'CSV未読込（出荷表を読み込んでください）',
+          style: Theme.of(context)
+              .textTheme
+              .bodyMedium
+              ?.copyWith(color: Theme.of(context).colorScheme.error),
+        ),
+      );
+    }
+
+    if (entries.isEmpty) {
+      return const Center(child: Text('該当する製品がありません'));
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Text(
-            '製品（フィルタ結果）',
-            style: Theme.of(context)
-                .textTheme
-                .labelMedium
-                ?.copyWith(fontWeight: FontWeight.bold),
+          child: Row(
+            children: [
+              Text(
+                '製品（フィルタ結果）',
+                style: Theme.of(context)
+                    .textTheme
+                    .labelMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(width: 8),
+              Chip(
+                label: Text(selectedStepLabel != null ? '工程: $selectedStepLabel' : '工程未選択'),
+                visualDensity: VisualDensity.compact,
+                backgroundColor: selectedStepLabel != null
+                    ? Theme.of(context).colorScheme.primary.withOpacity(0.12)
+                    : Theme.of(context).colorScheme.surfaceVariant,
+                labelStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: selectedStepLabel != null
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+            ],
           ),
         ),
         Expanded(
           child: ListView.separated(
-            itemCount: displayProducts.length,
+            itemCount: entries.length,
             separatorBuilder: (_, __) => const Divider(height: 1),
             itemBuilder: (context, index) {
-              final product = displayProducts[index];
-              final isSelected = selectedProductId == product.id;
-              final gantt = productProgressMap[product.id];
+              final entry = entries[index];
+              final product = entry.product;
+              final shippingRow = entry.shippingRow;
+              final isSelected = product != null && selectedProductId == product.id;
+              final gantt = product != null ? productProgressMap[product.id] : null;
               final remainingCount =
                   gantt?.tasks.where((t) => t.progress < 1).length;
               // TODO: 今はPDFビューア動作確認のために先頭1件だけテストURLを使用している。
               //       本番では Product.drawingPdfUrl を正式に持たせて差し替えること。
               String? drawingUrl;
-              try {
-                final dynamicUrl = (product as dynamic).drawingPdfUrl;
-                if (dynamicUrl is String && dynamicUrl.isNotEmpty) {
-                  drawingUrl = dynamicUrl;
+              if (product != null) {
+                try {
+                  final dynamicUrl = (product as dynamic).drawingPdfUrl;
+                  if (dynamicUrl is String && dynamicUrl.isNotEmpty) {
+                    drawingUrl = dynamicUrl;
+                  }
+                } catch (_) {
+                  drawingUrl = null;
                 }
-              } catch (_) {
-                drawingUrl = null;
               }
-              drawingUrl ??= index == 0 ? kTestDrawingPdfUrl : null;
+              if (product != null) {
+                drawingUrl ??= index == 0 ? kTestDrawingPdfUrl : null;
+              }
               final hasDrawing = drawingUrl != null && drawingUrl.isNotEmpty;
-              final isPriority = product.overallEndDate != null &&
+              final isPriority = product != null &&
+                  product.overallEndDate != null &&
                   product.overallStatus != 'completed' &&
                   product.overallEndDate!.isBefore(DateTime.now());
               final badge = isPriority
@@ -1228,9 +1461,11 @@ class _ProductListView extends StatelessWidget {
                   contentPadding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                   title: Text(
-                    product.productCode.isNotEmpty
-                        ? product.productCode
-                        : product.name,
+                    shippingRow.productCode.isNotEmpty
+                        ? shippingRow.productCode
+                        : (product?.productCode.isNotEmpty == true
+                            ? product!.productCode
+                            : (product?.name ?? '-')),
                     style: Theme.of(context)
                         .textTheme
                         .bodyMedium
@@ -1243,20 +1478,45 @@ class _ProductListView extends StatelessWidget {
                     children: [
                       Builder(
                         builder: (context) {
-                          final sectionLabel =
-                              product.section.isNotEmpty ? product.section : '-';
-                          // TODO: 主材長さフィールド（例: product.mainLengthMm）を追加したら実値を表示する
-                          const String? lengthMm = null;
+                          final sectionLabel = () {
+                            if (shippingRow.sectionSize.isNotEmpty) {
+                              return shippingRow.sectionSize;
+                            }
+                            if (product != null && product.section.isNotEmpty) {
+                              return product.section;
+                            }
+                            return '-';
+                          }();
+                          final lengthMm = shippingRow.lengthMm;
                           final lengthLabel =
-                              lengthMm != null ? '長さ: $lengthMm mm' : '長さ: -';
+                              lengthMm > 0 ? '長さ: $lengthMm mm' : '長さ: -';
                           final remainingLabel = remainingCount != null
                               ? '残: $remainingCount'
                               : '残: ?';
-                          final locationLabel = [
-                            if (product.storyOrSet.isNotEmpty) '工区: ${product.storyOrSet}',
-                            if (product.grid.isNotEmpty) '節: ${product.grid}',
-                          ].join(' / ');
+                          final locationParts = <String>[];
+                          final kouku = shippingRow.kouku.isNotEmpty
+                              ? shippingRow.kouku
+                              : (product?.storyOrSet ?? '');
+                          if (kouku.isNotEmpty) {
+                            locationParts.add('工区: $kouku');
+                          }
+                          final floor = shippingRow.floor;
+                          if (floor != null) {
+                            locationParts.add('階: $floor');
+                          }
+                          final setsuValue = shippingRow.setsu ??
+                              (product?.grid.isNotEmpty == true
+                                  ? product!.grid
+                                  : (product?.storyOrSet.isNotEmpty == true
+                                      ? product!.storyOrSet
+                                      : null));
+                          if (setsuValue != null && setsuValue.isNotEmpty) {
+                            locationParts.add('節: $setsuValue');
+                          }
+                          final locationLabel = locationParts.join(' / ');
+                          final kindLabel = shippingRow.kind.trim();
                           final line = [
+                            if (kindLabel.isNotEmpty) '種別: $kindLabel',
                             '断面: $sectionLabel',
                             lengthLabel,
                             remainingLabel,
@@ -1265,7 +1525,7 @@ class _ProductListView extends StatelessWidget {
                           return Text(
                             line,
                             style: Theme.of(context).textTheme.bodySmall,
-                            maxLines: 1,
+                            maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           );
                         },
@@ -1289,7 +1549,7 @@ class _ProductListView extends StatelessWidget {
                   selected: isSelected,
                   selectedTileColor:
                       Theme.of(context).colorScheme.primary.withOpacity(0.08),
-                  onTap: () => onSelectProduct(product),
+                  onTap: product == null ? null : () => onSelectProduct(product),
                 ),
               );
             },
@@ -1333,26 +1593,7 @@ class _ProcessListPaneState extends ConsumerState<ProcessListPane> {
       children: [
         Padding(
           padding: const EdgeInsets.all(16),
-          child: productsAsync.when(
-            loading: () => Text(
-              '選択中: 読み込み中',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            error: (e, _) => Text(
-              '選択中: 読み込み失敗',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            data: (products) {
-              final selectedProduct =
-                  _findSelected(filteredProducts.isNotEmpty ? filteredProducts : products);
-              return Text(
-                selectedProduct != null
-                    ? '選択中: ${selectedProduct.productCode.isNotEmpty ? selectedProduct.productCode : selectedProduct.name}'
-                    : '選択中: 製品未選択',
-                style: Theme.of(context).textTheme.titleMedium,
-              );
-            },
-          ),
+          child: const SizedBox.shrink(),
         ),
         const Divider(height: 1),
         Expanded(
@@ -1361,7 +1602,7 @@ class _ProcessListPaneState extends ConsumerState<ProcessListPane> {
             error: (e, _) => Center(child: Text('工程の読み込みに失敗しました: $e')),
             data: (products) {
               if (selectedProductId == null) {
-                return const Center(child: Text('製品を選択してください'));
+                return const SizedBox.shrink();
               }
               final product = products
                   .where((p) => p.id == selectedProductId)
@@ -1403,8 +1644,7 @@ class _ProcessListPaneState extends ConsumerState<ProcessListPane> {
                       },
                       selectedStepId: selectedStepId,
                       onSelectStep: (task) {
-                        ref.read(inspectionSelectedStepIdProvider.notifier).state =
-                            task.stepId;
+                        _setSelectedProcessStep(ref, task.stepId);
                       },
                     ),
                     const SizedBox(height: 4),
@@ -1589,6 +1829,46 @@ class _ProcessStepRow extends StatelessWidget {
   }
 }
 
+class _ProcessGuardMessage extends StatelessWidget {
+  final String message;
+
+  const _ProcessGuardMessage({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Card(
+        margin: const EdgeInsets.all(24),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const Icon(Icons.info_outline, size: 28),
+              const SizedBox(height: 8),
+              Text(
+                message,
+                style: Theme.of(context).textTheme.bodyMedium,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '左ペインの工程チップを選択すると入力できます。',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: Theme.of(context).colorScheme.outline),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class ProcessInputPane extends ConsumerStatefulWidget {
   final Project project;
 
@@ -1636,7 +1916,7 @@ class _ProcessInputPaneState extends ConsumerState<ProcessInputPane> {
       return;
     }
     final next = steps[index + 1];
-    ref.read(inspectionSelectedStepIdProvider.notifier).state = next.stepId;
+    _setSelectedProcessStep(ref, next.stepId);
   }
 
   Future<void> _moveToNextProductSameStep() async {
@@ -1681,10 +1961,9 @@ class _ProcessInputPaneState extends ConsumerState<ProcessInputPane> {
       }
     }
     if (sameStep != null) {
-      ref.read(inspectionSelectedStepIdProvider.notifier).state = sameStep.stepId;
+      _setSelectedProcessStep(ref, sameStep.stepId);
     } else if (nextGanttProduct.tasks.isNotEmpty) {
-      ref.read(inspectionSelectedStepIdProvider.notifier).state =
-          nextGanttProduct.tasks.first.stepId;
+      _setSelectedProcessStep(ref, nextGanttProduct.tasks.first.stepId);
       messenger.showSnackBar(const SnackBar(content: Text('同じ工程がないため最初の工程を選択しました')));
     } else {
       messenger.showSnackBar(const SnackBar(content: Text('この製品には工程がありません')));
@@ -1903,6 +2182,18 @@ class _ProcessInputPaneState extends ConsumerState<ProcessInputPane> {
     final inspectionDate = ref.watch(inspectionDateProvider);
     final productsAsync = ref.watch(productsByProjectProvider(widget.project.id));
     final ganttProductsAsync = ref.watch(ganttProductsProvider(widget.project));
+    final processStepsAsync = ref.watch(inspectionProcessStepsProvider);
+    final selectedStepLabel = processStepsAsync.maybeWhen(
+      data: (steps) {
+        for (final step in steps) {
+          if (step.id == selectedStepId) {
+            return step.label;
+          }
+        }
+        return null;
+      },
+      orElse: () => null,
+    );
 
     ref.listen<String?>(
       inspectionSelectedProductIdProvider,
@@ -1925,6 +2216,16 @@ class _ProcessInputPaneState extends ConsumerState<ProcessInputPane> {
 
     GanttTask? _selectedTaskFor(List<GanttProduct> products) =>
         _selectedTaskFrom(products, selectedProductId, selectedStepId);
+
+    final guardMessage = () {
+      if (selectedProductId == null && selectedStepId == null) {
+        return '左の製品と工程を選択してください';
+      }
+      if (selectedProductId == null) return '左の製品を選択してください';
+      if (selectedStepId == null) return '左の工程を選択してください';
+      return '';
+    }();
+    final shouldGuard = guardMessage.isNotEmpty;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1958,6 +2259,8 @@ class _ProcessInputPaneState extends ConsumerState<ProcessInputPane> {
                     data: (list) => _selectedTaskFor(list),
                     orElse: () => null,
                   );
+                  final stepLabel =
+                      selectedStepLabel ?? currentTask?.stepLabel ?? currentTask?.name ?? '工程未選択';
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -1967,7 +2270,7 @@ class _ProcessInputPaneState extends ConsumerState<ProcessInputPane> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '工程: ${currentTask?.stepLabel ?? currentTask?.name ?? '工程未選択'}',
+                        '工程: $stepLabel',
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       const SizedBox(height: 4),
@@ -1983,152 +2286,157 @@ class _ProcessInputPaneState extends ConsumerState<ProcessInputPane> {
           ),
         ),
         Expanded(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final requireNumbers = status == InspectionStatus.done;
-              String? numberValidator(String? value) {
-                if (!requireNumbers) return null;
-                if (value == null || value.trim().isEmpty) {
-                  return '必須です';
-                }
-                return double.tryParse(value.trim()) != null ? null : '数値を入力してください';
-              }
+          child: shouldGuard
+              ? _ProcessGuardMessage(message: guardMessage)
+              : LayoutBuilder(
+                  builder: (context, constraints) {
+                    final requireNumbers = status == InspectionStatus.done;
+                    String? numberValidator(String? value) {
+                      if (!requireNumbers) return null;
+                      if (value == null || value.trim().isEmpty) {
+                        return '必須です';
+                      }
+                      return double.tryParse(value.trim()) != null
+                          ? null
+                          : '数値を入力してください';
+                    }
 
-              return SingleChildScrollView(
-                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '状態',
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
+                    return SingleChildScrollView(
+                      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Form(
+                            key: _formKey,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '状態',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium
+                                      ?.copyWith(fontWeight: FontWeight.bold),
                                 ),
-                          ),
-                          const SizedBox(height: 10),
-                          ToggleButtons(
-                            isSelected: statusSelection,
-                            borderRadius: BorderRadius.circular(8),
-                            constraints: const BoxConstraints(
-                              minHeight: 40,
-                              minWidth: 72,
+                                const SizedBox(height: 10),
+                                ToggleButtons(
+                                  isSelected: statusSelection,
+                                  borderRadius: BorderRadius.circular(8),
+                                  constraints: const BoxConstraints(
+                                    minHeight: 40,
+                                    minWidth: 72,
+                                  ),
+                                  onPressed: (index) {
+                                    final notifier =
+                                        ref.read(inspectionStatusProvider.notifier);
+                                    switch (index) {
+                                      case 0:
+                                        notifier.state = InspectionStatus.pending;
+                                        break;
+                                      case 1:
+                                        notifier.state = InspectionStatus.inProgress;
+                                        break;
+                                      case 2:
+                                        notifier.state = InspectionStatus.done;
+                                        break;
+                                    }
+                                  },
+                                  children: const [
+                                    Padding(
+                                      padding: EdgeInsets.symmetric(horizontal: 8),
+                                      child: Text('未'),
+                                    ),
+                                    Padding(
+                                      padding: EdgeInsets.symmetric(horizontal: 8),
+                                      child: Text('作業中'),
+                                    ),
+                                    Padding(
+                                      padding: EdgeInsets.symmetric(horizontal: 8),
+                                      child: Text('完'),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  '実測値',
+                                  style: Theme.of(context).textTheme.titleMedium,
+                                ),
+                                const SizedBox(height: 8),
+                                _NumericField(
+                                  label: '長さ L1 (mm)',
+                                  controller: _l1Ctrl,
+                                  validator: numberValidator,
+                                ),
+                                const SizedBox(height: 12),
+                                _NumericField(
+                                  label: '長さ L2 (mm)',
+                                  controller: _l2Ctrl,
+                                  validator: numberValidator,
+                                ),
+                                const SizedBox(height: 12),
+                                _NumericField(
+                                  label: '高さ H1 (mm)',
+                                  controller: _h1Ctrl,
+                                  validator: numberValidator,
+                                ),
+                                const SizedBox(height: 20),
+                                Text(
+                                  '備考',
+                                  style: Theme.of(context).textTheme.titleMedium,
+                                ),
+                                const SizedBox(height: 8),
+                                TextFormField(
+                                  controller: _noteCtrl,
+                                  maxLines: 4,
+                                  decoration: const InputDecoration(
+                                    border: OutlineInputBorder(),
+                                    hintText: '検査時の気付きを入力',
+                                    helperText: '例）UT結果や特記事項を記載',
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+                                Row(
+                                  children: [
+                                    Text(
+                                      '保存後の移動',
+                                      style: Theme.of(context).textTheme.titleSmall,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    DropdownButton<NextMode>(
+                                      value: nextMode,
+                                      items: NextMode.values
+                                          .map(
+                                            (mode) => DropdownMenuItem<NextMode>(
+                                              value: mode,
+                                              child: Text(
+                                                mode == NextMode.nextStepSameProduct
+                                                    ? '同一製品の次工程'
+                                                    : '同一工程の次製品',
+                                              ),
+                                            ),
+                                          )
+                                          .toList(),
+                                      onChanged: (mode) {
+                                        if (mode != null) {
+                                          ref
+                                              .read(inspectionNextModeProvider.notifier)
+                                              .state = mode;
+                                          // TODO: NextMode を保存する
+                                        }
+                                      },
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 24),
+                              ],
                             ),
-                            onPressed: (index) {
-                              final notifier = ref.read(inspectionStatusProvider.notifier);
-                              switch (index) {
-                                case 0:
-                                  notifier.state = InspectionStatus.pending;
-                                  break;
-                                case 1:
-                                  notifier.state = InspectionStatus.inProgress;
-                                  break;
-                                case 2:
-                                  notifier.state = InspectionStatus.done;
-                                  break;
-                              }
-                            },
-                            children: const [
-                              Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 8),
-                                child: Text('未'),
-                              ),
-                              Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 8),
-                                child: Text('作業中'),
-                              ),
-                              Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 8),
-                                child: Text('完'),
-                              ),
-                            ],
                           ),
-                          const SizedBox(height: 16),
-                          Text(
-                            '実測値',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 8),
-                          _NumericField(
-                            label: '長さ L1 (mm)',
-                            controller: _l1Ctrl,
-                            validator: numberValidator,
-                          ),
-                          const SizedBox(height: 12),
-                          _NumericField(
-                            label: '長さ L2 (mm)',
-                            controller: _l2Ctrl,
-                            validator: numberValidator,
-                          ),
-                          const SizedBox(height: 12),
-                          _NumericField(
-                            label: '高さ H1 (mm)',
-                            controller: _h1Ctrl,
-                            validator: numberValidator,
-                          ),
-                          const SizedBox(height: 20),
-                          Text(
-                            '備考',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 8),
-                          TextFormField(
-                            controller: _noteCtrl,
-                            maxLines: 4,
-                            decoration: const InputDecoration(
-                              border: OutlineInputBorder(),
-                              hintText: '検査時の気付きを入力',
-                              helperText: '例）UT結果や特記事項を記載',
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          Row(
-                            children: [
-                              Text(
-                                '保存後の移動',
-                                style: Theme.of(context).textTheme.titleSmall,
-                              ),
-                              const SizedBox(width: 12),
-                              DropdownButton<NextMode>(
-                                value: nextMode,
-                                items: NextMode.values
-                                    .map(
-                                      (mode) => DropdownMenuItem<NextMode>(
-                                        value: mode,
-                                        child: Text(
-                                          mode == NextMode.nextStepSameProduct
-                                              ? '同一製品の次工程'
-                                              : '同一工程の次製品',
-                                        ),
-                                      ),
-                                    )
-                                    .toList(),
-                                onChanged: (mode) {
-                                  if (mode != null) {
-                                    ref
-                                        .read(inspectionNextModeProvider.notifier)
-                                        .state =
-                                        mode;
-                                    // TODO: NextMode を保存する
-                                  }
-                                },
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 24),
-                        ],
+                        ),
                       ),
-                    ),
-                  ),
+                    );
+                  },
                 ),
-              );
-            },
-          ),
         ),
         SafeArea(
           top: false,
@@ -2146,7 +2454,7 @@ class _ProcessInputPaneState extends ConsumerState<ProcessInputPane> {
                 ),
                 const Spacer(),
                 TextButton(
-                  onPressed: _isSaving
+                  onPressed: _isSaving || shouldGuard
                       ? null
                       : () async {
                           await _saveCurrentInspection(context);
@@ -2157,7 +2465,7 @@ class _ProcessInputPaneState extends ConsumerState<ProcessInputPane> {
                 ElevatedButton.icon(
                   icon: const Icon(Icons.arrow_forward),
                   label: const Text('保存して次の工程へ'),
-                  onPressed: _isSaving
+                  onPressed: _isSaving || shouldGuard
                       ? null
                       : () async {
                           await _onSaveAndMoveNext();
@@ -2199,3 +2507,4 @@ class _NumericField extends StatelessWidget {
     );
   }
 }
+

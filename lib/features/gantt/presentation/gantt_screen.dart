@@ -8,17 +8,20 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../models/project.dart';
 import '../../../models/product.dart';
 import '../../../providers/product_providers.dart';
-import '../../products/application/product_filter_state.dart';
+import '../../shipping/application/shipping_table_notifier.dart';
+import '../../shipping/domain/shipping_row.dart';
 import '../../process_spec/domain/process_group.dart';
 import '../../process_spec/domain/process_step.dart';
 import '../../process_spec/presentation/process_colors.dart';
 import '../application/gantt_providers.dart';
 import '../application/product_gantt_progress_service.dart';
 import '../../products/presentation/product_inspection_screen.dart';
+import '../../products/application/product_inspection_providers.dart';
 import '../../process_spec/data/process_progress_save_service.dart';
 import '../../process_spec/data/process_progress_daily_repository.dart';
 import '../../process_spec/domain/process_progress_daily.dart';
 import 'group_plan_offset.dart';
+part 'inspection/inspection_filter_state.dart';
 part 'inspection/product_result_input_page.dart';
 
 /// 工種種別

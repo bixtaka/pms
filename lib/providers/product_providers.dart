@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../features/products/data/product_repository.dart';
 import '../features/products/application/product_filter_state.dart';
 import '../features/products/application/product_filter_notifier.dart';
+import '../features/shipping/application/shipping_table_notifier.dart';
+import '../features/shipping/domain/shipping_row.dart';
 import '../models/product.dart';
 
 bool _isColumnType(String memberType) {
@@ -32,23 +34,61 @@ final filteredProductsProvider =
     Provider.family<List<Product>, String>((ref, projectId) {
   final productsAsync = ref.watch(productsByProjectProvider(projectId));
   final filter = ref.watch(productFilterProvider);
+  final shippingLookup = ref.watch(shippingLookupProvider);
 
   return productsAsync.maybeWhen(
     data: (products) {
-      String _blockOf(Product p) {
+      String blockOf(Product p, ShippingRow? shippingRow) {
+        if (shippingRow != null && shippingRow.kouku.isNotEmpty) {
+          return shippingRow.kouku;
+        }
         if (p.area.isNotEmpty) return p.area;
         // TODO: area が空の場合の暫定フォールバック
         return p.storyOrSet;
       }
 
+      String sectionOf(Product p, ShippingRow? shippingRow) {
+        if (shippingRow != null && shippingRow.sectionSize.isNotEmpty) {
+          return shippingRow.sectionSize;
+        }
+        return p.section;
+      }
+
+      String? setsuOf(Product p, ShippingRow? shippingRow) {
+        if (shippingRow != null && (shippingRow.setsu?.isNotEmpty ?? false)) {
+          return shippingRow.setsu;
+        }
+        if (p.grid.isNotEmpty) return p.grid;
+        if (p.storyOrSet.isNotEmpty) return p.storyOrSet;
+        return null;
+      }
+
+      String? floorOf(Product p, ShippingRow? shippingRow) {
+        if (shippingRow?.floor != null) return shippingRow!.floor!.toString();
+        if (p.floor.isNotEmpty) return p.floor;
+        if (p.storyOrSet.isNotEmpty) return p.storyOrSet;
+        return null;
+      }
+
+      ShippingRow? shippingFor(Product p) {
+        final code = p.productCode.trim().toUpperCase();
+        if (code.isEmpty) return null;
+        return shippingLookup[code];
+      }
+
       return products.where((p) {
+        final shippingRow = shippingFor(p);
         final memberType = p.memberType;
         final isColumn = _isColumnType(memberType);
-        final block = _blockOf(p);
+        final block = blockOf(p, shippingRow);
 
         if (filter.selectedMemberTypes.isNotEmpty &&
             !filter.selectedMemberTypes.contains(memberType)) {
-          return false;
+          final matchesShippingKind =
+              shippingRow != null && filter.selectedMemberTypes.contains(shippingRow.kind);
+          if (!matchesShippingKind) {
+            return false;
+          }
         }
 
         if (filter.selectedBlocks.isNotEmpty &&
@@ -56,23 +96,23 @@ final filteredProductsProvider =
           return false;
         }
 
+        final sectionValue = sectionOf(p, shippingRow);
+
         if (filter.selectedSections.isNotEmpty &&
-            !filter.selectedSections.contains(p.section)) {
+            !filter.selectedSections.contains(sectionValue)) {
           return false;
         }
 
-        // storyOrSet を節・階の一時的なキーとして共通利用する
-        // TODO: 非柱系は専用の floor フィールドを追加したら置き換える
-        final storyOrSet = p.storyOrSet;
-
         if (isColumn) {
+          final setsu = setsuOf(p, shippingRow);
           if (filter.selectedSegments.isNotEmpty &&
-              !filter.selectedSegments.contains(storyOrSet)) {
+              !filter.selectedSegments.contains(setsu ?? '')) {
             return false;
           }
         } else {
+          final floor = floorOf(p, shippingRow);
           if (filter.selectedFloors.isNotEmpty &&
-              !filter.selectedFloors.contains(storyOrSet)) {
+              !filter.selectedFloors.contains(floor ?? '')) {
             return false;
           }
         }
@@ -84,10 +124,25 @@ final filteredProductsProvider =
         }
         if (filter.keyword.isNotEmpty) {
           final kw = filter.keyword.toLowerCase();
-          final code = p.productCode.toLowerCase();
-          final name = p.name.toLowerCase();
-          final remarks = (p.remarks).toLowerCase();
-          if (!(code.contains(kw) || name.contains(kw) || remarks.contains(kw))) {
+          final candidates = <String>[
+            p.productCode,
+            p.name,
+            p.remarks,
+            p.section,
+            p.area,
+            p.storyOrSet,
+            p.grid,
+            if (shippingRow != null) ...[
+              shippingRow.productCode,
+              shippingRow.kouku,
+              shippingRow.kind,
+              shippingRow.sectionSize,
+              if (shippingRow.setsu != null) shippingRow.setsu!,
+              if (shippingRow.floor != null) shippingRow.floor!.toString(),
+              shippingRow.lengthMm.toString(),
+            ],
+          ].map((s) => s.toLowerCase()).toList();
+          if (!candidates.any((c) => c.contains(kw))) {
             return false;
           }
         }
@@ -100,4 +155,33 @@ final filteredProductsProvider =
     },
     orElse: () => <Product>[],
   );
+});
+
+final shippingRowsForProjectProvider =
+    Provider.family<List<ShippingRow>, String>((ref, projectId) {
+  final shippingLookup = ref.watch(shippingLookupProvider);
+  final productsAsync = ref.watch(productsByProjectProvider(projectId));
+  final products = productsAsync.maybeWhen(
+    data: (list) => list,
+    orElse: () => const <Product>[],
+  );
+  if (shippingLookup.isEmpty || products.isEmpty) return const <ShippingRow>[];
+
+  final codes = products.map((p) => p.productCode.trim().toUpperCase()).toSet();
+  return shippingLookup.entries
+      .where((entry) => codes.contains(entry.key))
+      .map((entry) => entry.value)
+      .toList();
+});
+
+final shippingRowMapForProjectProvider =
+    Provider.family<Map<String, ShippingRow>, String>((ref, projectId) {
+  final rows = ref.watch(shippingRowsForProjectProvider(projectId));
+  final map = <String, ShippingRow>{};
+  for (final row in rows) {
+    final key = row.productCode.trim().toUpperCase();
+    if (key.isEmpty) continue;
+    map[key] = row;
+  }
+  return map;
 });
