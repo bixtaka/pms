@@ -3,10 +3,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../models/project.dart';
 import '../../../models/product.dart';
+import '../../products/data/product_repository.dart';
 import '../../../providers/product_providers.dart';
 import '../../shipping/application/shipping_table_notifier.dart';
 import '../../shipping/domain/shipping_row.dart';
