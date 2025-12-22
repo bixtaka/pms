@@ -2218,25 +2218,25 @@ class _RightPaneContent extends StatelessWidget {
                     };
                     onStatusChange(st);
                   },
-              children: const [
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 6),
-                  child: Text('未'),
+                  children: const [
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 6),
+                      child: Text('未'),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 6),
+                      child: Text('作'),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 6),
+                      child: Text('完'),
+                    ),
+                  ],
                 ),
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 6),
-                  child: Text('作'),
-                ),
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 6),
-                  child: Text('完'),
-                ),
+                const SizedBox(width: 12),
+                Text('数量 ${selectedIds.length}'),
               ],
             ),
-            const SizedBox(width: 12),
-            Text('数量 ${selectedIds.length}'),
-          ],
-        ),
             const SizedBox(height: 12),
             Row(
               children: [
@@ -2539,6 +2539,10 @@ class _ProcessInputPaneState extends ConsumerState<ProcessInputPane> {
     final stepId = ref.read(inspectionSelectedStepIdProvider);
     final inspectionDate = ref.read(inspectionDateProvider);
     final status = ref.read(inspectionStatusProvider);
+    if (kDebugMode) {
+      debugPrint(
+          '[basket] save start: ids=${selectedIds.length} step=$stepId status=$status date=$inspectionDate');
+    }
 
     if (selectedIds.isEmpty) {
       messenger.showSnackBar(const SnackBar(content: Text('製品を選択してください')));
@@ -2553,15 +2557,6 @@ class _ProcessInputPaneState extends ConsumerState<ProcessInputPane> {
     final todayOnly = DateTime(today.year, today.month, today.day);
     if (inspectionDate.isAfter(todayOnly)) {
       messenger.showSnackBar(const SnackBar(content: Text('未来日の検査は登録できません')));
-      return false;
-    }
-
-    final formState = _formKey.currentState;
-    if (formState == null) {
-      messenger.showSnackBar(const SnackBar(content: Text('フォームの初期化に失敗しました')));
-      return false;
-    }
-    if (!formState.validate()) {
       return false;
     }
 
@@ -2582,10 +2577,8 @@ class _ProcessInputPaneState extends ConsumerState<ProcessInputPane> {
     });
 
     try {
+      final doneQty = status == InspectionStatus.done ? 1 : 0;
       for (final productId in selectedIds) {
-        final product = _selectedProductFrom(ref, productId);
-        final rowStatus = ref.read(inspectionStatusProvider);
-        final doneQty = rowStatus == InspectionStatus.done ? 1 : 0;
         await _saveService.upsertDaily(
           projectId: widget.project.id,
           productId: productId,
@@ -2594,7 +2587,14 @@ class _ProcessInputPaneState extends ConsumerState<ProcessInputPane> {
           doneQty: doneQty,
           note: mergedNote,
         );
+        if (kDebugMode) {
+          debugPrint(
+              '[save] ok project=${widget.project.id} product=$productId step=$stepId date=$inspectionDate');
+        }
       }
+      // 進捗集計を即時反映させる
+      ref.invalidate(productGanttBarsProvider(widget.project));
+      ref.invalidate(productsByProjectProvider(widget.project.id));
       messenger.showSnackBar(const SnackBar(content: Text('検査実績を保存しました')));
       // 保存成功時のみ、選択状態をクリアして次の入力へ備える。
       if (kDebugMode) {
@@ -2616,6 +2616,9 @@ class _ProcessInputPaneState extends ConsumerState<ProcessInputPane> {
       messenger.showSnackBar(
         SnackBar(content: Text('保存に失敗しました。通信状態を確認してください: $e')),
       );
+      if (kDebugMode) {
+        debugPrint('[basket] save error: $e');
+      }
       return false;
     } finally {
       if (mounted) {

@@ -2943,6 +2943,7 @@ class _ProductProcessStatusMatrixViewState
   }
 
   Widget _buildBody() {
+    int logCount = 0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2967,6 +2968,15 @@ class _ProductProcessStatusMatrixViewState
                     step: step,
                     status: widget.statusMap[product.id]?[step.id] ??
                         ProcessCellStatus.notStarted,
+                    onDebugLog: kDebugMode && logCount < 3
+                        ? () {
+                            final hasKey =
+                                widget.statusMap[product.id]?.containsKey(step.id) == true;
+                            debugPrint(
+                                '[status-cell] product=${product.id} step=${step.id} hit=$hasKey');
+                            logCount++;
+                          }
+                        : null,
                   ),
               ],
             ),
@@ -2979,7 +2989,9 @@ class _ProductProcessStatusMatrixViewState
     required _MatrixProduct product,
     required _MatrixStep step,
     required ProcessCellStatus status,
+    VoidCallback? onDebugLog,
   }) {
+    onDebugLog?.call();
     final cell = Container(
       width: widget.cellWidth,
       height: widget.rowHeight,

@@ -57,13 +57,27 @@ final dailyProgressByProductProvider = FutureProvider.autoDispose
     .family<List<ProcessProgressDaily>, DailyProgressKey>((ref, key) async {
   final repo = ref.watch(processProgressDailyRepositoryProvider);
   final list = await repo.fetchDaily(key.projectId, key.productId);
-  final target = key.dateOnly;
-  return list
-      .where(
-        (d) =>
-            d.date.year == target.year &&
-            d.date.month == target.month &&
-            d.date.day == target.day,
-      )
-      .toList();
+  // 各 (productId, stepId) ごとに日付降順で最新1件を採用（画面は日付指定なしで最新状態を表示する）
+  final latestByKey = <String, ProcessProgressDaily>{};
+  DateTime _toDateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
+  for (final d in list) {
+    final key = '${d.productId}|${d.stepId}';
+    final existing = latestByKey[key];
+    if (existing == null) {
+      latestByKey[key] = d;
+      continue;
+    }
+    final existingDate = _toDateOnly(existing.date);
+    final currentDate = _toDateOnly(d.date);
+    if (currentDate.isAfter(existingDate)) {
+      latestByKey[key] = d;
+    }
+  }
+  final result = latestByKey.values.toList()
+    ..sort((a, b) => a.stepId.compareTo(b.stepId));
+  if (kDebugMode) {
+    debugPrint(
+        '[status] rows=${list.length} latestKeys=${latestByKey.length} sample=${latestByKey.keys.take(5).toList()}');
+  }
+  return result;
 });
