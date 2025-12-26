@@ -25,6 +25,46 @@ InspectionStatus _statusFromProgress(double progress) {
   return InspectionStatus.pending;
 }
 
+String _productLocationLine(
+  ShippingRow shippingRow,
+  Product? product,
+  int? remainingCount,
+) {
+  final locationParts = <String>[];
+  final kouku = shippingRow.kouku.isNotEmpty ? shippingRow.kouku : (product?.storyOrSet ?? '');
+  if (kouku.isNotEmpty) locationParts.add('工区 $kouku');
+  final floor = shippingRow.floor;
+  if (floor != null) locationParts.add('階 $floor');
+  final setsuValue = shippingRow.setsu ??
+      (product?.grid.isNotEmpty == true
+          ? product!.grid
+          : (product?.storyOrSet.isNotEmpty == true ? product!.storyOrSet : null));
+  if (setsuValue != null && setsuValue.isNotEmpty) {
+    locationParts.add('節 $setsuValue');
+  }
+  final kindLabel = shippingRow.kind.trim();
+  if (kindLabel.isNotEmpty) {
+    locationParts.add('種別 $kindLabel');
+  }
+  final remainingLabel = remainingCount != null ? '残 $remainingCount' : '残 ?';
+  locationParts.add(remainingLabel);
+  return locationParts.join(' / ');
+}
+
+String _productDetailLine(ShippingRow shippingRow, Product? product, int? remainingCount) {
+  final sectionLabel = () {
+    if (shippingRow.sectionSize.isNotEmpty) return shippingRow.sectionSize;
+    if (product != null && product.section.isNotEmpty) return product.section;
+    return '-';
+  }();
+  final lengthMm = shippingRow.lengthMm;
+  final lengthLabel = lengthMm > 0 ? '長さ $lengthMm mm' : '長さ -';
+  return [
+    '断面 $sectionLabel',
+    lengthLabel,
+  ].join('   ');
+}
+
 String _statusLabel(InspectionStatus status) {
   switch (status) {
     case InspectionStatus.pending:
@@ -1581,22 +1621,47 @@ class _ProductListView extends StatelessWidget {
                       ),
                     ],
                   ),
-                  title: Text(
-                    shippingRow.productCode.isNotEmpty
-                        ? shippingRow.productCode
-                        : (product?.productCode.isNotEmpty == true
-                            ? product!.productCode
+                  title: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        width: 140,
+                        child: Text(
+                          shippingRow.productCode.isNotEmpty
+                              ? shippingRow.productCode
+                              : (product?.productCode.isNotEmpty == true
+                                  ? product!.productCode
                             : (product?.name ?? '-')),
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodyMedium
-                        ?.copyWith(fontWeight: FontWeight.bold),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  subtitle: _ProductSubtitle(
-                    shippingRow: shippingRow,
-                    product: product,
-                    remainingCount: remainingCount,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              _productLocationLine(shippingRow, product, remainingCount),
+                              style: Theme.of(context).textTheme.bodySmall,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              _productDetailLine(shippingRow, product, remainingCount),
+                              style: Theme.of(context).textTheme.bodySmall,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -1635,76 +1700,6 @@ Color _statusColor(BuildContext context, InspectionStatus status) {
       return scheme.tertiary;
     case InspectionStatus.done:
       return scheme.primary;
-  }
-}
-
-class _ProductSubtitle extends StatelessWidget {
-  const _ProductSubtitle({
-    required this.shippingRow,
-    required this.product,
-    required this.remainingCount,
-  });
-
-  final ShippingRow shippingRow;
-  final Product? product;
-  final int? remainingCount;
-
-  @override
-  Widget build(BuildContext context) {
-    final sectionLabel = () {
-      if (shippingRow.sectionSize.isNotEmpty) {
-        return shippingRow.sectionSize;
-      }
-      if (product != null && product!.section.isNotEmpty) {
-        return product!.section;
-      }
-      return '-';
-    }();
-    final lengthMm = shippingRow.lengthMm;
-    final lengthLabel = lengthMm > 0 ? '長さ $lengthMm mm' : '長さ -';
-    final remainingLabel =
-        remainingCount != null ? '残 $remainingCount' : '残 ?';
-
-    final locationParts = <String>[];
-    final kouku =
-        shippingRow.kouku.isNotEmpty ? shippingRow.kouku : (product?.storyOrSet ?? '');
-    if (kouku.isNotEmpty) locationParts.add('工区 $kouku');
-    final floor = shippingRow.floor;
-    if (floor != null) locationParts.add('階 $floor');
-    final setsuValue = shippingRow.setsu ??
-        (product?.grid.isNotEmpty == true
-            ? product!.grid
-            : (product?.storyOrSet.isNotEmpty == true ? product!.storyOrSet : null));
-    if (setsuValue != null && setsuValue.isNotEmpty) {
-      locationParts.add('節 $setsuValue');
-    }
-
-    final kindLabel = shippingRow.kind.trim();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (locationParts.isNotEmpty)
-          Text(
-            locationParts.join(' / '),
-            style: Theme.of(context).textTheme.bodySmall,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        Text(
-          [
-            if (kindLabel.isNotEmpty) '種別 $kindLabel',
-            '断面 $sectionLabel',
-            lengthLabel,
-            remainingLabel,
-          ].join('   '),
-          style: Theme.of(context).textTheme.bodySmall,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ],
-    );
   }
 }
 
