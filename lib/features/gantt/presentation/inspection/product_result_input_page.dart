@@ -1393,24 +1393,6 @@ class ProductListPane extends ConsumerWidget {
         })
         .toList();
 
-    if (selectedProductId == null && displayEntries.isNotEmpty) {
-      InspectionProductEntry? firstSelectable;
-      for (final entry in displayEntries) {
-        if (entry.product != null) {
-          firstSelectable = entry;
-          break;
-        }
-      }
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (ref.read(inspectionSelectedProductIdProvider) == null &&
-            firstSelectable?.product != null) {
-          final id = firstSelectable!.product!.id;
-          ref.read(inspectionSelectedProductIdsProvider.notifier).add(id);
-          ref.read(inspectionSelectedProductIdProvider.notifier).state = id;
-        }
-      });
-    }
-
     return _ProductListView(
       entries: displayEntries,
       selectedProductId: selectedProductId,
@@ -2056,6 +2038,7 @@ class _RightPaneContent extends StatelessWidget {
     required this.nextMode,
     required this.isSaving,
     required this.canSaveQty,
+    required this.onEditDate,
     required this.onSave,
     required this.onSaveAndNext,
     required this.onDebugSeed,
@@ -2074,6 +2057,7 @@ class _RightPaneContent extends StatelessWidget {
   final NextMode nextMode;
   final bool isSaving;
   final bool canSaveQty;
+  final Future<void> Function() onEditDate;
   final Future<void> Function() onSave;
   final Future<void> Function() onSaveAndNext;
   final VoidCallback? onDebugSeed;
@@ -2103,9 +2087,15 @@ class _RightPaneContent extends StatelessWidget {
               label: Text('工程: $selectedStepLabelText'),
               visualDensity: VisualDensity.compact,
             ),
-            Text(
-              '検査日: ${_formatYmd(inspectionDate)}',
-              style: Theme.of(context).textTheme.bodyMedium,
+            InkWell(
+              onTap: onEditDate,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                child: Text(
+                  '検査日: ${_formatYmd(inspectionDate)}',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
             ),
           ],
         ),
@@ -2532,6 +2522,22 @@ class _ProcessInputPaneState extends ConsumerState<ProcessInputPane> {
     return null;
   }
 
+  Future<void> _pickInspectionDate(BuildContext context) async {
+    final current = ref.read(inspectionDateProvider);
+    final first = DateTime(current.year - 1);
+    final last = DateTime(current.year + 1, current.month, current.day);
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: current,
+      firstDate: first,
+      lastDate: last,
+    );
+    if (selected != null) {
+      final dateOnly = DateTime(selected.year, selected.month, selected.day);
+      ref.read(inspectionDateProvider.notifier).state = dateOnly;
+    }
+  }
+
   Future<bool> _saveCurrentInspection(BuildContext context) async {
     if (_isSaving) return false;
     final messenger = ScaffoldMessenger.of(context);
@@ -2707,6 +2713,7 @@ class _ProcessInputPaneState extends ConsumerState<ProcessInputPane> {
             nextMode: nextMode,
             isSaving: _isSaving,
             canSaveQty: canSaveQty,
+            onEditDate: () async => await _pickInspectionDate(context),
             onSave: () async => await _saveCurrentInspection(context),
             onSaveAndNext: () async => await _onSaveAndMoveNext(),
             onDebugSeed: kDebugMode ? _seedDummyProducts : null,
