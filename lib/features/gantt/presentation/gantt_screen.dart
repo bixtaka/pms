@@ -25,6 +25,7 @@ import '../../process_spec/domain/process_progress_daily.dart';
 import 'group_plan_offset.dart';
 part 'inspection/inspection_filter_state.dart';
 part 'inspection/product_result_input_page.dart';
+part 'inspection/_inline_status_strip2.dart';
 
 /// 工種種別
 enum ProcessType { coreAssembly, coreWeld, jointAssembly, jointWeld, other }
@@ -1780,6 +1781,7 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
             steps: uniqueSteps,
             headerGroups: headerGroups,
             statusMap: statusMap,
+            latestDailyMap: const <String, Map<String, ProcessProgressDaily>>{},
             rowHeight: rowHeight,
             productColWidth: productColWidth,
             cellWidth: cellWidth,
@@ -2777,6 +2779,7 @@ class _ProductProcessStatusMatrixView extends StatefulWidget {
     required this.steps,
     required this.headerGroups,
     required this.statusMap,
+    required this.latestDailyMap,
     required this.rowHeight,
     required this.productColWidth,
     required this.cellWidth,
@@ -2792,6 +2795,7 @@ class _ProductProcessStatusMatrixView extends StatefulWidget {
   final List<_MatrixStep> steps;
   final List<_ProcessHeaderGroup> headerGroups;
   final Map<String, Map<String, ProcessCellStatus>> statusMap;
+  final Map<String, Map<String, ProcessProgressDaily>> latestDailyMap;
   final double rowHeight;
   final double productColWidth;
   final double cellWidth;
@@ -2992,6 +2996,9 @@ class _ProductProcessStatusMatrixViewState
     VoidCallback? onDebugLog,
   }) {
     onDebugLog?.call();
+    final daily = widget.latestDailyMap[product.id]?[step.id];
+    final dateLabel =
+        daily != null ? '${daily.date.month}/${daily.date.day}' : '-/-';
     final cell = Container(
       width: widget.cellWidth,
       height: widget.rowHeight,
@@ -3002,6 +3009,31 @@ class _ProductProcessStatusMatrixViewState
           width: 1,
         ),
         borderRadius: BorderRadius.circular(4),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            dateLabel,
+            style: Theme.of(context)
+                .textTheme
+                .labelSmall
+                ?.copyWith(color: Colors.white, fontSize: 10),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          Text(
+            '担: —',
+            style: Theme.of(context)
+                .textTheme
+                .labelSmall
+                ?.copyWith(color: Colors.white, fontSize: 10),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
 
@@ -3177,10 +3209,17 @@ class ProductStatusTabContent extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final filteredProducts = ref.watch(filteredProductsProvider(project.id));
+    final selectedIds = ref.watch(inspectionSelectedProductIdsProvider);
     final filter = ref.watch(productFilterProvider);
     final asyncProducts = ref.watch(ganttProductsProvider(project));
     final asyncProcessSpec = ref.watch(ganttProcessSpecProvider);
     final asyncProductBars = ref.watch(productGanttBarsProvider(project));
+    final asyncLatestProgress =
+        ref.watch(latestProgressMapByProjectProvider(project.id));
+    if (kDebugMode) {
+      debugPrint(
+          '[PST] build selected=${selectedIds.length} filteredProducts=${filteredProducts.length}');
+    }
 
     return asyncProcessSpec.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -3188,86 +3227,109 @@ class ProductStatusTabContent extends ConsumerWidget {
       data: (spec) => asyncProducts.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('製品の取得に失敗しました: $e')),
-        data: (ganttProducts) {
-          final filteredIds = filteredProducts.map((p) => p.id).toSet();
-          final products = ganttProducts
-              .where((p) => filteredIds.isEmpty || filteredIds.contains(p.id))
-              .where((p) => !filter.incompleteOnly || p.progress < 1)
-              .toList();
-          if (products.isEmpty) {
-            return const Center(child: Text('表示対象の製品がありません'));
+        data: (ganttProducts) => asyncLatestProgress.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Center(child: Text('進捗の取得に失敗しました: $e')),
+          data: (latestMap) {
+            final filteredIds = filteredProducts.map((p) => p.id).toSet();
+            var products = ganttProducts
+                .where((p) => filteredIds.isEmpty || filteredIds.contains(p.id))
+                .where((p) => !filter.incompleteOnly || p.progress < 1)
+                .toList();
+          if (selectedIds.isNotEmpty) {
+            products = products.where((p) => selectedIds.contains(p.id)).toList();
           }
-
-          final productRows = products.map(GanttRowEntry.productHeader).toList();
-
-          return asyncProductBars.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => Center(child: Text('実績の取得に失敗しました: $e')),
-            data: (bars) {
-              final barsMap = <String, Map<String, List<ProductGanttBar>>>{};
-              for (final bar in bars) {
-                barsMap.putIfAbsent(bar.productId, () => <String, List<ProductGanttBar>>{});
-                barsMap[bar.productId]!.putIfAbsent(bar.stepId, () => <ProductGanttBar>[]);
-                barsMap[bar.productId]![bar.stepId]!.add(bar);
-              }
-
-              final steps = _uniqueStatusSteps(_buildStatusUiSteps(spec.groups, spec.steps));
-              final headerGroups = _buildStatusHeaderGroups(steps);
-
-              final statusMap = <String, Map<String, ProcessCellStatus>>{};
-              for (final product in products) {
-                final stepStatuses = <String, ProcessCellStatus>{};
-                for (final step in steps) {
-                  final barsForStep = barsMap[product.id]?[step.id] ?? const <ProductGanttBar>[];
-                  stepStatuses[step.id] = _statusFromBarsForStatusTab(barsForStep);
-                }
-                statusMap[product.id] = stepStatuses;
-              }
-
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8, left: 16, right: 16),
-                    child: Row(
-                      children: [
-                        const Spacer(),
-                        _buildStatusLegend(context),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Expanded(
-                    child: _ProductProcessStatusMatrixView(
-                      products: productRows
-                          .map(
-                            (p) => _MatrixProduct(
-                              id: p.product.id,
-                              label: p.product.code.isNotEmpty ? p.product.code : p.product.name,
-                              code: p.product.code,
-                              memberType: p.product.memberType,
-                            ),
-                          )
-                          .toList(),
-                      steps: steps,
-                      headerGroups: headerGroups,
-                      statusMap: statusMap,
-                      rowHeight: 28,
-                      productColWidth: 140,
-                      cellWidth: 80,
-                      parentHeaderHeight: 28,
-                      childHeaderHeight: 24,
-                      parentColorBuilder: _statusViewParentHeaderColorForStatusTab,
-                      childColorBuilder: _statusViewChildHeaderColorForStatusTab,
-                      statusColorBuilder: _statusColorForStatusTab,
-                      project: project,
-                    ),
-                  ),
-                ],
+          if (kDebugMode) {
+            debugPrint(
+                '[PST] total=${ganttProducts.length} filtered=${products.length} selectedIds=${selectedIds.take(5).toList()}');
+          }
+            if (products.isEmpty) {
+              return Center(
+                child: Text(
+                  selectedIds.isEmpty
+                      ? '検査入力で製品を選択してください'
+                      : '表示対象の製品がありません',
+                ),
               );
-            },
-          );
-        },
+            }
+
+            final productRows = products.map(GanttRowEntry.productHeader).toList();
+
+            return asyncProductBars.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(child: Text('実績の取得に失敗しました: $e')),
+              data: (bars) {
+                final barsMap = <String, Map<String, List<ProductGanttBar>>>{};
+                for (final bar in bars) {
+                  barsMap.putIfAbsent(bar.productId, () => <String, List<ProductGanttBar>>{});
+                  barsMap[bar.productId]!.putIfAbsent(bar.stepId, () => <ProductGanttBar>[]);
+                  barsMap[bar.productId]![bar.stepId]!.add(bar);
+                }
+
+                final steps = _uniqueStatusSteps(_buildStatusUiSteps(spec.groups, spec.steps));
+                final headerGroups = _buildStatusHeaderGroups(steps);
+
+                final statusMap = <String, Map<String, ProcessCellStatus>>{};
+                for (final product in products) {
+                  final stepStatuses = <String, ProcessCellStatus>{};
+                  for (final step in steps) {
+                    final barsForStep = barsMap[product.id]?[step.id] ?? const <ProductGanttBar>[];
+                    stepStatuses[step.id] = _statusFromBarsForStatusTab(barsForStep);
+                  }
+                  statusMap[product.id] = stepStatuses;
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8, left: 16, right: 16),
+                      child: Row(
+                        children: [
+                          if (kDebugMode)
+                            Text(
+                              'selected=${selectedIds.length} filtered=${products.length}',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          const Spacer(),
+                          _buildStatusLegend(context),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: _ProductProcessStatusMatrixView(
+                        products: productRows
+                            .map(
+                              (p) => _MatrixProduct(
+                                id: p.product.id,
+                                label: p.product.code.isNotEmpty ? p.product.code : p.product.name,
+                                code: p.product.code,
+                                memberType: p.product.memberType,
+                              ),
+                            )
+                            .toList(),
+                        steps: steps,
+                        headerGroups: headerGroups,
+                        statusMap: statusMap,
+                        latestDailyMap: latestMap,
+                        rowHeight: 32,
+                        productColWidth: 140,
+                        cellWidth: 80,
+                        parentHeaderHeight: 28,
+                        childHeaderHeight: 24,
+                        parentColorBuilder: _statusViewParentHeaderColorForStatusTab,
+                        childColorBuilder: _statusViewChildHeaderColorForStatusTab,
+                        statusColorBuilder: _statusColorForStatusTab,
+                        project: project,
+                      ),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }

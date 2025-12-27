@@ -65,6 +65,274 @@ String _productDetailLine(ShippingRow shippingRow, Product? product, int? remain
   ].join('   ');
 }
 
+const double _kNarrowInlineProcessWidth = 1100;
+
+class _ProcessSummaryText extends StatelessWidget {
+  const _ProcessSummaryText({
+    required this.steps,
+    required this.statusByStep,
+    required this.latestByStep,
+    required this.groupLabels,
+  });
+
+  final List<ProcessStep> steps;
+  final Map<String, ProcessCellStatus>? statusByStep;
+  final Map<String, ProcessProgressDaily>? latestByStep;
+  final Map<String, String> groupLabels;
+
+  @override
+  Widget build(BuildContext context) {
+    if (steps.isEmpty || statusByStep == null || statusByStep!.isEmpty) {
+      return const Text('工程進捗: なし', maxLines: 2, overflow: TextOverflow.ellipsis);
+    }
+    final stepById = {for (final s in steps) s.id: s};
+    final completedIds = statusByStep!.entries
+        .where((e) => e.value == ProcessCellStatus.done)
+        .map((e) => e.key)
+        .toList();
+    ProcessProgressDaily? latestDaily;
+    ProcessStep? latestStep;
+    for (final sid in completedIds) {
+      final daily = latestByStep?[sid];
+      if (daily == null) continue;
+      final step = stepById[sid];
+      if (step == null) continue;
+      if (latestDaily == null || daily.date.isAfter(latestDaily!.date)) {
+        latestDaily = daily;
+        latestStep = step;
+      }
+    }
+
+    final latestLabel = () {
+      if (latestDaily == null || latestStep == null) return '最新完了: なし';
+      final groupName = groupLabels[latestStep!.groupId] ?? 'その他';
+      return '最新完了: $groupName / ${latestStep!.label}';
+    }();
+    final dateLine = '日付: ${latestDaily != null ? _formatYmd(latestDaily!.date) : '—'}   担当者: —';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          dateLine,
+          style: Theme.of(context).textTheme.bodySmall,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        Text(
+          latestLabel,
+          style: Theme.of(context).textTheme.bodySmall,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
+    );
+  }
+}
+
+Map<String, Map<String, ProcessCellStatus>> _buildStatusMapFromBars(
+  List<ProductGanttBar> bars,
+) {
+  ProcessCellStatus statusFromBars(List<ProductGanttBar> list) {
+    final actualBars = list.where((b) => b.kind == GanttBarKind.actual);
+    final hasDone = actualBars.any((b) => b.status == GanttBarStatus.done);
+    if (hasDone) return ProcessCellStatus.done;
+    final hasInProgress = actualBars.any((b) => b.status == GanttBarStatus.inProgress);
+    if (hasInProgress) return ProcessCellStatus.inProgress;
+    return ProcessCellStatus.notStarted;
+  }
+
+  final grouped = <String, Map<String, List<ProductGanttBar>>>{};
+  for (final bar in bars) {
+    if (bar.kind != GanttBarKind.actual) continue;
+    grouped.putIfAbsent(bar.productId, () => <String, List<ProductGanttBar>>{});
+    grouped[bar.productId]!
+        .putIfAbsent(bar.stepId, () => <ProductGanttBar>[])
+        .add(bar);
+  }
+
+  final result = <String, Map<String, ProcessCellStatus>>{};
+  grouped.forEach((pid, stepMap) {
+    final statuses = <String, ProcessCellStatus>{};
+    stepMap.forEach((stepId, list) {
+      statuses[stepId] = statusFromBars(list);
+    });
+    result[pid] = statuses;
+  });
+  return result;
+}
+
+Color _processCellStatusColor(ProcessCellStatus status) {
+  switch (status) {
+    case ProcessCellStatus.notStarted:
+      return const Color(0xFFE0E0E0);
+    case ProcessCellStatus.inProgress:
+      return kGanttActualInProgressColor.withValues(alpha: 0.85);
+    case ProcessCellStatus.done:
+      return kGanttActualDoneColor.withValues(alpha: 0.9);
+  }
+}
+
+void _showProgressDetailDialog(
+  BuildContext context,
+  ProcessStep step,
+  ProcessProgressDaily? daily,
+  ProcessCellStatus status,
+) {
+  final statusLabel = _statusLabel(
+    switch (status) {
+      ProcessCellStatus.notStarted => InspectionStatus.pending,
+      ProcessCellStatus.inProgress => InspectionStatus.inProgress,
+      ProcessCellStatus.done => InspectionStatus.done,
+    },
+  );
+  final dateText = daily != null ? _formatYmd(daily.date) : '未入力';
+  final noteText = daily?.note ?? '';
+  showDialog<void>(
+    context: context,
+    builder: (_) {
+      return AlertDialog(
+        title: Text(step.label),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('ステータス: $statusLabel'),
+            Text('検査日: $dateText'),
+            Text('担当者: 未記録'),
+            if (noteText.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text('メモ: $noteText'),
+            ],
+            if (daily == null)
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text('未入力です'),
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('閉じる'),
+          ),
+        ],
+      );
+    },
+  );
+}
+
+class _InlineStatusStrip extends StatelessWidget {
+  const _InlineStatusStrip({
+    required this.steps,
+    required this.statusByStep,
+    required this.latestByStep,
+    required this.groupLabels,
+  });
+
+  final List<ProcessStep> steps;
+  final Map<String, ProcessCellStatus>? statusByStep;
+  final Map<String, ProcessProgressDaily>? latestByStep;
+  final Map<String, String> groupLabels;
+
+  @override
+  Widget build(BuildContext context) {
+    if (steps.isEmpty) return const SizedBox.shrink();
+    const double cellWidth = 44;
+    const double spacing = 4;
+
+    final grouped = <String, List<ProcessStep>>{};
+    for (final s in steps) {
+      grouped.putIfAbsent(s.groupId, () => <ProcessStep>[]).add(s);
+    }
+
+    final groupOrder = grouped.keys.toList()
+      ..sort((a, b) {
+        final aFirst = grouped[a]!.first.sortOrder;
+        final bFirst = grouped[b]!.first.sortOrder;
+        return aFirst.compareTo(bFirst);
+      });
+
+    final headerCells = <Widget>[];
+    final childCells = <Widget>[];
+    double totalWidth = 0;
+
+    for (final gid in groupOrder) {
+      final children = grouped[gid]!;
+      children.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+      final width = children.length * cellWidth + spacing * (children.length - 1);
+      totalWidth += width;
+      headerCells.add(
+        Container(
+          width: width,
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Text(
+            groupLabels[gid] ?? gid,
+            style: Theme.of(context).textTheme.labelSmall,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      );
+      for (final step in children) {
+        final status = statusByStep?[step.id] ?? ProcessCellStatus.notStarted;
+        final color = _processCellStatusColor(status);
+        final label = step.label.length > 2 ? step.label.substring(0, 2) : step.label;
+        childCells.add(
+          InkWell(
+            onTap: () =>
+                _showProgressDetailDialog(context, step, latestByStep?[step.id], status),
+            borderRadius: BorderRadius.circular(6),
+            child: Container(
+              width: cellWidth,
+              margin: EdgeInsets.only(right: spacing),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.15),
+                border: Border.all(color: color, width: 1),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                label,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: color,
+                      fontWeight: FontWeight.bold,
+                    ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+        );
+      }
+    }
+
+    return SizedBox(
+      height: 48,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        primary: false,
+        physics: const ClampingScrollPhysics(),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minWidth: totalWidth > 0 ? totalWidth : 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Row(children: headerCells),
+              const SizedBox(height: 4),
+              Row(children: childCells),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+}
+
 String _statusLabel(InspectionStatus status) {
   switch (status) {
     case InspectionStatus.pending:
@@ -1395,9 +1663,13 @@ class ProductListPane extends ConsumerWidget {
     final selectedProductId = ref.watch(inspectionSelectedProductIdProvider);
     final filteredEntries = ref.watch(inspectionFilteredEntriesProvider(project.id));
     final ganttProductsAsync = ref.watch(ganttProductsProvider(project));
+    final barsAsync = ref.watch(productGanttBarsProvider(project));
+    final latestProgressMapAsync =
+        ref.watch(latestProgressMapByProjectProvider(project.id));
     final hasShipping = ref.watch(shippingRowsProvider).isNotEmpty;
     final selectedStepId = ref.watch(inspectionSelectedStepIdProvider);
     final processStepsAsync = ref.watch(inspectionProcessStepsProvider);
+    final processGroupsAsync = ref.watch(inspectionProcessGroupsProvider);
     final selectedStepLabel = processStepsAsync.maybeWhen(
       data: (steps) {
         for (final step in steps) {
@@ -1434,6 +1706,11 @@ class ProductListPane extends ConsumerWidget {
         .toList();
 
     return _ProductListView(
+      project: project,
+      processStepsAsync: processStepsAsync,
+      barsAsync: barsAsync,
+      latestProgressMapAsync: latestProgressMapAsync,
+      processGroupsAsync: processGroupsAsync,
       entries: displayEntries,
       selectedProductId: selectedProductId,
       productProgressMap: productProgressMap,
@@ -1457,6 +1734,11 @@ class ProductListPane extends ConsumerWidget {
 
 class _ProductListView extends StatelessWidget {
   const _ProductListView({
+    required this.project,
+    required this.processStepsAsync,
+    required this.barsAsync,
+    required this.latestProgressMapAsync,
+    required this.processGroupsAsync,
     required this.entries,
     required this.selectedProductId,
     required this.productProgressMap,
@@ -1467,6 +1749,11 @@ class _ProductListView extends StatelessWidget {
     required this.onSelectProduct,
   });
 
+  final Project project;
+  final AsyncValue<List<ProcessStep>> processStepsAsync;
+  final AsyncValue<List<ProductGanttBar>> barsAsync;
+  final AsyncValue<Map<String, Map<String, ProcessProgressDaily>>> latestProgressMapAsync;
+  final AsyncValue<List<ProcessGroup>> processGroupsAsync;
   final List<InspectionProductEntry> entries;
   final String? selectedProductId;
   final Map<String, GanttProduct> productProgressMap;
@@ -1500,6 +1787,34 @@ class _ProductListView extends StatelessWidget {
       return const Center(child: Text('該当する製品がありません'));
     }
 
+    final steps = processStepsAsync.maybeWhen(
+      data: (steps) {
+        final copied = List<ProcessStep>.from(steps);
+        copied.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+        return copied;
+      },
+      orElse: () => const <ProcessStep>[],
+    );
+    final processGroups = processGroupsAsync.maybeWhen(
+      data: (groups) {
+        final copied = List<ProcessGroup>.from(groups);
+        copied.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+        return copied;
+      },
+      orElse: () => const <ProcessGroup>[],
+    );
+    final groupLabels = processGroupsAsync.maybeWhen(
+      data: (groups) => {for (final g in groups) g.id: g.label},
+      orElse: () => const <String, String>{},
+    );
+
+    final productStatusMap =
+        barsAsync.maybeWhen(data: (bars) => _buildStatusMapFromBars(bars), orElse: () => <String, Map<String, ProcessCellStatus>>{});
+    final latestMap = latestProgressMapAsync.maybeWhen(
+      data: (m) => m,
+      orElse: () => const <String, Map<String, ProcessProgressDaily>>{},
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1511,8 +1826,8 @@ class _ProductListView extends StatelessWidget {
                 '製品（フィルタ結果）',
                 style: Theme.of(context)
                     .textTheme
-                  .labelMedium
-                  ?.copyWith(fontWeight: FontWeight.bold),
+                    .labelMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
               ),
               if (selectedStepLabel != null) ...[
                 const SizedBox(width: 8),
@@ -1538,16 +1853,14 @@ class _ProductListView extends StatelessWidget {
               final entry = entries[index];
               final product = entry.product;
               final shippingRow = entry.shippingRow;
-                final isSelected = product != null && selectedProductId == product.id;
-                final gantt = product != null ? productProgressMap[product.id] : null;
-                final remainingCount =
-                    gantt?.tasks.where((t) => t.progress < 1).length;
-                final progressValue = gantt?.progress ?? 0.0;
-                final status = _statusFromProgress(progressValue);
-                final statusColor = _statusColor(context, status);
-                // TODO: 今はPDFビューア動作確認のために先頭1件だけテストURLを使用している。
-                //       本番では Product.drawingPdfUrl を正式に持たせて差し替えること。
-                String? drawingUrl;
+              final isSelected = product != null && selectedProductId == product.id;
+              final gantt = product != null ? productProgressMap[product.id] : null;
+              final remainingCount =
+                  gantt?.tasks.where((t) => t.progress < 1).length;
+              final progressValue = gantt?.progress ?? 0.0;
+              final status = _statusFromProgress(progressValue);
+              final statusColor = _statusColor(context, status);
+              String? drawingUrl;
               if (product != null) {
                 try {
                   final dynamicUrl = (product as dynamic).drawingPdfUrl;
@@ -1581,11 +1894,11 @@ class _ProductListView extends StatelessWidget {
                     )
                   : null;
 
-                return Container(
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? Theme.of(context).colorScheme.primary.withOpacity(0.06)
-                        : null,
+              return Container(
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? Theme.of(context).colorScheme.primary.withOpacity(0.06)
+                      : null,
                   border: isSelected
                       ? Border(
                           left: BorderSide(
@@ -1594,8 +1907,8 @@ class _ProductListView extends StatelessWidget {
                           ),
                         )
                       : null,
-                  ),
-                  child: ListTile(
+                ),
+                child: ListTile(
                   contentPadding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   visualDensity: const VisualDensity(horizontal: 0, vertical: -2),
@@ -1624,41 +1937,74 @@ class _ProductListView extends StatelessWidget {
                   title: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      SizedBox(
-                        width: 140,
-                        child: Text(
-                          shippingRow.productCode.isNotEmpty
-                              ? shippingRow.productCode
-                              : (product?.productCode.isNotEmpty == true
-                                  ? product!.productCode
-                            : (product?.name ?? '-')),
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyMedium
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
                       Expanded(
-                        child: Column(
+                        flex: 8,
+                        child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(
-                              _productLocationLine(shippingRow, product, remainingCount),
-                              style: Theme.of(context).textTheme.bodySmall,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                            SizedBox(
+                              width: 150,
+                              child: Text(
+                                shippingRow.productCode.isNotEmpty
+                                    ? shippingRow.productCode
+                                    : (product?.productCode.isNotEmpty == true
+                                        ? product!.productCode
+                                        : (product?.name ?? '-')),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.copyWith(fontWeight: FontWeight.bold),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                            Text(
-                              _productDetailLine(shippingRow, product, remainingCount),
-                              style: Theme.of(context).textTheme.bodySmall,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    _productLocationLine(shippingRow, product, remainingCount),
+                                    style: Theme.of(context).textTheme.bodySmall,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  Text(
+                                    _productDetailLine(shippingRow, product, remainingCount),
+                                    style: Theme.of(context).textTheme.bodySmall,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Flexible(
+                        flex: 3,
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final isNarrow = constraints.maxWidth < _kNarrowInlineProcessWidth;
+                            if (isNarrow) {
+                              return _ProcessSummaryText(
+                                steps: steps,
+                                statusByStep:
+                                    product != null ? productStatusMap[product.id] : null,
+                                latestByStep: product != null ? latestMap[product.id] : null,
+                                groupLabels: groupLabels,
+                              );
+                            }
+                            return _InlineStatusStrip2(
+                              steps: steps,
+                              groups: processGroups,
+                              statusByStep: product != null ? productStatusMap[product.id] : null,
+                              latestByStep: product != null ? latestMap[product.id] : null,
+                              groupLabels: groupLabels,
+                            );
+                          },
                         ),
                       ),
                     ],

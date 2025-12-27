@@ -8,6 +8,8 @@ import '../../process_spec/domain/process_group.dart';
 import '../../process_spec/domain/process_step.dart';
 import '../application/product_inspection_providers.dart';
 import '../../process_spec/data/process_progress_save_service.dart';
+import '../../gantt/presentation/gantt_screen.dart';
+import 'package:flutter/foundation.dart';
 
 enum InspectionStatus { notStarted, inProgress, done }
 
@@ -428,9 +430,17 @@ class _ProductInspectionScreenState
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('製品の読み込みに失敗しました: $e')),
         data: (products) {
-          final filtered = _filterProducts(products);
+          final selectedIds = ref.watch(inspectionSelectedProductIdsProvider);
+          var filtered = _filterProducts(products);
+          if (selectedIds.isNotEmpty) {
+            filtered = filtered.where((p) => selectedIds.contains(p.id)).toList();
+          }
           final selectedProduct = _findProductById(filtered, _selectedProductId) ??
               _findProductById(filtered, widget.initiallySelectedProduct?.id);
+          if (kDebugMode) {
+            debugPrint(
+                '[ProductInspectionScreen] selected=${selectedIds.length} total=${products.length} shown=${filtered.length} ids=${selectedIds.take(5).toList()}');
+          }
 
           return Row(
             children: [
@@ -438,6 +448,16 @@ class _ProductInspectionScreenState
                 width: 320,
                 child: Column(
                   children: [
+                    if (kDebugMode)
+                      Container(
+                        width: double.infinity,
+                        color: Theme.of(context).colorScheme.surfaceVariant,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        child: Text(
+                          'selected=${selectedIds.length} total=${products.length} shown=${filtered.length}',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ),
                     Container(
                       width: double.infinity,
                       padding:
@@ -476,9 +496,13 @@ class _ProductInspectionScreenState
                     ),
                     const Divider(height: 1),
                     if (filtered.isEmpty)
-                      const Expanded(
+                      Expanded(
                         child: Center(
-                          child: Text('製品がありません'),
+                          child: Text(
+                            selectedIds.isEmpty
+                                ? '検査入力で製品を選択してください'
+                                : '選択中の製品がありません',
+                          ),
                         ),
                       )
                     else
