@@ -36,7 +36,7 @@ enum GanttViewMode { byProduct, byProcess }
 /// ガントの横方向ズーム。日/週/月ボタンで切り替える。
 /// day: 1日あたりの幅を広くして細かく見る（表示日数少なめ）
 /// month: 幅を狭くして長期間を見る（表示日数多め）
-enum GanttDateScale { day, week, month }
+enum GanttDateScale { day, week, twoWeeks, month }
 
 /// 計画バーのドラッグモード（スライド／左右リサイズ）
 enum _DragMode { move, resizeLeft, resizeRight }
@@ -244,8 +244,8 @@ const double _miniMapHeight = 40.0;
 const Color kGanttPlannedBarColor = Color(0xFFCFD8DC);
 const Color kGanttActualInProgressColor = Color(0xFFFFB300);
 const Color kGanttActualDoneColor = Color(0xFF42A5F5);
-const double kGanttPlannedBarHeight = 4.0;
-const double kGanttActualBarHeight = 8.0;
+const double kGanttPlannedBarHeight = 5.0;
+const double kGanttActualBarHeight = 9.0;
 const double kGanttPlannedBarRadius = 4.0;
 const double kGanttActualBarRadius = 3.0;
 const double kGanttActualBarMinWidth = 6.0;
@@ -300,6 +300,7 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
   // タイムライン幅調整
   // 行高さは左リストと右ガントで共通化し、ズレを防ぐ
   static const double _rowHeight = kGanttRowHeight;
+  static const double _processGroupRowHeight = 60.0;
   static const double _timelineMonthRowHeight = 18;
   static const double _timelineDayRowHeight = 18;
   ProductViewMode _productViewMode = ProductViewMode.schedule;
@@ -307,15 +308,20 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
   GanttDateScale _dateScale = GanttDateScale.month;
   int _dayZoomIndex = 0; // 日ビューのズーム段階（0:標準,1:中,2:最大）
   double _dayCellWidth = _dayZoomLevels[0]; // 日ビュー用の可変セル幅（ズーム）
+  static const double _minScaleDayWidth = 16.0;
+  static const double _maxScaleDayWidth = 40.0;
+  double _scaleDayWidth = _minScaleDayWidth; // 週/2週/月の基準幅
 
   double get _dayWidth {
     switch (_dateScale) {
       case GanttDateScale.day:
         return _dayCellWidth;
       case GanttDateScale.week:
-        return 32;
+        return _scaleDayWidth;
+      case GanttDateScale.twoWeeks:
+        return _scaleDayWidth;
       case GanttDateScale.month:
-        return 16;
+        return _scaleDayWidth;
     }
   }
 
@@ -394,7 +400,7 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
   // フィルタUI用（ダミー）
   String _selectedProjectName = '工事A';
   String _keyword = '';
-  int _viewRangeIndex = 1; // 日/週/月ダミー
+  int _viewRangeIndex = 3; // 日/週/2週/月
   // 初期表示を工種別に。運用上製品別を初期に戻したい場合は byProduct に戻してください。
   GanttViewMode _viewMode = GanttViewMode.byProcess;
   // 工程別ビューの「計画バー（Plan）」用オフセット。
@@ -407,6 +413,7 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
   double _dragAccumulatedDx = 0.0;
   GroupPlanOffset _dragStartOffset = const GroupPlanOffset();
   _DragMode? _dragMode;
+  double _lastScale = 1.0;
 
   bool _isGroupExpanded(String groupId) => _groupExpanded[groupId] ?? false;
 
@@ -431,9 +438,25 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
     });
   }
 
+  int _nearestDayZoomIndex(double width) {
+    var bestIndex = 0;
+    var bestDiff = double.infinity;
+    for (var i = 0; i < _dayZoomLevels.length; i++) {
+      final diff = (_dayZoomLevels[i] - width).abs();
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        bestIndex = i;
+      }
+    }
+    return bestIndex;
+  }
+
   void _changeDayWidth(double newWidth) {
+    final minWidth = _dayZoomLevels.reduce(math.min);
+    final maxWidth = _dayZoomLevels.reduce(math.max);
+    final clamped = newWidth.clamp(minWidth, maxWidth).toDouble();
     final oldWidth = _dayCellWidth;
-    if (oldWidth == newWidth) return;
+    if (oldWidth == clamped) return;
 
     double oldOffset = 0.0;
     double viewport = 0.0;
@@ -450,14 +473,45 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
         oldTotalWidth == 0 ? 0.0 : (centerX / oldTotalWidth).clamp(0.0, 1.0);
 
     setState(() {
-      _dayCellWidth = newWidth;
+      _dayCellWidth = clamped;
+      _dayZoomIndex = _nearestDayZoomIndex(clamped);
     });
 
     if (_rightScroll.hasClients) {
-      final newTotalWidth = _totalDays * newWidth;
+      final newTotalWidth = _totalDays * clamped;
       final newCenterX = newTotalWidth * centerRatio;
       final target =
           (newCenterX - viewport / 2).clamp(0.0, maxExtent == 0 ? 0.0 : _rightScroll.position.maxScrollExtent);
+      _rightScroll.jumpTo(target);
+    }
+  }
+
+  void _changeScaleDayWidth(double newWidth) {
+    final clamped = newWidth.clamp(_minScaleDayWidth, _maxScaleDayWidth).toDouble();
+    final oldWidth = _scaleDayWidth;
+    if (oldWidth == clamped) return;
+
+    double oldOffset = 0.0;
+    double viewport = 0.0;
+    if (_rightScroll.hasClients) {
+      oldOffset = _rightScroll.offset;
+      viewport = _rightScroll.position.viewportDimension;
+    }
+
+    final oldTotalWidth = _totalDays * oldWidth;
+    final centerX = oldOffset + viewport / 2;
+    final centerRatio =
+        oldTotalWidth == 0 ? 0.0 : (centerX / oldTotalWidth).clamp(0.0, 1.0);
+
+    setState(() {
+      _scaleDayWidth = clamped;
+    });
+
+    if (_rightScroll.hasClients) {
+      final newTotalWidth = _totalDays * clamped;
+      final newCenterX = newTotalWidth * centerRatio;
+      final target =
+          (newCenterX - viewport / 2).clamp(0.0, _rightScroll.position.maxScrollExtent);
       _rightScroll.jumpTo(target);
     }
   }
@@ -476,6 +530,30 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
     _dayZoomIndex = prevIndex;
     debugPrint('[zoom] direction=-1, dayWidth=$_dayCellWidth -> zoomIndex=$_dayZoomIndex');
     _changeDayWidth(_dayZoomLevels[_dayZoomIndex]);
+  }
+
+  void _zoomInScaleWidth() {
+    _changeScaleDayWidth(_scaleDayWidth + 4.0);
+  }
+
+  void _zoomOutScaleWidth() {
+    _changeScaleDayWidth(_scaleDayWidth - 4.0);
+  }
+
+  void _zoomInTimeline() {
+    if (_dateScale == GanttDateScale.day) {
+      _zoomInDayWidth();
+    } else {
+      _zoomInScaleWidth();
+    }
+  }
+
+  void _zoomOutTimeline() {
+    if (_dateScale == GanttDateScale.day) {
+      _zoomOutDayWidth();
+    } else {
+      _zoomOutScaleWidth();
+    }
   }
 
   @override
@@ -786,6 +864,12 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
     return tasks.map((t) => t.end).reduce((a, b) => a.isAfter(b) ? a : b);
   }
 
+  DateTime? _maxActualDate(List<GanttTask> tasks) {
+    final actualTasks = tasks.where((t) => t.progress > 0).toList();
+    if (actualTasks.isEmpty) return null;
+    return actualTasks.map((t) => t.end).reduce((a, b) => a.isAfter(b) ? a : b);
+  }
+
   double _averageProgress(List<GanttTask> tasks) {
     if (tasks.isEmpty) return 0.0;
     final total = tasks.fold<double>(0.0, (sum, t) => sum + t.progress);
@@ -880,26 +964,48 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
               _viewRangeIndex == 0,
               _viewRangeIndex == 1,
               _viewRangeIndex == 2,
+              _viewRangeIndex == 3,
             ],
-            onPressed: (i) => setState(() {
-              _viewRangeIndex = i;
-              // 日/週/月ボタンでズームを切り替える
+            onPressed: (i) {
+              setState(() {
+                _viewRangeIndex = i;
+                // 日/週/2週/月ボタンでズームを切り替える
+                switch (i) {
+                  case 0:
+                    _dateScale = GanttDateScale.day;
+                    _dayZoomIndex = 0;
+                    debugPrint(
+                      '[zoom] select=day, reset zoomIndex=$_dayZoomIndex',
+                    );
+                    break;
+                  case 1:
+                    _dateScale = GanttDateScale.week;
+                    break;
+                  case 2:
+                    _dateScale = GanttDateScale.twoWeeks;
+                    break;
+                  case 3:
+                  default:
+                    _dateScale = GanttDateScale.month;
+                    break;
+                }
+              });
               switch (i) {
                 case 0:
-                  _dateScale = GanttDateScale.day;
-                  _dayZoomIndex = 0;
-                  debugPrint('[zoom] select=day, reset zoomIndex=$_dayZoomIndex');
                   _changeDayWidth(_dayZoomLevels[_dayZoomIndex]);
                   break;
                 case 1:
-                  _dateScale = GanttDateScale.week;
+                  _changeScaleDayWidth(32.0);
                   break;
                 case 2:
+                  _changeScaleDayWidth(24.0);
+                  break;
+                case 3:
                 default:
-                  _dateScale = GanttDateScale.month;
+                  _changeScaleDayWidth(_minScaleDayWidth);
                   break;
               }
-            }),
+            },
             children: const [
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: 8),
@@ -908,6 +1014,10 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: 8),
                 child: Text('週'),
+              ),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8),
+                child: Text('2週'),
               ),
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: 8),
@@ -921,16 +1031,12 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
               IconButton(
                 icon: const Icon(Icons.remove),
                 tooltip: 'ズームアウト（セル幅縮小）',
-                onPressed: _dateScale == GanttDateScale.day
-                    ? () => setState(_zoomOutDayWidth)
-                    : null,
+                onPressed: () => setState(_zoomOutTimeline),
               ),
               IconButton(
                 icon: const Icon(Icons.add),
                 tooltip: 'ズームイン（セル幅拡大）',
-                onPressed: _dateScale == GanttDateScale.day
-                    ? () => setState(_zoomInDayWidth)
-                    : null,
+                onPressed: () => setState(_zoomInTimeline),
               ),
             ],
           ),
@@ -1037,11 +1143,34 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
 
   Widget _wrapHorizontalWheelScroll(Widget child) {
     return Listener(
+      behavior: HitTestBehavior.translucent,
       onPointerSignal: (event) {
+        if (event is PointerScaleEvent) {
+          final scale = event.scale;
+          if (scale == 1.0) return;
+          if (_dateScale == GanttDateScale.day) {
+            _changeDayWidth(_dayCellWidth * scale);
+            return;
+          }
+          _changeScaleDayWidth(_scaleDayWidth * scale);
+          return;
+        }
         if (event is! PointerScrollEvent) return;
+        final isCtrlPressed = HardwareKeyboard.instance.isControlPressed;
         final pressed = HardwareKeyboard.instance.logicalKeysPressed;
-        final isShiftPressed = pressed.contains(LogicalKeyboardKey.shiftLeft) ||
+        final isShiftPressed = HardwareKeyboard.instance.isShiftPressed ||
+            pressed.contains(LogicalKeyboardKey.shiftLeft) ||
             pressed.contains(LogicalKeyboardKey.shiftRight);
+        if (isCtrlPressed) {
+          final delta = event.scrollDelta.dy;
+          if (delta == 0) return;
+          if (delta < 0) {
+            _zoomInTimeline();
+          } else {
+            _zoomOutTimeline();
+          }
+          return;
+        }
         if (!isShiftPressed) return;
         if (!_rightScroll.hasClients) return;
         final min = _rightScroll.position.minScrollExtent;
@@ -1050,7 +1179,25 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
             .clamp(min, max);
         _rightScroll.jumpTo(target);
       },
-      child: child,
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onScaleStart: (_) {
+          _lastScale = 1.0;
+        },
+        onScaleUpdate: (details) {
+          if (details.pointerCount < 2) return;
+          final scale = details.scale;
+          if (scale == _lastScale) return;
+          final delta = scale / _lastScale;
+          _lastScale = scale;
+          if (_dateScale == GanttDateScale.day) {
+            _changeDayWidth(_dayCellWidth * delta);
+            return;
+          }
+          _changeScaleDayWidth(_scaleDayWidth * delta);
+        },
+        child: child,
+      ),
     );
   }
 
@@ -1075,7 +1222,6 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
     return ListView.builder(
       controller: _leftScroll,
       itemCount: rows.length,
-      itemExtent: _rowHeight,
       itemBuilder: (context, index) {
         final row = rows[index];
         if (row.isGroup && row.groupRow != null) {
@@ -1163,48 +1309,95 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
     const groupBg = Color(0xFFF2F2F2);
     final color = _taskBaseColorByLabel(row.label);
     final expanded = _isGroupExpanded(row.groupId);
-    final start = _minTaskStart(row.tasks);
     final end = _maxTaskEnd(row.tasks);
-    final subtitleParts = <String>[
-      'タスク数: ${row.tasks.length}',
-      if (start != null && end != null) '${_formatDate(start)} 〜 ${_formatDate(end)}',
-    ];
     final avgProgress = _averageProgress(row.tasks);
+    final today = DateTime.now();
+    final todayOnly = DateTime(today.year, today.month, today.day);
+    final endOnly = end != null ? DateTime(end.year, end.month, end.day) : null;
+    final isDelayed =
+        endOnly != null && todayOnly.isAfter(endOnly) && avgProgress < 1.0;
+    final totalCount = row.tasks.length;
+    final doneCount = row.tasks.where((t) => t.progress >= 1.0).length;
+    final percent = totalCount == 0
+        ? 0
+        : ((doneCount / totalCount) * 100).round();
+    final lastActual = _maxActualDate(row.tasks);
+    final captionStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+          fontSize: 11,
+          color: Colors.grey.shade600,
+          height: 1.1,
+        ) ??
+        TextStyle(fontSize: 11, color: Colors.grey.shade600, height: 1.1);
     return Container(
-      height: _rowHeight,
+      height: _processGroupRowHeight,
       color: groupBg,
-      child: ListTile(
-        dense: true,
-        visualDensity: VisualDensity.compact,
-        leading: SizedBox(
-          width: 28,
-          child: IconButton(
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-            iconSize: 20,
-            icon: Icon(expanded ? Icons.expand_more : Icons.chevron_right),
-            onPressed: () => _toggleGroupExpanded(row.groupId),
-          ),
-        ),
-        title: Text(
-          row.label,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(subtitleParts.join(' / ')),
-            const SizedBox(height: 4),
-            LinearProgressIndicator(
-              value: avgProgress,
-              backgroundColor: Colors.grey.shade200,
-              color: color,
-              minHeight: 6,
+      child: Stack(
+        children: [
+          if (isDelayed)
+            Positioned(
+              left: 0,
+              top: 0,
+              bottom: 0,
+              child: Container(width: 3, color: Colors.red.shade400),
             ),
-          ],
-        ),
-        onTap: () => _toggleGroupExpanded(row.groupId),
-        onLongPress: () => _showProcessGroupDetail(context, row, color),
+          ListTile(
+            dense: true,
+            visualDensity: VisualDensity.compact,
+            leading: SizedBox(
+              width: 28,
+              child: IconButton(
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                iconSize: 20,
+                icon: Icon(expanded ? Icons.expand_more : Icons.chevron_right),
+                onPressed: () => _toggleGroupExpanded(row.groupId),
+              ),
+            ),
+            title: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    row.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (doneCount > 0)
+                      Text(
+                        '$doneCount / $totalCount  ($percent%)',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: captionStyle,
+                      )
+                    else
+                      Text(
+                        '未着手',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: captionStyle,
+                      ),
+                    if (lastActual != null)
+                      Text(
+                        '最終: ${_formatDate(lastActual)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: captionStyle,
+                      ),
+                  ],
+                ),
+              ],
+            ),
+            onTap: () => _toggleGroupExpanded(row.groupId),
+            onLongPress: () => _showProcessGroupDetail(context, row, color),
+          ),
+        ],
       ),
     );
   }
@@ -1319,7 +1512,6 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
                     child: ListView.builder(
                       controller: _leftScroll,
                       itemCount: visibleRows.length,
-                      itemExtent: _rowHeight,
                       itemBuilder: (context, index) {
                         final row = visibleRows[index];
                         if (row.isGroup && row.groupRow != null) {
@@ -1339,23 +1531,24 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
                         child: ListView.builder(
                           controller: _rightListScroll,
                           itemCount: visibleRows.length,
-                          itemExtent: _rowHeight,
                           itemBuilder: (context, index) {
-                        final row = visibleRows[index];
-                        if (row.isGroup && row.groupRow != null) {
-                          return _buildGroupTimelineRow(
-                            row.groupRow!,
-                            daysCount,
-                            displayStart,
-                          );
-                        }
-                        return _buildStepTimelineRow(
-                          row.stepRow!,
-                          daysCount,
-                          displayStart,
-                        );
-                      },
-                    ),
+                            final row = visibleRows[index];
+                            if (row.isGroup && row.groupRow != null) {
+                              return _buildGroupTimelineRow(
+                                row.groupRow!,
+                                daysCount,
+                                displayStart,
+                                rowHeight: _processGroupRowHeight,
+                              );
+                            }
+                            return _buildStepTimelineRow(
+                              row.stepRow!,
+                              daysCount,
+                              displayStart,
+                              rowHeight: _rowHeight,
+                            );
+                          },
+                        ),
                       ),
                     ),
                   ),
@@ -1856,7 +2049,6 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
                         child: ListView.builder(
                           controller: _rightListScroll,
                           itemCount: rows.length,
-                          itemExtent: _rowHeight,
                           itemBuilder: (context, index) {
                             final row = rows[index];
                             if (row.isGroup && row.groupRow != null) {
@@ -1864,12 +2056,14 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
                                 row.groupRow!,
                                 daysCount,
                                 displayStart,
+                                rowHeight: _processGroupRowHeight,
                               );
                             } else if (!row.isGroup && row.stepRow != null) {
                               return _buildStepTimelineRow(
                                 row.stepRow!,
                                 daysCount,
                                 displayStart,
+                                rowHeight: _rowHeight,
                               );
                             }
                             return const SizedBox.shrink();
@@ -2028,6 +2222,7 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
         context,
         dates,
         (context, date, index) {
+          final label = _dayHeaderLabel(date, index);
           return Container(
             height: _timelineDayRowHeight,
             alignment: Alignment.center,
@@ -2038,7 +2233,7 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
               ),
             ),
             child: Text(
-              '${date.day}',
+              label,
               textAlign: TextAlign.center,
               softWrap: false,
               overflow: TextOverflow.clip,
@@ -2054,11 +2249,12 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
     );
   }
 
-  Widget _buildRowGrid(int daysCount, DateTime startDate) {
+  Widget _buildRowGrid(int daysCount, DateTime startDate, {required bool isGroup}) {
     final dates = List<DateTime>.generate(
       daysCount,
       (i) => startDate.add(Duration(days: i)),
     );
+    final baseColor = isGroup ? const Color(0xFFF2F2F2) : Colors.white;
     return Row(
       children: _buildDayCells(
         context,
@@ -2069,9 +2265,7 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
           return Container(
             height: double.infinity,
             decoration: BoxDecoration(
-              color: isWeekend
-                  ? Colors.grey.withValues(alpha: 0.12)
-                  : Colors.transparent,
+              color: isWeekend ? Colors.grey.withValues(alpha: 0.12) : baseColor,
               border: Border(
                 right: BorderSide(color: Colors.grey.shade300),
                 bottom: BorderSide(color: Colors.grey.shade300),
@@ -2083,10 +2277,16 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
     );
   }
 
+  String _dayHeaderLabel(DateTime date, int index) {
+    return '${date.day}';
+  }
+
   Widget _buildGroupTimelineRow(
     ProcessGroupRow row,
     int daysCount,
-    DateTime startDate,
+    DateTime startDate, {
+    required double rowHeight,
+  }
   ) {
     final baseColor = _taskBaseColorByLabel(row.label);
     // 工程別ビューでは、各工程の全タスク期間（最初の start〜最後の end）を細い計画バーとして 1本描画し、その上に各製品のバー（実績）を重ねている
@@ -2115,18 +2315,31 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
     }
 
     return SizedBox(
-      height: _rowHeight,
+      height: rowHeight,
       child: Stack(
         children: [
-          Positioned.fill(child: _buildRowGrid(daysCount, startDate)),
+          Positioned.fill(child: _buildRowGrid(daysCount, startDate, isGroup: true)),
+          _buildTodayLine(
+            startDate,
+            daysCount,
+            color: Colors.blueGrey.shade500,
+            lineWidth: 1,
+          ),
           if (plannedGeo != null)
             _buildProcessPlannedBar(
               plannedGeo,
               baseColor,
               row.groupKey,
+              rowHeight: rowHeight,
             ),
           for (final task in row.tasks)
-            _buildProcessTaskBar(task, baseColor, daysCount, startDate),
+            _buildProcessTaskBar(
+              task,
+              baseColor,
+              daysCount,
+              startDate,
+              rowHeight: rowHeight,
+            ),
         ],
       ),
     );
@@ -2135,16 +2348,30 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
   Widget _buildStepTimelineRow(
     ProcessStepRow row,
     int daysCount,
-    DateTime startDate,
+    DateTime startDate, {
+    required double rowHeight,
+  }
   ) {
     final baseColor = _taskBaseColorByLabel(row.label);
     return SizedBox(
-      height: _rowHeight,
+      height: rowHeight,
       child: Stack(
         children: [
-          Positioned.fill(child: _buildRowGrid(daysCount, startDate)),
+          Positioned.fill(child: _buildRowGrid(daysCount, startDate, isGroup: false)),
+          _buildTodayLine(
+            startDate,
+            daysCount,
+            color: Colors.blueGrey.shade500,
+            lineWidth: 1,
+          ),
           for (final task in row.tasks)
-            _buildProcessTaskBar(task, baseColor, daysCount, startDate),
+            _buildProcessTaskBar(
+              task,
+              baseColor,
+              daysCount,
+              startDate,
+              rowHeight: rowHeight,
+            ),
         ],
       ),
     );
@@ -2155,9 +2382,11 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
   Widget _buildProcessPlannedBar(
     _TaskGeometry geo,
     Color baseColor,
-    String groupKey,
+    String groupKey, {
+    required double rowHeight,
+  }
   ) {
-    const double plannedHeight = 8;
+    const double plannedHeight = kGanttPlannedBarHeight;
     const double handleWidth = 6;
     final barWidth = geo.width;
     final centerWidthNum = (barWidth - handleWidth * 2);
@@ -2167,9 +2396,9 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
     return Positioned(
       left: geo.left,
       // 実績バーと完全に重ならないよう少し上にずらす
-      top: (_rowHeight - plannedHeight) / 2 - 2,
+      top: (rowHeight - plannedHeight) / 2 - 2,
       child: SizedBox(
-        height: _rowHeight,
+        height: rowHeight,
         child: Row(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -2185,7 +2414,7 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
                 width: handleWidth,
                 height: plannedHeight + 8,
                 decoration: BoxDecoration(
-                  color: baseColor.withValues(alpha: 0.6),
+                  color: baseColor.withValues(alpha: 0.35),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -2200,10 +2429,10 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
                 width: centerWidth,
                 height: plannedHeight,
                 decoration: BoxDecoration(
-                  color: baseColor.withValues(alpha: 0.2),
+                  color: baseColor.withValues(alpha: 0.35),
                   borderRadius: BorderRadius.circular(999),
                   border: Border.all(
-                    color: baseColor.withValues(alpha: 0.7),
+                    color: baseColor.withValues(alpha: 0.35),
                     width: 1,
                   ),
                 ),
@@ -2220,7 +2449,7 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
                 width: handleWidth,
                 height: plannedHeight + 8,
                 decoration: BoxDecoration(
-                  color: baseColor.withValues(alpha: 0.6),
+                  color: baseColor.withValues(alpha: 0.35),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -2236,14 +2465,16 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
     GanttTask task,
     Color baseColor,
     int daysCount,
-    DateTime startDate,
+    DateTime startDate, {
+    required double rowHeight,
+  }
   ) {
     final geo = _computeTaskGeometry(task, startDate, daysCount, _dayWidth);
     if (geo == null) return const SizedBox.shrink();
 
     return Positioned(
       left: geo.left,
-      top: (_rowHeight - kGanttActualBarHeight) / 2,
+      top: (rowHeight - kGanttActualBarHeight) / 2,
       child: Stack(
         children: [
           _buildPlannedBar(
@@ -2264,7 +2495,7 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
       height: _rowHeight,
       child: Stack(
         children: [
-          Positioned.fill(child: _buildRowGrid(daysCount, startDate)),
+          Positioned.fill(child: _buildRowGrid(daysCount, startDate, isGroup: false)),
           _buildTodayLine(startDate, daysCount),
           // productヘッダ行ではバーは描かない（タスク行側で連続バーを表示）
         ],
@@ -2284,7 +2515,7 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
       height: _rowHeight,
       child: Stack(
         children: [
-          Positioned.fill(child: _buildRowGrid(daysCount, startDate)),
+          Positioned.fill(child: _buildRowGrid(daysCount, startDate, isGroup: false)),
           _buildTodayLine(startDate, daysCount),
           _buildPlannedEndLine(task, startDate, daysCount),
           if (geo != null)
@@ -2316,9 +2547,9 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
       width: width,
       height: plannedHeight,
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.5),
+        color: color.withValues(alpha: 0.35),
         borderRadius: BorderRadius.circular(kGanttPlannedBarRadius),
-        border: Border.all(color: color.withValues(alpha: 0.6)),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
       ),
     );
   }
@@ -2346,12 +2577,12 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
     final double left = rawWidth < minWidth ? geo.left - (minWidth - rawWidth) / 2 : geo.left;
     return Positioned(
       left: left,
-      top: (_rowHeight - kGanttActualBarHeight) / 2,
+      top: (_rowHeight - kGanttActualBarHeight) / 2 - 1.0,
       child: Container(
         width: width,
         height: kGanttActualBarHeight,
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.85),
+          color: color.withValues(alpha: 1.0),
           borderRadius: BorderRadius.circular(kGanttActualBarRadius),
           border: Border.all(
             color: color.withValues(alpha: 1.0),
@@ -2362,18 +2593,24 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
     );
   }
 
-  Widget _buildTodayLine(DateTime startDate, int totalDays) {
+  Widget _buildTodayLine(
+    DateTime startDate,
+    int totalDays, {
+    Color? color,
+    double lineWidth = 2,
+  }) {
     final today = DateTime.now();
     final todayBase = DateTime(today.year, today.month, today.day);
     final offset = todayBase.difference(startDate).inDays;
     if (offset < 0 || offset >= totalDays) {
       return const SizedBox.shrink();
     }
+    final lineColor = color ?? Colors.red.withValues(alpha: 0.6);
     return Positioned(
       left: offset * _dayWidth,
       top: 0,
       bottom: 0,
-      child: Container(width: 2, color: Colors.red.withValues(alpha: 0.6)),
+      child: Container(width: lineWidth, color: lineColor),
     );
   }
 
@@ -2813,24 +3050,76 @@ class _ProductProcessStatusMatrixView extends StatefulWidget {
 
 class _ProductProcessStatusMatrixViewState
     extends State<_ProductProcessStatusMatrixView> {
-  late final ScrollController _horizontalController;
+  late final ScrollController _horizontalHeaderController;
+  late final ScrollController _horizontalBodyController;
+  late final ScrollController _verticalLeftController;
+  late final ScrollController _verticalRightController;
+  bool _syncingVertical = false;
+  bool _syncingHorizontal = false;
 
   @override
   void initState() {
     super.initState();
-    _horizontalController = ScrollController();
+    _horizontalHeaderController = ScrollController();
+    _horizontalBodyController = ScrollController();
+    _verticalLeftController = ScrollController();
+    _verticalRightController = ScrollController();
+    _horizontalHeaderController.addListener(() {
+      _syncHorizontalScroll(_horizontalHeaderController, _horizontalBodyController);
+    });
+    _horizontalBodyController.addListener(() {
+      _syncHorizontalScroll(_horizontalBodyController, _horizontalHeaderController);
+    });
+    _verticalLeftController.addListener(() {
+      _syncVerticalScroll(_verticalLeftController, _verticalRightController);
+    });
+    _verticalRightController.addListener(() {
+      _syncVerticalScroll(_verticalRightController, _verticalLeftController);
+    });
   }
 
   @override
   void dispose() {
-    _horizontalController.dispose();
+    _horizontalHeaderController.dispose();
+    _horizontalBodyController.dispose();
+    _verticalLeftController.dispose();
+    _verticalRightController.dispose();
     super.dispose();
+  }
+
+  void _syncHorizontalScroll(
+    ScrollController from,
+    ScrollController to,
+  ) {
+    if (_syncingHorizontal) return;
+    if (!from.hasClients || !to.hasClients) return;
+    _syncingHorizontal = true;
+    final max = to.position.maxScrollExtent;
+    final next = from.offset.clamp(0.0, max);
+    if (to.offset != next) {
+      to.jumpTo(next);
+    }
+    _syncingHorizontal = false;
+  }
+
+  void _syncVerticalScroll(
+    ScrollController from,
+    ScrollController to,
+  ) {
+    if (_syncingVertical) return;
+    if (!from.hasClients || !to.hasClients) return;
+    _syncingVertical = true;
+    final max = to.position.maxScrollExtent;
+    final next = from.offset.clamp(0.0, max);
+    if (to.offset != next) {
+      to.jumpTo(next);
+    }
+    _syncingVertical = false;
   }
 
   @override
   Widget build(BuildContext context) {
-    final headerWidth =
-        widget.productColWidth + widget.steps.length * widget.cellWidth;
+    final stepsWidth = widget.steps.length * widget.cellWidth;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2838,18 +3127,90 @@ class _ProductProcessStatusMatrixViewState
         SizedBox(
           height:
               widget.parentHeaderHeight + widget.childHeaderHeight + 1 /* divider */,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            controller: _horizontalController,
-            child: _buildHeader(headerWidth),
+          child: Row(
+            children: [
+              SizedBox(
+                width: widget.productColWidth,
+                height: widget.parentHeaderHeight + widget.childHeaderHeight,
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  controller: _horizontalHeaderController,
+                  child: _buildHeader(stepsWidth),
+                ),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 8),
         Expanded(
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            controller: _horizontalController,
-            child: _buildBody(),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: widget.productColWidth,
+                child: ListView.builder(
+                  controller: _verticalLeftController,
+                  physics: const ClampingScrollPhysics(),
+                  itemExtent: widget.rowHeight,
+                  padding: const EdgeInsets.only(top: 4),
+                  itemCount: widget.products.length,
+                  itemBuilder: (context, index) {
+                    final product = widget.products[index];
+                    return Container(
+                      alignment: Alignment.centerLeft,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: Text(
+                        product.label,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    );
+                  },
+                ),
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  controller: _horizontalBodyController,
+                  child: SizedBox(
+                    width: stepsWidth,
+                    child: ListView.builder(
+                      controller: _verticalRightController,
+                      physics: const ClampingScrollPhysics(),
+                      itemExtent: widget.rowHeight,
+                      padding: const EdgeInsets.only(top: 4),
+                      itemCount: widget.products.length,
+                      itemBuilder: (context, index) {
+                        final product = widget.products[index];
+                        int logCount = 0;
+                        return Row(
+                          children: [
+                            for (final step in widget.steps)
+                              _buildStatusCell(
+                                product: product,
+                                step: step,
+                                status: widget.statusMap[product.id]?[step.id] ??
+                                    ProcessCellStatus.notStarted,
+                                onDebugLog: kDebugMode && logCount < 3
+                                    ? () {
+                                        final hasKey = widget.statusMap[product.id]
+                                                ?.containsKey(step.id) ==
+                                            true;
+                                        debugPrint(
+                                            '[status-cell] product=${product.id} step=${step.id} hit=$hasKey');
+                                        logCount++;
+                                      }
+                                    : null,
+                              ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -2862,10 +3223,6 @@ class _ProductProcessStatusMatrixViewState
       children: [
         Row(
           children: [
-            SizedBox(
-              width: widget.productColWidth,
-              height: widget.parentHeaderHeight,
-            ),
             for (final group in widget.headerGroups)
               Container(
                 height: widget.parentHeaderHeight,
@@ -2946,49 +3303,6 @@ class _ProductProcessStatusMatrixViewState
     );
   }
 
-  Widget _buildBody() {
-    int logCount = 0;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 4),
-        for (final product in widget.products)
-          SizedBox(
-            height: widget.rowHeight,
-            child: Row(
-              children: [
-                Container(
-                  width: widget.productColWidth,
-                  alignment: Alignment.centerLeft,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Text(
-                    product.label,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                for (final step in widget.steps)
-                  _buildStatusCell(
-                    product: product,
-                    step: step,
-                    status: widget.statusMap[product.id]?[step.id] ??
-                        ProcessCellStatus.notStarted,
-                    onDebugLog: kDebugMode && logCount < 3
-                        ? () {
-                            final hasKey =
-                                widget.statusMap[product.id]?.containsKey(step.id) == true;
-                            debugPrint(
-                                '[status-cell] product=${product.id} step=${step.id} hit=$hasKey');
-                            logCount++;
-                          }
-                        : null,
-                  ),
-              ],
-            ),
-          ),
-      ],
-    );
-  }
-
   Widget _buildStatusCell({
     required _MatrixProduct product,
     required _MatrixStep step,
@@ -3024,15 +3338,7 @@ class _ProductProcessStatusMatrixViewState
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          Text(
-            '担: —',
-            style: Theme.of(context)
-                .textTheme
-                .labelSmall
-                ?.copyWith(color: Colors.white, fontSize: 10),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
+          // TODO: 担当者表示は一旦非表示
         ],
       ),
     );
