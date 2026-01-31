@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../models/project.dart';
 import '../data/gantt_repository.dart';
 import '../domain/gantt_repository.dart';
-import '../presentation/gantt_screen.dart' show GanttProduct;
+import '../domain/gantt_models.dart' show GanttProduct;
 import '../../process_spec/data/process_groups_repository.dart';
 import '../../process_spec/data/process_progress_daily_repository.dart';
 import '../../process_spec/data/process_steps_repository.dart';

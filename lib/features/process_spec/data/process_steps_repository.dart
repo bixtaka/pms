@@ -18,10 +18,50 @@ class ProcessStepsRepository {
     '出荷',
   ];
 
+  /// 既存の stage 値を SPEC グループ名にマッピングするルール
+  static const _stageMapping = <String, String>{
+    // 一次加工グループ
+    '切断': '一次加工',
+    '孔あけ': '一次加工',
+    'ショット': '一次加工',
+    '開先': '一次加工',
+    'ケガキ': '一次加工',
+    
+    // コア部グループ
+    'コア組立': 'コア部',
+    'コア溶接': 'コア部',
+    
+    // 仕口部グループ
+    '仕口組立': '仕口部',
+    '仕口溶接': '仕口部',
+    
+    // 大組部グループ
+    '組立': '大組部',
+    '溶接': '大組部',
+    '大組': '大組部',
+    
+    // 製品検査グループ
+    'UT': '製品検査',
+    '寸法検査': '製品検査',
+    '組立検査': '製品検査',
+    '外観検査': '製品検査',
+    '検査': '製品検査',
+    
+    // 製品塗装グループ
+    '塗装': '製品塗装',
+    '錆止め': '製品塗装',
+    '仕上げ塗装': '製品塗装',
+  };
+
   String _mapStageToGroup(String stage) {
     final trimmed = stage.trim();
     if (trimmed.isEmpty) return 'その他';
-    return _specStages.contains(trimmed) ? trimmed : 'その他';
+    // 完全一致でSPECグループならそのまま返す
+    if (_specStages.contains(trimmed)) return trimmed;
+    // マッピングテーブルにあれば変換
+    if (_stageMapping.containsKey(trimmed)) return _stageMapping[trimmed]!;
+    // どちらにも該当しなければ「その他」
+    return 'その他';
   }
 
   Future<List<ProcessStep>> fetchAll() async {

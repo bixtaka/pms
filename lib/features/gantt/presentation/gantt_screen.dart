@@ -23,269 +23,45 @@ import '../../process_spec/data/process_progress_save_service.dart';
 import '../../process_spec/data/process_progress_daily_repository.dart';
 import '../../process_spec/domain/process_progress_daily.dart';
 import 'group_plan_offset.dart';
+
+// 抽出したモジュールのインポート
+import '../domain/gantt_models.dart';
+import 'gantt_constants.dart';
+import 'gantt_utils.dart';
+import '../widgets/gantt_legend.dart';
+import '../widgets/gantt_grid_painter.dart';
+import '../../inspection/inspection_pencil_kit.dart';
+
 part 'inspection/inspection_filter_state.dart';
 part 'inspection/product_result_input_page.dart';
 part 'inspection/_inline_status_strip2.dart';
 
-/// 工種種別
-enum ProcessType { coreAssembly, coreWeld, jointAssembly, jointWeld, other }
-
-/// 表示モード（製品別 / 工種別）
-enum GanttViewMode { byProduct, byProcess }
-
-/// ガントの横方向ズーム。日/週/月ボタンで切り替える。
-/// day: 1日あたりの幅を広くして細かく見る（表示日数少なめ）
-/// month: 幅を狭くして長期間を見る（表示日数多め）
-enum GanttDateScale { day, week, twoWeeks, month }
-
-/// 計画バーのドラッグモード（スライド／左右リサイズ）
+/// 計画バーのドラッグモード（スライド／左右リサイズ）- 内部使用のためprivate
 enum _DragMode { move, resizeLeft, resizeRight }
 
-/// 製品別タブのビュー切り替え
-enum ProductViewMode { schedule, processStatus }
+// 定数のエイリアス（互換性維持）
+const double _leftPaneWidth = kGanttLeftPaneWidth;
+const double _processStepIndent = kGanttProcessStepIndent;
+const List<double> _dayZoomLevels = kGanttDayZoomLevels;
+const int _dayViewPaddingAfterDays = kDayViewPaddingAfterDays;
+const int _timelinePaddingDaysBefore = kTimelinePaddingDaysBefore;
+const int _timelinePaddingDaysAfter = kTimelinePaddingDaysAfter;
+const int _timelineExtraScrollableDays = kTimelineExtraScrollableDays;
+const double _miniMapDayWidth = kMiniMapDayWidth;
+const double _miniMapHeight = kMiniMapHeight;
 
-/// 工程ステータスマトリクス用ステータス
-enum ProcessCellStatus { notStarted, inProgress, done }
+// 関数のエイリアス（互換性維持）
+DateTime _dateOnly(DateTime d) => dateOnly(d);
 
-// TODO: テスト用。あとで正式な drawingPdfUrl に置き換えること。
-const String kTestDrawingPdfUrl =
-    'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf';
+ScrollController _createMainScrollController() => createMainScrollController();
+ScrollController _createHeaderScrollController() => createHeaderScrollController();
 
-class _MatrixProduct {
-  final String id;
-  final String label;
-  final String code;
-  final String memberType;
-
-  const _MatrixProduct({
-    required this.id,
-    required this.label,
-    required this.code,
-    required this.memberType,
-  });
-}
-
-class _MatrixStep {
-  final String id;
-  final String label;
-  final String groupName;
-
-  const _MatrixStep({
-    required this.id,
-    required this.label,
-    required this.groupName,
-  });
-}
-
-class _ProcessHeaderGroup {
-  final String groupName;
-  final List<_MatrixStep> steps;
-
-  _ProcessHeaderGroup({
-    required this.groupName,
-    required this.steps,
-  });
-}
-
-/// 1タスク（工種）を表すモデル
-class GanttTask {
-  final String id;
-  final String name;
-  final ProcessType type;
-  final DateTime start;
-  final DateTime end;
-  final double progress;
-  // 製品全体の予定完了日（製品レベルの予定を工程にも共有する）
-  final DateTime? plannedEnd;
-  // SPEC の process_steps への紐付け（工程別ビューで使用）
-  final String? stepId;
-  final String? stepKey;
-  final String? stepLabel;
-  final int? stepSort;
-  // SPEC の process_groups への紐付け（工程別ビューで使用）
-  final String? processGroupId;
-  final String? processGroupKey;
-  final String? processGroupLabel;
-  final int? processGroupSort;
-
-  const GanttTask({
-    required this.id,
-    required this.name,
-    required this.type,
-    required this.start,
-    required this.end,
-    required this.progress,
-    this.plannedEnd,
-    this.stepId,
-    this.stepKey,
-    this.stepLabel,
-    this.stepSort,
-    this.processGroupId,
-    this.processGroupKey,
-    this.processGroupLabel,
-    this.processGroupSort,
-  });
-}
-
-/// 製品行モデル（複数タスクを内包）
-class GanttProduct {
-  final String id;
-  final String code;
-  final String name;
-  final String memberType;
-  final double progress;
-  final int quantity;
-  final List<GanttTask> tasks;
-
-  const GanttProduct({
-    required this.id,
-    required this.code,
-    required this.name,
-    this.memberType = '',
-    required this.progress,
-    required this.quantity,
-    required this.tasks,
-  });
-}
-
-/// 行の種類：製品ヘッダ or タスク行
-enum GanttRowKind { productHeader, taskRow }
-
-/// 左ペイン／右タイムライン両方で使う行定義
-class GanttRowEntry {
-  final GanttRowKind kind;
-  final GanttProduct product;
-  final GanttTask? task;
-
-  const GanttRowEntry.productHeader(this.product)
-    : kind = GanttRowKind.productHeader,
-      task = null;
-
-  const GanttRowEntry.taskRow(this.product, this.task)
-    : kind = GanttRowKind.taskRow;
-}
-
-// 工程別ビュー用の親子ツリー行モデル。
-// 親: process_groups（一級の工程グループ。一次加工／コア部／…）
-// 子: process_steps（各グループ配下の工程ステップ。切断／ショット／UT／…）
-// ガント画面では、左ペイン・右ペインともにこの rows を使って
-// 折りたたみ可能なツリー構造として表示する。
-abstract class ProcessTreeRow {
-  const ProcessTreeRow();
-}
-
-class ProcessGroupRow extends ProcessTreeRow {
-  final String groupId;
-  final String groupKey;
-  final String label;
-  final int sortOrder;
-  final List<GanttTask> tasks; // そのグループに属する全タスク
-
-  const ProcessGroupRow({
-    required this.groupId,
-    required this.groupKey,
-    required this.label,
-    required this.sortOrder,
-    required this.tasks,
-  });
-}
-
-class ProcessStepRow extends ProcessTreeRow {
-  final String groupId;
-  final String stepId;
-  final String stepKey;
-  final String label;
-  final int sortOrder;
-  final List<GanttTask> tasks; // そのステップに属するタスク
-
-  const ProcessStepRow({
-    required this.groupId,
-    required this.stepId,
-    required this.stepKey,
-    required this.label,
-    required this.sortOrder,
-    required this.tasks,
-  });
-}
-
-class ProcessVisibleRow {
-  final bool isGroup;
-  final ProcessGroupRow? groupRow;
-  final ProcessStepRow? stepRow;
-
-  const ProcessVisibleRow.group(this.groupRow)
-      : isGroup = true,
-        stepRow = null;
-
-  const ProcessVisibleRow.step(this.stepRow)
-      : isGroup = false,
-        groupRow = null;
-}
-
-/// バーの位置計算結果
-class _TaskGeometry {
-  final double left;
-  final double width;
-
-  const _TaskGeometry({required this.left, required this.width});
-}
-
-// ガント行高さを左右で揃える共通定数
-const double kGanttRowHeight = 44.0;
-const double _leftPaneWidth = 280.0;
-const double _processStepIndent = 24.0;
-const List<double> _dayZoomLevels = [32.0, 48.0, 64.0];
-const int _dayViewPaddingAfterDays = 21; // 日ビュー専用の表示余白（日数）
-const int _timelinePaddingDaysBefore = 7;
-const int _timelinePaddingDaysAfter = 7;
-const int _timelineExtraScrollableDays = 14;
-const double _miniMapDayWidth = 3.0;
-const double _miniMapHeight = 40.0;
-const Color kGanttPlannedBarColor = Color(0xFFCFD8DC);
-const Color kGanttActualInProgressColor = Color(0xFFFFB300);
-const Color kGanttActualDoneColor = Color(0xFF42A5F5);
-const double kGanttPlannedBarHeight = 5.0;
-const double kGanttActualBarHeight = 9.0;
-const double kGanttPlannedBarRadius = 4.0;
-const double kGanttActualBarRadius = 3.0;
-const double kGanttActualBarMinWidth = 6.0;
-
-DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
-typedef DayCellBuilder = Widget Function(
-  BuildContext context,
-  DateTime date,
-  int index,
-);
-
-class _MonthSpan {
-  final int month;
-  final int startIndex;
-  final int endIndex;
-
-  const _MonthSpan({
-    required this.month,
-    required this.startIndex,
-    required this.endIndex,
-  });
-
-  int get length => endIndex - startIndex + 1;
-}
-
-ScrollController _createMainScrollController() {
-  final controller = ScrollController();
-  controller.addListener(() {
-    debugPrint('[GANTT MAIN] offset=${controller.offset}');
-  });
-  return controller;
-}
-
-ScrollController _createHeaderScrollController() {
-  final controller = ScrollController();
-  controller.addListener(() {
-    debugPrint('[GANTT HEADER] offset=${controller.offset}');
-  });
-  return controller;
-}
+// typedef のエイリアス
+typedef _TaskGeometry = TaskGeometry;
+typedef _MonthSpan = MonthSpan;
+typedef _MatrixProduct = MatrixProduct;
+typedef _MatrixStep = MatrixStep;
+typedef _ProcessHeaderGroup = ProcessHeaderGroup;
 
 class GanttScreen extends ConsumerStatefulWidget {
   final Project project;
@@ -297,6 +73,7 @@ class GanttScreen extends ConsumerStatefulWidget {
 }
 
 class _GanttScreenState extends ConsumerState<GanttScreen> {
+
   // タイムライン幅調整
   // 行高さは左リストと右ガントで共通化し、ズレを防ぐ
   static const double _rowHeight = kGanttRowHeight;
@@ -1133,7 +910,18 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
                 );
               }
 
-              return _wrapHorizontalWheelScroll(content);
+              return _wrapHorizontalWheelScroll(
+                Stack(
+                  children: [
+                    content,
+                    const Positioned(
+                      top: 8,
+                      left: 8,
+                      child: GanttLegend(),
+                    ),
+                  ],
+                ),
+              );
             },
           );
         },
@@ -2250,30 +2038,21 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
   }
 
   Widget _buildRowGrid(int daysCount, DateTime startDate, {required bool isGroup}) {
-    final dates = List<DateTime>.generate(
-      daysCount,
-      (i) => startDate.add(Duration(days: i)),
-    );
+    // 高速化のためCustomPainterを使用
     final baseColor = isGroup ? const Color(0xFFF2F2F2) : Colors.white;
-    return Row(
-      children: _buildDayCells(
-        context,
-        dates,
-        (context, date, index) {
-          final isWeekend =
-              date.weekday == DateTime.saturday || date.weekday == DateTime.sunday;
-          return Container(
-            height: double.infinity,
-            decoration: BoxDecoration(
-              color: isWeekend ? Colors.grey.withValues(alpha: 0.12) : baseColor,
-              border: Border(
-                right: BorderSide(color: Colors.grey.shade300),
-                bottom: BorderSide(color: Colors.grey.shade300),
-              ),
-            ),
-          );
-        },
+    final weekendColor = Colors.grey.withValues(alpha: 0.12);
+    final borderColor = Colors.grey.shade300;
+
+    return CustomPaint(
+      painter: GanttGridPainter(
+        daysCount: daysCount,
+        dayWidth: _dayWidth,
+        startDate: startDate,
+        baseColor: baseColor,
+        borderColor: borderColor,
+        weekendColor: weekendColor,
       ),
+      size: Size.infinite,
     );
   }
 

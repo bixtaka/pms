@@ -1,4 +1,4 @@
-import '../presentation/gantt_screen.dart' show GanttProduct; // 再利用するガント用モデル
+import 'gantt_models.dart' show GanttProduct; // 再利用するガント用モデル
 
 /// ガントチャートで必要な製品＋工程タスクを取得するリポジトリの契約
 abstract class GanttRepository {

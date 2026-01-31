@@ -7,7 +7,7 @@ import '../../process_spec/domain/process_progress_daily.dart';
 import '../../process_spec/domain/process_step.dart';
 import '../../products/data/product_repository.dart';
 import '../domain/gantt_repository.dart';
-import '../presentation/gantt_screen.dart'
+import '../domain/gantt_models.dart'
     show GanttProduct, GanttTask, ProcessType;
 import '../../../models/process_progress.dart';
 

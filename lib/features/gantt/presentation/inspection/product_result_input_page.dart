@@ -1872,7 +1872,7 @@ class _ProductListView extends StatelessWidget {
                 }
               }
               if (product != null) {
-                drawingUrl ??= index == 0 ? kTestDrawingPdfUrl : null;
+                // drawingUrl ??= index == 0 ? kTestDrawingPdfUrl : null;
               }
               final hasDrawing = drawingUrl != null && drawingUrl.isNotEmpty;
               final isPriority = product != null &&
@@ -2437,6 +2437,59 @@ class _RightPaneContent extends StatelessWidget {
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
               ),
+            ),
+            // 手書き注釈ボタン
+            ActionChip(
+              avatar: const Icon(
+                Icons.edit_note,
+                size: 18,
+                color: Color(0xFF007AFF),
+              ),
+              label: const Text(
+                '手書き注釈',
+                style: TextStyle(
+                  color: Color(0xFF007AFF),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              backgroundColor: const Color(0xFFF2F2F7),
+              side: const BorderSide(color: Color(0xFFD1D1D6)),
+              onPressed: selectedIds.isEmpty
+                  ? null
+                  : () async {
+                      // 選択された製品の最初のIDを使用
+                      final selectedDocId = selectedIds.isNotEmpty ? selectedIds.first : null;
+                      if (selectedDocId == null) return;
+                      
+                      // 製品情報から製品符号を取得
+                      String? productCodeForStorage;
+                      productsAsync.whenData((products) {
+                        final product = products.where((p) => p.id == selectedDocId).firstOrNull;
+                        if (product != null) {
+                          // productCode を優先、なければ name を使用
+                          productCodeForStorage = product.productCode.isNotEmpty 
+                              ? product.productCode 
+                              : (product.name.isNotEmpty ? product.name : null);
+                        }
+                      });
+                      
+                      // 製品符号が取得できなかった場合はドキュメントIDを使用（フォールバック）
+                      final storageKey = productCodeForStorage ?? selectedDocId;
+                      
+                      // 製品の図面URLを取得（製品符号で取得）
+                      String? drawingUrl;
+                      final storageService = AnnotationStorageService();
+                      drawingUrl = await storageService.getDrawingUrl(storageKey);
+                      
+                      if (!context.mounted) return;
+                      await showAnnotationSheet(
+                        context: context,
+                        productId: selectedDocId, // Firestore保存用にはドキュメントIDを使用
+                        stepId: null, // 検査ステップIDがあれば設定
+                        inspectionDate: inspectionDate,
+                        backgroundImageUrl: drawingUrl,
+                      );
+                    },
             ),
           ],
         ),
