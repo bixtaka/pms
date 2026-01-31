@@ -1912,9 +1912,20 @@ class _ProductListView extends StatelessWidget {
                   contentPadding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   visualDensity: const VisualDensity(horizontal: 0, vertical: -2),
-                  leading: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  leading: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
+                      // Drawing Thumbnail
+                      if (product != null)
+                        ProductDrawingThumbnail(
+                          productCode: product.id,
+                          size: 50,
+                          borderRadius: 6,
+                          borderColor: Colors.grey[300],
+                        ),
+                      if (product != null)
+                        const SizedBox(width: 8),
+                      // Status Circle
                       Container(
                         width: 24,
                         height: 24,

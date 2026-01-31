@@ -31,6 +31,7 @@ import 'gantt_utils.dart';
 import '../widgets/gantt_legend.dart';
 import '../widgets/gantt_grid_painter.dart';
 import '../../inspection/inspection_pencil_kit.dart';
+import '../../../widgets/product_drawing_thumbnail.dart';
 
 part 'inspection/inspection_filter_state.dart';
 part 'inspection/product_result_input_page.dart';

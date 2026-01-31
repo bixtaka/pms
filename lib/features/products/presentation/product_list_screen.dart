@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../providers/product_providers.dart';
 import '../../../models/product.dart';
+import '../../../widgets/product_drawing_thumbnail.dart';
 import '../../process_progress/presentation/process_progress_screen.dart';
 import '../application/product_filter_state.dart';
 import '../application/product_filter_notifier.dart';
@@ -218,6 +219,12 @@ class _ProductTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
+      leading: ProductDrawingThumbnail(
+        productCode: product.id, // Use product.id for Storage path
+        size: 50,
+        borderRadius: 6,
+        borderColor: Colors.grey[300],
+      ),
       title: Text(
         product.productCode.isNotEmpty ? product.productCode : product.name,
       ),

@@ -1016,14 +1016,21 @@ class _ProductDrawingThumbnailState extends State<_ProductDrawingThumbnail> {
 
   @override
   Widget build(BuildContext context) {
-    const double size = 60;
-    const double radius = 8;
+    const double size = 50;
+    const double radius = 6;
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(radius),
-      child: SizedBox(
-        width: size,
-        height: size,
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(
+          color: Colors.grey[300]!,
+          width: 1,
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(radius - 1),
         child: _buildContent(),
       ),
     );
