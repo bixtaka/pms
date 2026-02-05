@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../providers/project_providers.dart';
 import '../../products/presentation/product_list_screen.dart';
 import '../../gantt/presentation/gantt_screen.dart';
+import '../../site_photo/screens/site_photo_home_screen.dart';
 import '../../../models/project.dart';
 
 /// プロジェクト一覧画面
@@ -14,7 +15,22 @@ class ProjectListScreen extends ConsumerWidget {
     final projectsAsync = ref.watch(projectsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('プロジェクト一覧')),
+      appBar: AppBar(
+        title: const Text('プロジェクト一覧'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.camera_alt),
+            tooltip: '工程写真',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const SitePhotoHomeScreen(),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
       body: projectsAsync.when(
         data: (projects) {
           if (projects.isEmpty) {

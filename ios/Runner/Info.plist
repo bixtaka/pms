@@ -45,5 +45,8 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- カメラ使用許可のメッセージ -->
+	<key>NSCameraUsageDescription</key>
+	<string>工程写真を撮影するためにカメラを使用します。</string>
 </dict>
 </plist>
