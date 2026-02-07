@@ -55,6 +55,8 @@ dependencies:
   cached_network_image: ^3.4.1  # Cached image loading from URLs
   camera: ^0.11.2+1
   path_provider: ^2.1.5
+  screenshot: ^3.0.0
+  intl: ^0.18.1
 
 dev_dependencies:
   flutter_test:

@@ -190,7 +190,12 @@ class SitePhotoHomeScreen extends StatelessWidget {
   void _navigateToCameraScreen(BuildContext context) {
     Navigator.of(context).push(
       CupertinoPageRoute(
-        builder: (context) => const SitePhotoCameraScreen(),
+        builder: (context) => const SitePhotoCameraScreen(
+          // === サンプルデータを渡す ===
+          projectName: 'Aマンション改修工事',      // 工事名
+          constructionType: '鉄筋・配筋',         // 工種
+          photographer: 'ユーザー名',             // 撮影者
+        ),
       ),
     );
   }
