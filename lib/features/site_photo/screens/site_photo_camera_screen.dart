@@ -3,12 +3,14 @@
 // 工程写真を撮影するための画面
 
 import 'dart:io';
+import 'package:flutter/foundation.dart';  // kIsWeb を使用するため
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:screenshot/screenshot.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
+import 'package:gal/gal.dart';  // 写真アプリに保存するためのパッケージ
 
 /// 電子小黒板付きカメラ画面
 /// 
@@ -109,6 +111,33 @@ class _SitePhotoCameraScreenState extends State<SitePhotoCameraScreen> {
   /// 撮影ボタンが押されたときの処理
   /// 画面全体（カメラ映像+黒板）をキャプチャして保存します
   Future<void> _onTakePicturePressed() async {
+    // === Web 環境の場合はダミー処理 ===
+    if (kIsWeb) {
+      try {
+        debugPrint('🌐 Web環境でのテスト実行中...');
+        
+        // 1秒待って保存したふりをする
+        await Future.delayed(const Duration(seconds: 1));
+        
+        debugPrint('✅ 【Webテスト】保存成功（ダミー）');
+        
+        // リスト画面に戻り、撮影完了（true）を返す
+        if (mounted) {
+          Navigator.of(context).pop(true);
+        }
+      } catch (e) {
+        debugPrint('❌ Webテストエラー: $e');
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Webテストエラー: $e')),
+          );
+        }
+      }
+      return;
+    }
+    
+    // === モバイル環境の場合は既存の保存処理 ===
     try {
       // === 1. スクリーンショットをキャプチャ ===
       // Screenshot ウィジェットでラップした部分を画像として取得
@@ -137,10 +166,14 @@ class _SitePhotoCameraScreenState extends State<SitePhotoCameraScreen> {
       final file = File(filePath);
       await file.writeAsBytes(imageBytes);
       
-      // === 4. 保存完了をログに出力 ===
-      debugPrint('📸 画像を保存しました: $filePath');
+      // === 4. 写真アプリ（カメラロール）に保存 ===
+      await Gal.putImage(filePath);
       
-      // === 5. プレビューダイアログを表示 ===
+      // === 5. 保存完了をログに出力 ===
+      debugPrint('📸 画像を保存しました: $filePath');
+      debugPrint('📱 写真アプリにも保存しました');
+      
+      // === 6. プレビューダイアログを表示 ===
       if (mounted) {
         _showPreviewDialog(file);
       }
@@ -169,27 +202,54 @@ class _SitePhotoCameraScreenState extends State<SitePhotoCameraScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               color: Colors.black87,
-              child: Row(
+              child: Column(
                 children: [
-                  const Icon(
-                    Icons.check_circle,
-                    color: Colors.green,
-                    size: 24,
-                  ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Text(
-                      '撮影完了',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.check_circle,
+                        color: Colors.green,
+                        size: 24,
                       ),
-                    ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          '撮影完了',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white),
+                        onPressed: () {
+                          // プレビューダイアログを閉じる
+                          Navigator.of(context).pop();
+                          // カメラ画面も閉じて、撮影成功（true）を返す
+                          Navigator.of(context).pop(true);
+                        },
+                      ),
+                    ],
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white),
-                    onPressed: () => Navigator.of(context).pop(),
+                  const SizedBox(height: 8),
+                  const Row(
+                    children: [
+                      Icon(
+                        Icons.photo_library,
+                        color: Colors.white70,
+                        size: 16,
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        '写真アプリに保存しました',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -217,7 +277,12 @@ class _SitePhotoCameraScreenState extends State<SitePhotoCameraScreen> {
                   Expanded(
                     child: CupertinoButton(
                       color: const Color(0xFF007AFF),
-                      onPressed: () => Navigator.of(context).pop(),
+                      onPressed: () {
+                        // プレビューダイアログを閉じる
+                        Navigator.of(context).pop();
+                        // カメラ画面も閉じて、撮影成功（true）を返す
+                        Navigator.of(context).pop(true);
+                      },
                       child: const Text('閉じる'),
                     ),
                   ),

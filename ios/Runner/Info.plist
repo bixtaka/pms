@@ -48,5 +48,8 @@
 	<!-- カメラ使用許可のメッセージ -->
 	<key>NSCameraUsageDescription</key>
 	<string>工程写真を撮影するためにカメラを使用します。</string>
+	<!-- 写真ライブラリへの書き込み許可のメッセージ -->
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>撮影した工程写真を写真アプリに保存します。</string>
 </dict>
 </plist>

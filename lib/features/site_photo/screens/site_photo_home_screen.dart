@@ -4,7 +4,7 @@
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'site_photo_camera_screen.dart';
+import 'site_photo_list_screen.dart';  // リスト画面をインポート
 
 /// 工程写真機能のホーム画面
 /// 
@@ -186,15 +186,14 @@ class SitePhotoHomeScreen extends StatelessWidget {
     );
   }
 
-  /// カメラ画面へ遷移する
+  /// 撮影リスト画面へ遷移する
   void _navigateToCameraScreen(BuildContext context) {
     Navigator.of(context).push(
       CupertinoPageRoute(
-        builder: (context) => const SitePhotoCameraScreen(
+        builder: (context) => const SitePhotoListScreen(
           // === サンプルデータを渡す ===
-          projectName: 'Aマンション改修工事',      // 工事名
-          constructionType: '鉄筋・配筋',         // 工種
-          photographer: 'ユーザー名',             // 撮影者
+          projectName: 'Aマンション改修工事',  // 工事名
+          projectId: 'demo_project_001',      // 工事ID (Firestore用)
         ),
       ),
     );
