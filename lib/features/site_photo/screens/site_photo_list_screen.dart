@@ -270,31 +270,69 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
               width: double.infinity,
               height: 300,
               decoration: BoxDecoration(
-                color: Colors.green[100],
+                color: Colors.grey[100],
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: Colors.grey[300]!),
               ),
-              child: const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      CupertinoIcons.photo,
-                      size: 64,
-                      color: Colors.green,
-                    ),
-                    SizedBox(height: 16),
-                    Text(
-                      'Webダミー画像\nタップで拡大',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.green,
-                        fontWeight: FontWeight.w500,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: _selectedItem!.imagePath != null && _selectedItem!.imagePath!.isNotEmpty
+                    ? Image.network(
+                        _selectedItem!.imagePath!,
+                        fit: BoxFit.cover,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Center(
+                            child: CircularProgressIndicator(
+                              value: loadingProgress.expectedTotalBytes != null
+                                  ? loadingProgress.cumulativeBytesLoaded /
+                                      loadingProgress.expectedTotalBytes!
+                                  : null,
+                            ),
+                          );
+                        },
+                        errorBuilder: (context, error, stackTrace) {
+                          return const Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.error_outline,
+                                  size: 64,
+                                  color: Colors.red,
+                                ),
+                                SizedBox(height: 16),
+                                Text(
+                                  '画像の読み込みに失敗しました',
+                                  style: TextStyle(color: Colors.red),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      )
+                    : const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              CupertinoIcons.photo,
+                              size: 64,
+                              color: Colors.grey,
+                            ),
+                            SizedBox(height: 16),
+                            Text(
+                              '画像がありません',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.grey,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
-                ),
               ),
             ),
           ),
@@ -354,11 +392,11 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
 
   /// カメラ画面または詳細画面へ遷移する
   /// 
-  /// 撮影完了後、戻り値として true が返ってきたら、
-  /// 該当項目の isCompleted を true に更新します。
+  /// 撮影完了後、戻り値として画像パスが返ってきたら、
+  /// 画像をStorageにアップロードし、URLをFirestoreに保存します。
   Future<void> _navigateToCamera(PhotoItem item) async {
     // === カメラ画面へ遷移し、戻り値を待つ ===
-    final result = await Navigator.push<bool>(
+    final result = await Navigator.push<String>(
       context,
       MaterialPageRoute(
         builder: (context) => SitePhotoCameraScreen(
@@ -369,18 +407,41 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
       ),
     );
     
-    // === 撮影が完了した場合（result == true）、ステータスを更新 ===
-    if (result == true) {
-      // Firestore を更新
-      final updatedItem = item.copyWith(status: 'completed');
-      await _firestoreService.updatePhotoItem(widget.projectId, updatedItem);
-      
-      // 選択中の項目を更新
-      setState(() {
-        _selectedItem = updatedItem;
-      });
-      
-      debugPrint('✅ 撮影完了: ${item.name}');
+    // === 撮影が完了した場合（result に画像パスが入っている）、アップロード ===
+    if (result != null && result.isNotEmpty) {
+      try {
+        debugPrint('📤 画像アップロード開始: $result');
+        
+        // === 画像を Firebase Storage にアップロード ===
+        final imageUrl = await _firestoreService.uploadImage(widget.projectId, result);
+        
+        debugPrint('✅ 画像アップロード完了: $imageUrl');
+        
+        // === Firestore を更新 ===
+        final updatedItem = item.copyWith(
+          status: 'completed',
+          imagePath: imageUrl,
+        );
+        await _firestoreService.updatePhotoItem(widget.projectId, updatedItem);
+        
+        // 選択中の項目を更新
+        setState(() {
+          _selectedItem = updatedItem;
+        });
+        
+        debugPrint('✅ 撮影完了: ${item.name}');
+      } catch (e) {
+        debugPrint('❌ 画像アップロードエラー: $e');
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('画像のアップロードに失敗しました: $e'),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -397,6 +458,8 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
 
   /// 写真を全画面表示
   void _showPhotoFullScreen() {
+    if (_selectedItem == null) return;
+
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -404,30 +467,67 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
         child: Stack(
           children: [
             Center(
-              child: Container(
-                color: Colors.green[100],
-                child: const Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        CupertinoIcons.photo,
-                        size: 128,
-                        color: Colors.green,
+              child: _selectedItem!.imagePath != null && _selectedItem!.imagePath!.isNotEmpty
+                  ? Image.network(
+                      _selectedItem!.imagePath!,
+                      fit: BoxFit.contain,
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Center(
+                          child: CircularProgressIndicator(
+                            value: loadingProgress.expectedTotalBytes != null
+                                ? loadingProgress.cumulativeBytesLoaded /
+                                    loadingProgress.expectedTotalBytes!
+                                : null,
+                            color: Colors.white,
+                          ),
+                        );
+                      },
+                      errorBuilder: (context, error, stackTrace) {
+                        return const Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.error_outline,
+                                size: 128,
+                                color: Colors.red,
+                              ),
+                              SizedBox(height: 24),
+                              Text(
+                                '画像の読み込みに失敗しました',
+                                style: TextStyle(
+                                  fontSize: 24,
+                                  color: Colors.red,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    )
+                  : const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            CupertinoIcons.photo,
+                            size: 128,
+                            color: Colors.grey,
+                          ),
+                          SizedBox(height: 24),
+                          Text(
+                            '画像がありません',
+                            style: TextStyle(
+                              fontSize: 24,
+                              color: Colors.grey,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       ),
-                      SizedBox(height: 24),
-                      Text(
-                        'Webダミー画像（拡大表示）',
-                        style: TextStyle(
-                          fontSize: 24,
-                          color: Colors.green,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+                    ),
             ),
             Positioned(
               top: 16,

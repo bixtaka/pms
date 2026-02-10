@@ -1,13 +1,17 @@
 // firestore_service.dart
 // Firestore データベースサービス
-// 撮影項目の取得・更新・初期化を担当
+// 撮影項目の取得・更新・初期化・画像アップロードを担当
 
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 import '../models/photo_item.dart';
 
 /// Firestore データベースサービス
 class FirestoreService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
 
   /// デフォルトの鉄骨製作工程リスト
   static const List<String> _defaultProcesses = [
@@ -17,6 +21,52 @@ class FirestoreService {
     '検査',
     '塗装',
   ];
+
+  /// 画像を Firebase Storage にアップロード
+  /// 
+  /// [projectId] 工事ID
+  /// [filePath] ローカルファイルパス
+  /// 
+  /// 戻り値: アップロードされた画像の公開URL
+  /// 
+  /// Web環境の場合はダミーURLを返します。
+  Future<String> uploadImage(String projectId, String filePath) async {
+    // === Web環境の場合はダミーURLを返す ===
+    if (kIsWeb) {
+      debugPrint('🌐 Web環境のため、画像アップロードをスキップします');
+      return 'https://via.placeholder.com/800x600.png?text=Web+Dummy+Image';
+    }
+
+    try {
+      // === ファイルを読み込み ===
+      final file = File(filePath);
+      if (!await file.exists()) {
+        throw Exception('ファイルが存在しません: $filePath');
+      }
+
+      // === タイムスタンプ付きファイル名を生成 ===
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final fileName = '$timestamp.jpg';
+      final storagePath = 'projects/$projectId/$fileName';
+
+      // === Firebase Storage にアップロード ===
+      debugPrint('📤 画像アップロード開始: $storagePath');
+      final ref = _storage.ref().child(storagePath);
+      final uploadTask = ref.putFile(file);
+
+      // === アップロード完了を待つ ===
+      final snapshot = await uploadTask;
+      
+      // === 公開URLを取得 ===
+      final downloadUrl = await snapshot.ref.getDownloadURL();
+      debugPrint('✅ 画像アップロード完了: $downloadUrl');
+
+      return downloadUrl;
+    } catch (e) {
+      debugPrint('❌ 画像アップロードエラー: $e');
+      rethrow;
+    }
+  }
 
   /// 指定した工事の写真リストをリアルタイム取得
   /// 

@@ -121,9 +121,9 @@ class _SitePhotoCameraScreenState extends State<SitePhotoCameraScreen> {
         
         debugPrint('✅ 【Webテスト】保存成功（ダミー）');
         
-        // リスト画面に戻り、撮影完了（true）を返す
+        // リスト画面に戻り、ダミーパスを返す
         if (mounted) {
-          Navigator.of(context).pop(true);
+          Navigator.of(context).pop('web_dummy_image.png');
         }
       } catch (e) {
         debugPrint('❌ Webテストエラー: $e');
@@ -175,7 +175,7 @@ class _SitePhotoCameraScreenState extends State<SitePhotoCameraScreen> {
       
       // === 6. プレビューダイアログを表示 ===
       if (mounted) {
-        _showPreviewDialog(file);
+        _showPreviewDialog(file, filePath);
       }
     } catch (e) {
       // エラーが発生した場合
@@ -190,7 +190,7 @@ class _SitePhotoCameraScreenState extends State<SitePhotoCameraScreen> {
   }
 
   /// 撮影結果のプレビューダイアログを表示
-  void _showPreviewDialog(File imageFile) {
+  void _showPreviewDialog(File imageFile, String filePath) {
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -227,8 +227,8 @@ class _SitePhotoCameraScreenState extends State<SitePhotoCameraScreen> {
                         onPressed: () {
                           // プレビューダイアログを閉じる
                           Navigator.of(context).pop();
-                          // カメラ画面も閉じて、撮影成功（true）を返す
-                          Navigator.of(context).pop(true);
+                          // カメラ画面も閉じて、画像パスを返す
+                          Navigator.of(context).pop(filePath);
                         },
                       ),
                     ],
