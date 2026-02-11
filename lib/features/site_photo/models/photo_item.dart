@@ -9,7 +9,10 @@ class PhotoItem {
   /// Firestore ドキュメント ID
   final String id;
   
-  /// 工程名（例：一次加工、組立）
+  /// 親カテゴリー（例：一次加工、組立）
+  final String category;
+  
+  /// 子項目名（例：切断、開先加工）
   final String name;
   
   /// 撮影ステータス ('pending' | 'completed')
@@ -21,15 +24,20 @@ class PhotoItem {
   /// 備考
   String? memo;
   
+  /// 黒板のレイアウトタイプ（'type2' | 'type3'）
+  String blackboardType;
+  
   /// 作成日時
   final DateTime createdAt;
 
   PhotoItem({
     required this.id,
+    required this.category,
     required this.name,
     this.status = 'pending',
     this.imagePath,
     this.memo,
+    this.blackboardType = 'type2',
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
@@ -43,10 +51,12 @@ class PhotoItem {
   factory PhotoItem.fromFirestore(String id, Map<String, dynamic> data) {
     return PhotoItem(
       id: id,
+      category: data['category'] as String? ?? '',
       name: data['name'] as String? ?? '',
       status: data['status'] as String? ?? 'pending',
       imagePath: data['imagePath'] as String?,
       memo: data['memo'] as String?,
+      blackboardType: data['blackboardType'] as String? ?? 'type2',
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
@@ -54,10 +64,12 @@ class PhotoItem {
   /// PhotoItem を Firestore 用 Map に変換
   Map<String, dynamic> toFirestore() {
     return {
+      'category': category,
       'name': name,
       'status': status,
       'imagePath': imagePath,
       'memo': memo,
+      'blackboardType': blackboardType,
       'createdAt': Timestamp.fromDate(createdAt),
     };
   }
@@ -65,18 +77,22 @@ class PhotoItem {
   /// コピーを作成（一部フィールドを更新）
   PhotoItem copyWith({
     String? id,
+    String? category,
     String? name,
     String? status,
     String? imagePath,
     String? memo,
+    String? blackboardType,
     DateTime? createdAt,
   }) {
     return PhotoItem(
       id: id ?? this.id,
+      category: category ?? this.category,
       name: name ?? this.name,
       status: status ?? this.status,
       imagePath: imagePath ?? this.imagePath,
       memo: memo ?? this.memo,
+      blackboardType: blackboardType ?? this.blackboardType,
       createdAt: createdAt ?? this.createdAt,
     );
   }

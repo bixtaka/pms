@@ -7,20 +7,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import '../models/photo_item.dart';
+import '../../../core/constants/master_data.dart';
 
 /// Firestore データベースサービス
 class FirestoreService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
-
-  /// デフォルトの鉄骨製作工程リスト
-  static const List<String> _defaultProcesses = [
-    '一次加工',
-    '組立',
-    '溶接',
-    '検査',
-    '塗装',
-  ];
 
   /// 画像を Firebase Storage にアップロード
   /// 
@@ -86,14 +78,10 @@ class FirestoreService {
         .orderBy('createdAt')
         .snapshots()
         .asyncMap((snapshot) async {
-      // === サブコレクションが空の場合、初期化 ===
+      // === サブコレクションが空の場合 ===
       if (snapshot.docs.isEmpty) {
-        await _initializeDefaultData(projectId);
-        // 初期化後、再度データを取得
-        final newSnapshot = await collectionRef.orderBy('createdAt').get();
-        return newSnapshot.docs
-            .map((doc) => PhotoItem.fromFirestore(doc.id, doc.data()))
-            .toList();
+        // 自動初期化は廃止。ユーザー操作で初期化させるため、空リストを返す。
+        return <PhotoItem>[];
       }
 
       // === データが存在する場合、そのまま返す ===
@@ -116,30 +104,83 @@ class FirestoreService {
         .update(item.toFirestore());
   }
 
-  /// デフォルトの工程リストを初期化
+  /// 選択された項目で初期化
   /// 
   /// [projectId] 工事ID
-  /// 
-  /// 注意: このメソッドは親コレクション (`projects`) には一切書き込みません。
-  /// 全てのデータは `projects/{projectId}/site_photos` サブコレクション内に作成されます。
-  Future<void> _initializeDefaultData(String projectId) async {
-    final batch = _firestore.batch();
+  /// [selectedItems] 選択されたカテゴリーと項目のマップ
+  Future<void> initializeWithSelectedItems(
+    String projectId,
+    Map<String, List<String>> selectedItems,
+  ) async {
+    // まず既存データを全削除（リセットと同じ処理）
+    await resetAllData(projectId);
+
+    // 新規データの作成（500件ごとにバッチ分割）
     final collectionRef = _firestore
         .collection('projects')
         .doc(projectId)
         .collection('site_photos');
 
-    for (final processName in _defaultProcesses) {
-      final docRef = collectionRef.doc(); // 自動生成ID
-      final item = PhotoItem(
-        id: docRef.id,
-        name: processName,
-        status: 'pending',
-      );
-      batch.set(docRef, item.toFirestore());
+    WriteBatch batch = _firestore.batch();
+    int batchCount = 0;
+
+    for (final category in selectedItems.keys) {
+      final items = selectedItems[category]!;
+      for (final itemName in items) {
+        final docRef = collectionRef.doc();
+        final item = PhotoItem(
+          id: docRef.id,
+          category: category,
+          name: itemName,
+          status: 'pending', // 必ず pending で初期化
+          blackboardType: defaultBlackboardType,
+          createdAt: DateTime.now(), // 現在時刻を設定
+        );
+        
+        batch.set(docRef, item.toFirestore());
+        batchCount++;
+
+        // 500件に達したらコミット
+        if (batchCount >= 450) { // マージンをとって450
+          await batch.commit();
+          batch = _firestore.batch();
+          batchCount = 0;
+        }
+      }
     }
 
-    await batch.commit();
+    // 残りをコミット
+    if (batchCount > 0) {
+      await batch.commit();
+    }
+  }
+
+  /// 工事写真データを全て削除（リセット）
+  Future<void> resetAllData(String projectId) async {
+    final collectionRef = _firestore
+        .collection('projects')
+        .doc(projectId)
+        .collection('site_photos');
+
+    // データがなくなるまで繰り返し削除（大量データ対応）
+    bool dataRemains = true;
+    while (dataRemains) {
+      final snapshot = await collectionRef.limit(400).get();
+      
+      if (snapshot.docs.isEmpty) {
+        dataRemains = false;
+        break;
+      }
+
+      final batch = _firestore.batch();
+      for (final doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+      
+      // 少し待機してFirestoreの整合性を保つ
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
   }
 
   /// テスト用: デモデータを手動で初期化
@@ -157,7 +198,8 @@ class FirestoreService {
         .get();
 
     if (snapshot.docs.isEmpty) {
-      await _initializeDefaultData(projectId);
+      // 全てのマスターデータを使用
+      await initializeWithSelectedItems(projectId, masterWorkItems);
     }
   }
 }

@@ -19,14 +19,18 @@ import 'package:gal/gal.dart';  // 写真アプリに保存するためのパッ
 class SitePhotoCameraScreen extends StatefulWidget {
   // === 前の画面から受け取るデータ ===
   final String projectName;      // 工事名
-  final String constructionType; // 工種
+  final String category;         // カテゴリー（例：一次加工）
+  final String constructionType; // 工種（例：切断）
   final String photographer;     // 撮影者
+  final String blackboardType;   // 黒板タイプ（'type2' | 'type3'）
   
   const SitePhotoCameraScreen({
     super.key,
     required this.projectName,
+    required this.category,
     required this.constructionType,
     required this.photographer,
+    this.blackboardType = 'type2',
   });
 
   @override
@@ -49,6 +53,11 @@ class _SitePhotoCameraScreenState extends State<SitePhotoCameraScreen> {
   // === スクリーンショット用のコントローラー ===
   // このコントローラーを使って画面全体（カメラ映像+黒板）をキャプチャします
   final ScreenshotController _screenshotController = ScreenshotController();
+
+  // === 黒板の位置とサイズの状態変数 ===
+  Offset _boardPosition = const Offset(0, 0); // 初期位置（右下はPositionedで指定）
+  double _boardScale = 1.0; // 拡大率
+  double _baseScale = 1.0; // ピンチ操作開始時の基準スケール
 
   @override
   void initState() {
@@ -123,7 +132,12 @@ class _SitePhotoCameraScreenState extends State<SitePhotoCameraScreen> {
         
         // リスト画面に戻り、ダミーパスを返す
         if (mounted) {
-          Navigator.of(context).pop('web_dummy_image.png');
+          // 現在の描画フレームが終わるのを待ってから画面を閉じる
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              Navigator.of(context).pop('web_dummy_image.png');
+            }
+          });
         }
       } catch (e) {
         debugPrint('❌ Webテストエラー: $e');
@@ -228,7 +242,12 @@ class _SitePhotoCameraScreenState extends State<SitePhotoCameraScreen> {
                           // プレビューダイアログを閉じる
                           Navigator.of(context).pop();
                           // カメラ画面も閉じて、画像パスを返す
-                          Navigator.of(context).pop(filePath);
+                          // 現在の描画フレームが終わるのを待ってから画面を閉じる
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (context.mounted) {
+                              Navigator.of(context).pop(filePath);
+                            }
+                          });
                         },
                       ),
                     ],
@@ -382,11 +401,30 @@ class _SitePhotoCameraScreenState extends State<SitePhotoCameraScreen> {
                 ),
               ),
               
-              // === 電子小黒板（右下に配置） ===
+              // === 電子小黒板（移動・拡大縮小可能） ===
               Positioned(
-                right: 16,
-                bottom: 120, // 撮影ボタンの上に配置
-                child: _buildKokuban(),
+                right: 16 + _boardPosition.dx,
+                bottom: 120 + _boardPosition.dy, // 撮影ボタンの上に配置
+                child: GestureDetector(
+                  // === スケール操作開始 ===
+                  onScaleStart: (details) {
+                    _baseScale = _boardScale;
+                  },
+                  // === スケール操作中（移動と拡大縮小） ===
+                  onScaleUpdate: (details) {
+                    setState(() {
+                      // 移動：focalPointDelta を使用
+                      _boardPosition += details.focalPointDelta;
+                      
+                      // 拡大縮小：0.5倍〜3.0倍に制限
+                      _boardScale = (_baseScale * details.scale).clamp(0.5, 3.0);
+                    });
+                  },
+                  child: Transform.scale(
+                    scale: _boardScale,
+                    child: _buildKokuban(),
+                  ),
+                ),
               ),
             ],
           ),
@@ -454,9 +492,19 @@ class _SitePhotoCameraScreenState extends State<SitePhotoCameraScreen> {
           _KokubanRow(label: '撮影日', value: today),
           const SizedBox(height: 4),
           
-          // === 工種（前の画面から受け取ったデータを表示） ===
-          _KokubanRow(label: '工種', value: widget.constructionType),
+          // === 工種（カテゴリー） ===
+          _KokubanRow(label: '工種', value: widget.category),
           const SizedBox(height: 4),
+          
+          // === 種別（子項目） ===
+          _KokubanRow(label: '種別', value: widget.constructionType),
+          const SizedBox(height: 4),
+          
+          // === type3 の場合のみ略図を表示 ===
+          if (widget.blackboardType == 'type3') ...[
+            const SizedBox(height: 4),
+            const _KokubanDrawingRow(label: '略図'),
+          ],
           
           // === 撮影者（前の画面から受け取ったデータを表示） ===
           _KokubanRow(label: '撮影者', value: widget.photographer),
@@ -538,6 +586,65 @@ class _KokubanRow extends StatelessWidget {
               color: Colors.white,
               fontSize: 12,
               fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _KokubanDrawingRow extends StatelessWidget {
+  final String label;
+
+  const _KokubanDrawingRow({
+    super.key,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ラベル部分（固定幅）
+        SizedBox(
+          width: 50,
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 11,
+            ),
+          ),
+        ),
+        // 略図エリア
+        Expanded(
+          child: Container(
+            height: 60, // 高さを確保
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            padding: const EdgeInsets.all(2),
+            child: Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey[300]!),
+                borderRadius: BorderRadius.circular(2),
+              ),
+              child: const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.brush, size: 16, color: Colors.grey),
+                    SizedBox(height: 2),
+                    Text(
+                      '略図エリア',
+                      style: TextStyle(fontSize: 8, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         ),

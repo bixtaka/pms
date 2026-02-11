@@ -247,8 +247,10 @@ class _SitePhotoDetailScreenState extends State<SitePhotoDetailScreen> {
       CupertinoPageRoute(
         builder: (context) => SitePhotoCameraScreen(
           projectName: widget.projectName,
+          category: '工種',  // デフォルト値（このファイルは現在未使用）
           constructionType: widget.constructionType,
           photographer: widget.photographer,
+          blackboardType: 'type2',  // デフォルト値
         ),
       ),
     );

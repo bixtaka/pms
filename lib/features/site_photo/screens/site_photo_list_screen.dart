@@ -6,6 +6,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'site_photo_camera_screen.dart';
 import 'site_photo_detail_screen.dart';
+import 'site_photo_selection_screen.dart';
 import '../models/photo_item.dart';
 import '../services/firestore_service.dart';
 
@@ -64,15 +65,29 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
           icon: const Icon(CupertinoIcons.back),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        // === PDFボタン (Windowsエラーのため無効化) ===
-        // iPadでテストする際に有効化してください
-        // actions: [
-        //   IconButton(
-        //     icon: const Icon(Icons.picture_as_pdf),
-        //     tooltip: 'PDF作成',
-        //     onPressed: _onPdfButtonPressed,
-        //   ),
-        // ],
+        actions: [
+          // === 設定メニュー ===
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) async {
+              if (value == 'reset') {
+                await _confirmAndResetData();
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'reset',
+                child: Row(
+                  children: [
+                    Icon(Icons.delete_forever, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('データをリセット', style: TextStyle(color: Colors.red)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
       
       // === 本体部分（2分割レイアウト + StreamBuilder） ===
@@ -106,6 +121,76 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
 
           // === データ取得成功 ===
           final photoItems = snapshot.data ?? [];
+          debugPrint('📸 取得した項目数: ${photoItems.length}');
+
+          // === データがない場合（初期設定画面へ誘導） ===
+          if (photoItems.isEmpty) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      CupertinoIcons.list_bullet,
+                      size: 80,
+                      color: Colors.grey,
+                    ),
+                    const SizedBox(height: 24),
+                    const Text(
+                      '撮影項目が設定されていません',
+                      style: TextStyle(
+                        fontSize: 20,
+                        color: Colors.grey,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'プロジェクト開始前に必要な項目を選択してください',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => SitePhotoSelectionScreen(
+                              projectName: widget.projectName,
+                              projectId: widget.projectId,
+                              onCompleted: () => Navigator.pop(context),
+                            ),
+                          ),
+                        );
+                      },
+                      icon: const Icon(CupertinoIcons.settings),
+                      label: const Text(
+                        '撮影項目を設定する',
+                        style: TextStyle(fontSize: 18),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 32,
+                          vertical: 20,
+                        ),
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
 
           return Row(
             children: [
@@ -114,6 +199,7 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
                 flex: 2,
                 child: _buildListPane(photoItems),
               ),
+              // ...省略...
 
               // === 中央の区切り線 ===
               Container(
@@ -133,44 +219,103 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
     );
   }
 
-  /// 左ペイン: リスト表示
+  /// 左ペイン: リスト表示（カテゴリー別グループ化）
   Widget _buildListPane(List<PhotoItem> photoItems) {
+    // カテゴリー別にグループ化
+    final Map<String, List<PhotoItem>> groupedItems = {};
+    for (final item in photoItems) {
+      if (!groupedItems.containsKey(item.category)) {
+        groupedItems[item.category] = [];
+      }
+      groupedItems[item.category]!.add(item);
+    }
+
     return Container(
       color: Colors.white,
-      child: ListView.separated(
+      child: ListView.builder(
         padding: const EdgeInsets.all(8),
-        itemCount: photoItems.length,
-        separatorBuilder: (context, index) => const Divider(height: 1),
-        itemBuilder: (context, index) {
-          final item = photoItems[index];
-          final isSelected = _selectedItem?.id == item.id;
-
-          return ListTile(
-            selected: isSelected,
-            selectedTileColor: Colors.blue[50],
-            leading: Icon(
-              item.isCompleted
-                  ? CupertinoIcons.checkmark_circle_fill
-                  : CupertinoIcons.circle,
-              color: item.isCompleted ? Colors.green : Colors.grey,
-            ),
-            title: Text(
-              item.name,
-              style: const TextStyle(fontWeight: FontWeight.w500),
-            ),
-            trailing: Text(
-              item.isCompleted ? '済' : '未',
-              style: TextStyle(
-                color: item.isCompleted ? Colors.green : Colors.grey,
-                fontWeight: FontWeight.bold,
+        itemCount: groupedItems.length,
+        itemBuilder: (context, categoryIndex) {
+          final category = groupedItems.keys.elementAt(categoryIndex);
+          final items = groupedItems[category]!;
+          
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // === カテゴリーヘッダー ===
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                color: Colors.grey[200],
+                child: Row(
+                  children: [
+                    Icon(
+                      CupertinoIcons.folder_fill,
+                      size: 20,
+                      color: Colors.grey[700],
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      category,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey[800],
+                      ),
+                    ),
+                    const Spacer(),
+                    // 完了数を表示
+                    Text(
+                      '${items.where((i) => i.isCompleted).length}/${items.length}',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            onTap: () {
-              setState(() {
-                _selectedItem = item;
-                _notesController.text = item.memo ?? '';
-              });
-            },
+              
+              // === 子項目リスト ===
+              ...items.map((item) {
+                final isSelected = _selectedItem?.id == item.id;
+                
+                return ListTile(
+                  key: ValueKey(item.id),
+                  selected: isSelected,
+                  selectedTileColor: Colors.blue[100], // 濃い目の色に変更
+                  selectedColor: Colors.blue[900], // テキスト色も変更
+                  contentPadding: const EdgeInsets.only(left: 32, right: 16),
+                  leading: Icon(
+                    item.isCompleted
+                        ? CupertinoIcons.checkmark_circle_fill
+                        : CupertinoIcons.circle,
+                    color: item.isCompleted ? Colors.green : Colors.grey,
+                  ),
+                  title: Text(
+                    item.name,
+                    style: TextStyle(
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                    ),
+                  ),
+                  trailing: Text(
+                    item.isCompleted ? '済' : '未',
+                    style: TextStyle(
+                      color: item.isCompleted ? Colors.green : Colors.grey,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  onTap: () {
+                    debugPrint('👆 タップ: ${item.name} / ID: ${item.id}');
+                    setState(() {
+                      _selectedItem = item;
+                      _notesController.text = item.memo ?? '';
+                    });
+                  },
+                );
+              }).toList(),
+              
+              const SizedBox(height: 8),
+            ],
           );
         },
       ),
@@ -206,43 +351,138 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
     // === 選択中の項目が未撮影の場合 ===
     if (!_selectedItem!.isCompleted) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(
-              CupertinoIcons.camera_fill,
-              size: 80,
-              color: Colors.blue,
-            ),
-            const SizedBox(height: 24),
-            Text(
-              _selectedItem!.name,
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                CupertinoIcons.camera_fill,
+                size: 80,
+                color: Colors.blue,
               ),
-            ),
-            const SizedBox(height: 32),
-            ElevatedButton.icon(
-              onPressed: () => _navigateToCamera(_selectedItem!),
-              icon: const Icon(CupertinoIcons.camera),
-              label: const Text(
-                'カメラを起動する',
-                style: TextStyle(fontSize: 18),
-              ),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 48,
-                  vertical: 20,
+              const SizedBox(height: 24),
+              // カテゴリー表示
+              Text(
+                _selectedItem!.category,
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
                 ),
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
+              ),
+              const SizedBox(height: 4),
+              // 項目名表示
+              Text(
+                _selectedItem!.name,
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 32),
+              
+              // === 黒板タイプ選択 ===
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey[300]!),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          CupertinoIcons.square_list,
+                          size: 20,
+                          color: Colors.grey[700],
+                        ),
+                        const SizedBox(width: 8),
+                        const Text(
+                          '黒板タイプ',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    SegmentedButton<String>(
+                      segments: const [
+                        ButtonSegment(
+                          value: 'type2',
+                          label: Text('標準（2段）'),
+                          icon: Icon(CupertinoIcons.square_stack, size: 16),
+                        ),
+                        ButtonSegment(
+                          value: 'type3',
+                          label: Text('詳細（3段）'),
+                          icon: Icon(CupertinoIcons.square_stack_3d_up, size: 16),
+                        ),
+                      ],
+                      selected: {_selectedItem!.blackboardType},
+                      onSelectionChanged: (Set<String> newSelection) {
+                        _updateBlackboardType(newSelection.first);
+                      },
+                      style: ButtonStyle(
+                        backgroundColor: MaterialStateProperty.resolveWith<Color>(
+                          (Set<MaterialState> states) {
+                            if (states.contains(MaterialState.selected)) {
+                              return Colors.blue;
+                            }
+                            return Colors.white;
+                          },
+                        ),
+                        foregroundColor: MaterialStateProperty.resolveWith<Color>(
+                          (Set<MaterialState> states) {
+                            if (states.contains(MaterialState.selected)) {
+                              return Colors.white;
+                            }
+                            return Colors.black87;
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _selectedItem!.blackboardType == 'type2'
+                          ? '工種/種別の2段表示'
+                          : '工種/種別/略図の3段表示',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 32),
+              
+              ElevatedButton.icon(
+                onPressed: () => _navigateToCamera(_selectedItem!),
+                icon: const Icon(CupertinoIcons.camera),
+                label: const Text(
+                  'カメラを起動する',
+                  style: TextStyle(fontSize: 18),
+                ),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 48,
+                    vertical: 20,
+                  ),
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -253,7 +493,17 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 工程名
+          // カテゴリー表示
+          Text(
+            _selectedItem!.category,
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 4),
+          // 項目名表示
           Text(
             _selectedItem!.name,
             style: const TextStyle(
@@ -401,8 +651,10 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
       MaterialPageRoute(
         builder: (context) => SitePhotoCameraScreen(
           projectName: widget.projectName,
+          category: item.category,
           constructionType: item.name,
           photographer: 'ユーザー名',
+          blackboardType: item.blackboardType,
         ),
       ),
     );
@@ -454,6 +706,22 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
     await _firestoreService.updatePhotoItem(widget.projectId, updatedItem);
 
     debugPrint('📝 備考更新: ${_selectedItem!.name} - $memo');
+  }
+
+  /// 黒板タイプを更新
+  Future<void> _updateBlackboardType(String blackboardType) async {
+    if (_selectedItem == null) return;
+
+    // Firestore を更新
+    final updatedItem = _selectedItem!.copyWith(blackboardType: blackboardType);
+    await _firestoreService.updatePhotoItem(widget.projectId, updatedItem);
+
+    // 選択中の項目を更新
+    setState(() {
+      _selectedItem = updatedItem;
+    });
+
+    debugPrint('🎨 黒板タイプ更新: ${_selectedItem!.name} - $blackboardType');
   }
 
   /// 写真を全画面表示
@@ -543,36 +811,55 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
     );
   }
 
-  // === PDF機能（Windows環境でエラーのため無効化） ===
-  // Windows環境では pdf パッケージのパスエラーが発生します。
-  // iPad（実機）でテストする際に、以下のコメントアウトを解除してください。
-  
-  // /// PDFボタンが押されたときの処理
-  // Future<void> _onPdfButtonPressed() async {
-  //   // === 撮影済みの項目だけを抽出 ===
-  //   final completedItems = _photoItems.where((item) => item.isCompleted).toList();
-  //   
-  //   // 撮影済み項目がない場合はエラーメッセージを表示
-  //   if (completedItems.isEmpty) {
-  //     if (mounted) {
-  //       ScaffoldMessenger.of(context).showSnackBar(
-  //         const SnackBar(
-  //           content: Text('撮影済みの項目がありません'),
-  //           duration: Duration(seconds: 2),
-  //         ),
-  //       );
-  //     }
-  //     return;
-  //   }
-  //   
-  //   debugPrint('📄 PDF作成開始: ${completedItems.length}件の撮影済み項目');
-  //   
-  //   // === PDF を作成してプレビュー表示 ===
-  //   await PdfService.createAndPreviewPdf(
-  //     widget.projectName,
-  //     completedItems,
-  //   );
-  //   
-  //   debugPrint('✅ PDF作成完了');
-  // }
+  /// データリセット確認ダイアログ
+  Future<void> _confirmAndResetData() async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('データをリセットしますか？'),
+        content: const Text(
+          'すべての撮影項目と写真データが削除されます。\nこの操作は取り消せません。',
+          style: TextStyle(color: Colors.red),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('キャンセル'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('リセットする'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true) {
+      try {
+        // 全データを削除
+        await _firestoreService.resetAllData(widget.projectId);
+        
+        // Firestoreの反映を確実に待つ
+        await Future.delayed(const Duration(milliseconds: 1000));
+        
+        // 選択状態をリセット
+        setState(() {
+          _selectedItem = null;
+        });
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('データをリセットしました')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('エラーが発生しました: $e')),
+          );
+        }
+      }
+    }
+  }
 }
