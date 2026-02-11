@@ -415,13 +415,23 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
                       segments: const [
                         ButtonSegment(
                           value: 'type2',
-                          label: Text('標準（2段）'),
+                          label: Text('2段'),
                           icon: Icon(CupertinoIcons.square_stack, size: 16),
                         ),
                         ButtonSegment(
                           value: 'type3',
-                          label: Text('詳細（3段）'),
+                          label: Text('3段'),
                           icon: Icon(CupertinoIcons.square_stack_3d_up, size: 16),
+                        ),
+                        ButtonSegment(
+                          value: 'type4',
+                          label: Text('4段'),
+                          icon: Icon(CupertinoIcons.square_stack_3d_down_right, size: 16),
+                        ),
+                        ButtonSegment(
+                          value: 'typeDetail',
+                          label: Text('詳細'),
+                          icon: Icon(CupertinoIcons.pencil_circle, size: 16),
                         ),
                       ],
                       selected: {_selectedItem!.blackboardType},
@@ -449,9 +459,7 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      _selectedItem!.blackboardType == 'type2'
-                          ? '工種/種別の2段表示'
-                          : '工種/種別/略図の3段表示',
+                      _getBlackboardTypeDescription(_selectedItem!.blackboardType),
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey[600],
@@ -860,6 +868,22 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
           );
         }
       }
+    }
+  }
+
+  /// 黒板タイプの説明を取得
+  String _getBlackboardTypeDescription(String type) {
+    switch (type) {
+      case 'type2':
+        return '工種/種別の2段表示';
+      case 'type3':
+        return '工種/種別/追加項目の3段表示';
+      case 'type4':
+        return '工種/種別/追加項目/追加項目2の4段表示';
+      case 'typeDetail':
+        return '工種/種別/略図の表示';
+      default:
+        return '工種/種別の2段表示';
     }
   }
 }

@@ -205,9 +205,12 @@ class _SitePhotoCameraScreenState extends State<SitePhotoCameraScreen> {
 
   /// 撮影結果のプレビューダイアログを表示
   void _showPreviewDialog(File imageFile, String filePath) {
+    // カメラ画面のcontextを保存（ダイアログのcontextと区別するため）
+    final cameraContext = context;
+    
     showDialog(
       context: context,
-      builder: (context) => Dialog(
+      builder: (dialogContext) => Dialog(
         backgroundColor: Colors.black,
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -240,12 +243,12 @@ class _SitePhotoCameraScreenState extends State<SitePhotoCameraScreen> {
                         icon: const Icon(Icons.close, color: Colors.white),
                         onPressed: () {
                           // プレビューダイアログを閉じる
-                          Navigator.of(context).pop();
+                          Navigator.of(dialogContext).pop();
                           // カメラ画面も閉じて、画像パスを返す
                           // 現在の描画フレームが終わるのを待ってから画面を閉じる
                           WidgetsBinding.instance.addPostFrameCallback((_) {
-                            if (context.mounted) {
-                              Navigator.of(context).pop(filePath);
+                            if (cameraContext.mounted) {
+                              Navigator.of(cameraContext).pop(filePath);
                             }
                           });
                         },
@@ -298,9 +301,9 @@ class _SitePhotoCameraScreenState extends State<SitePhotoCameraScreen> {
                       color: const Color(0xFF007AFF),
                       onPressed: () {
                         // プレビューダイアログを閉じる
-                        Navigator.of(context).pop();
-                        // カメラ画面も閉じて、撮影成功（true）を返す
-                        Navigator.of(context).pop(true);
+                        Navigator.of(dialogContext).pop();
+                        // カメラ画面も閉じて、撮影成功（filePath）を返す
+                        Navigator.of(cameraContext).pop(filePath);
                       },
                       child: const Text('閉じる'),
                     ),
@@ -414,7 +417,8 @@ class _SitePhotoCameraScreenState extends State<SitePhotoCameraScreen> {
                   onScaleUpdate: (details) {
                     setState(() {
                       // 移動：focalPointDelta を使用
-                      _boardPosition += details.focalPointDelta;
+                      // right/bottom を使用しているため、符号を反転
+                      _boardPosition -= details.focalPointDelta;
                       
                       // 拡大縮小：0.5倍〜3.0倍に制限
                       _boardScale = (_baseScale * details.scale).clamp(0.5, 3.0);
@@ -492,25 +496,61 @@ class _SitePhotoCameraScreenState extends State<SitePhotoCameraScreen> {
           _KokubanRow(label: '撮影日', value: today),
           const SizedBox(height: 4),
           
-          // === 工種（カテゴリー） ===
-          _KokubanRow(label: '工種', value: widget.category),
-          const SizedBox(height: 4),
-          
-          // === 種別（子項目） ===
-          _KokubanRow(label: '種別', value: widget.constructionType),
-          const SizedBox(height: 4),
-          
-          // === type3 の場合のみ略図を表示 ===
-          if (widget.blackboardType == 'type3') ...[
-            const SizedBox(height: 4),
-            const _KokubanDrawingRow(label: '略図'),
-          ],
+          // === 黒板タイプに応じた表示 ===
+          ..._buildBlackboardContent(),
           
           // === 撮影者（前の画面から受け取ったデータを表示） ===
           _KokubanRow(label: '撮影者', value: widget.photographer),
         ],
       ),
     );
+  }
+
+  /// 黒板タイプに応じたコンテンツを構築
+  List<Widget> _buildBlackboardContent() {
+    final List<Widget> widgets = [];
+    
+    // 工種（カテゴリー）
+    widgets.add(_KokubanRow(label: '工種', value: widget.category));
+    widgets.add(const SizedBox(height: 4));
+    
+    // 種別（子項目）
+    widgets.add(_KokubanRow(label: '種別', value: widget.constructionType));
+    widgets.add(const SizedBox(height: 4));
+    
+    // タイプに応じた追加項目
+    switch (widget.blackboardType) {
+      case 'type2':
+        // 2段: 工種/種別のみ（追加なし）
+        break;
+        
+      case 'type3':
+        // 3段: 追加項目1つ
+        widgets.add(_KokubanRow(label: '項目3', value: '追加項目'));
+        widgets.add(const SizedBox(height: 4));
+        break;
+        
+      case 'type4':
+        // 4段: 追加項目2つ
+        widgets.add(_KokubanRow(label: '項目3', value: '追加項目'));
+        widgets.add(const SizedBox(height: 4));
+        widgets.add(_KokubanRow(label: '項目4', value: '追加項目2'));
+        widgets.add(const SizedBox(height: 4));
+        break;
+        
+      case 'typeDetail':
+        // 詳細: 略図エリア
+        widgets.add(const SizedBox(height: 4));
+        widgets.add(const _KokubanDrawingRow(label: '略図'));
+        widgets.add(const SizedBox(height: 4));
+        break;
+        
+      default:
+        // デフォルトは2段
+        break;
+    }
+    
+    return widgets;
   }
 
   /// 撮影ボタンを構築
@@ -594,13 +634,32 @@ class _KokubanRow extends StatelessWidget {
   }
 }
 
-class _KokubanDrawingRow extends StatelessWidget {
+/// 略図エリア（描画可能）を表示するウィジェット
+class _KokubanDrawingRow extends StatefulWidget {
   final String label;
 
   const _KokubanDrawingRow({
     super.key,
     required this.label,
   });
+
+  @override
+  State<_KokubanDrawingRow> createState() => _KokubanDrawingRowState();
+}
+
+class _KokubanDrawingRowState extends State<_KokubanDrawingRow> {
+  // 描画したストロークのリスト
+  final List<DrawingStroke> _strokes = [];
+  // 現在描画中のストローク
+  DrawingStroke? _currentStroke;
+
+  /// 描画をクリアする
+  void _clearDrawing() {
+    setState(() {
+      _strokes.clear();
+      _currentStroke = null;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -611,7 +670,7 @@ class _KokubanDrawingRow extends StatelessWidget {
         SizedBox(
           width: 50,
           child: Text(
-            label,
+            widget.label,
             style: const TextStyle(
               color: Colors.white70,
               fontSize: 11,
@@ -621,34 +680,149 @@ class _KokubanDrawingRow extends StatelessWidget {
         // 略図エリア
         Expanded(
           child: Container(
-            height: 60, // 高さを確保
+            height: 80, // 高さを拡大（60 → 80）
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(4),
             ),
             padding: const EdgeInsets.all(2),
-            child: Container(
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey[300]!),
-                borderRadius: BorderRadius.circular(2),
-              ),
-              child: const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.brush, size: 16, color: Colors.grey),
-                    SizedBox(height: 2),
-                    Text(
-                      '略図エリア',
-                      style: TextStyle(fontSize: 8, color: Colors.grey),
+            child: Stack(
+              children: [
+                // 描画エリア
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey[300]!),
+                      borderRadius: BorderRadius.circular(2),
                     ),
-                  ],
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(2),
+                      child: GestureDetector(
+                        // ジェスチャーの競合を防ぐため、このエリア内のタッチを優先
+                        behavior: HitTestBehavior.opaque,
+                        onPanStart: (details) {
+                          setState(() {
+                            // 新しいストロークを開始
+                            _currentStroke = DrawingStroke(
+                              points: [details.localPosition],
+                            );
+                          });
+                        },
+                        onPanUpdate: (details) {
+                          setState(() {
+                            // 現在のストロークに点を追加
+                            if (_currentStroke != null) {
+                              _currentStroke!.points.add(details.localPosition);
+                            }
+                          });
+                        },
+                        onPanEnd: (details) {
+                          setState(() {
+                            // ストロークを確定
+                            if (_currentStroke != null && _currentStroke!.points.isNotEmpty) {
+                              _strokes.add(_currentStroke!);
+                              _currentStroke = null;
+                            }
+                          });
+                        },
+                        child: CustomPaint(
+                          painter: DrawingPainter(
+                            strokes: [..._strokes, if (_currentStroke != null) _currentStroke!],
+                          ),
+                          child: _strokes.isEmpty && _currentStroke == null
+                              ? const Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.brush, size: 16, color: Colors.grey),
+                                      SizedBox(height: 2),
+                                      Text(
+                                        'タップして描画',
+                                        style: TextStyle(fontSize: 8, color: Colors.grey),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : null,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
-              ),
+                // クリアボタン
+                if (_strokes.isNotEmpty || _currentStroke != null)
+                  Positioned(
+                    top: 2,
+                    right: 2,
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: _clearDrawing,
+                        borderRadius: BorderRadius.circular(4),
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withOpacity(0.8),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Icon(
+                            Icons.clear,
+                            size: 12,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
         ),
       ],
     );
+  }
+}
+
+/// 描画ストローク（1本の線）を表すクラス
+class DrawingStroke {
+  final List<Offset> points;
+  final Color color;
+  final double strokeWidth;
+
+  DrawingStroke({
+    required this.points,
+    this.color = Colors.black,
+    this.strokeWidth = 2.0,
+  });
+}
+
+/// 描画内容をキャンバスに描画するPainter
+class DrawingPainter extends CustomPainter {
+  final List<DrawingStroke> strokes;
+
+  DrawingPainter({required this.strokes});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (final stroke in strokes) {
+      if (stroke.points.isEmpty) continue;
+
+      final paint = Paint()
+        ..color = stroke.color
+        ..strokeWidth = stroke.strokeWidth
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..style = PaintingStyle.stroke;
+
+      // 線を描画
+      for (int i = 0; i < stroke.points.length - 1; i++) {
+        canvas.drawLine(stroke.points[i], stroke.points[i + 1], paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(DrawingPainter oldDelegate) {
+    return oldDelegate.strokes != strokes;
   }
 }

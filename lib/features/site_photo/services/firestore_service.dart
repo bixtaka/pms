@@ -108,10 +108,12 @@ class FirestoreService {
   /// 
   /// [projectId] 工事ID
   /// [selectedItems] 選択されたカテゴリーと項目のマップ
+  /// [blackboardTypes] 各項目の黒板タイプマップ（省略可）
   Future<void> initializeWithSelectedItems(
     String projectId,
-    Map<String, List<String>> selectedItems,
-  ) async {
+    Map<String, List<String>> selectedItems, {
+    Map<String, Map<String, String>>? blackboardTypes,
+  }) async {
     // まず既存データを全削除（リセットと同じ処理）
     await resetAllData(projectId);
 
@@ -128,12 +130,16 @@ class FirestoreService {
       final items = selectedItems[category]!;
       for (final itemName in items) {
         final docRef = collectionRef.doc();
+        
+        // 黒板タイプを取得（指定がなければデフォルト）
+        final blackboardType = blackboardTypes?[category]?[itemName] ?? defaultBlackboardType;
+        
         final item = PhotoItem(
           id: docRef.id,
           category: category,
           name: itemName,
           status: 'pending', // 必ず pending で初期化
-          blackboardType: defaultBlackboardType,
+          blackboardType: blackboardType,
           createdAt: DateTime.now(), // 現在時刻を設定
         );
         

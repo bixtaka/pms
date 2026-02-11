@@ -6,6 +6,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../../../core/constants/master_data.dart';
 import '../services/firestore_service.dart';
+import 'blackboard_settings_screen.dart';
 
 class SitePhotoSelectionScreen extends StatefulWidget {
   final String projectName;
@@ -32,6 +33,10 @@ class _SitePhotoSelectionScreenState extends State<SitePhotoSelectionScreen> {
   // キー: カテゴリー名, 値: 選択された項目リスト
   final Map<String, List<String>> _selectedItems = {};
   
+  // 各項目の黒板タイプ管理
+  // 第1キー: カテゴリー名, 第2キー: 項目名, 値: 黒板タイプ
+  final Map<String, Map<String, String>> _blackboardTypes = {};
+  
   // ローディング状態
   bool _isLoading = false;
 
@@ -47,6 +52,14 @@ class _SitePhotoSelectionScreenState extends State<SitePhotoSelectionScreen> {
     setState(() {
       for (final category in masterWorkItems.keys) {
         _selectedItems[category] = List.from(masterWorkItems[category]!);
+        
+        // 黒板タイプも初期化（デフォルトはtype2）
+        if (!_blackboardTypes.containsKey(category)) {
+          _blackboardTypes[category] = {};
+        }
+        for (final item in masterWorkItems[category]!) {
+          _blackboardTypes[category]![item] = 'type2';
+        }
       }
     });
   }
@@ -83,15 +96,70 @@ class _SitePhotoSelectionScreenState extends State<SitePhotoSelectionScreen> {
         if (!items.contains(item)) {
           items.add(item);
         }
+        
+        // 黒板タイプも初期化（デフォルトはtype2）
+        if (!_blackboardTypes.containsKey(category)) {
+          _blackboardTypes[category] = {};
+        }
+        if (!_blackboardTypes[category]!.containsKey(item)) {
+          _blackboardTypes[category]![item] = 'type2';
+        }
       } else {
         items.remove(item);
+        // 選択解除時は黒板タイプも削除
+        _blackboardTypes[category]?.remove(item);
       }
       
       // カテゴリー内の項目が空になったらカテゴリー自体を削除
       if (items.isEmpty) {
         _selectedItems.remove(category);
+        _blackboardTypes.remove(category);
       }
     });
+  }
+
+  /// 指定項目の黒板タイプを取得
+  String _getBlackboardType(String category, String item) {
+    return _blackboardTypes[category]?[item] ?? 'type2';
+  }
+
+  /// 黒板タイプのラベルを取得
+  String _getBlackboardTypeLabel(String type) {
+    switch (type) {
+      case 'type2':
+        return '2段';
+      case 'type3':
+        return '3段';
+      case 'type4':
+        return '4段';
+      case 'typeDetail':
+        return '詳細';
+      default:
+        return '2段';
+    }
+  }
+
+  /// 黒板設定画面を開く
+  Future<void> _openBlackboardSettings(String category, String item) async {
+    final currentType = _getBlackboardType(category, item);
+    
+    final selectedType = await Navigator.of(context).push<String>(
+      CupertinoPageRoute(
+        builder: (context) => BlackboardSettingsScreen(
+          initialType: currentType,
+        ),
+      ),
+    );
+    
+    // 選択されたタイプで更新
+    if (selectedType != null && mounted) {
+      setState(() {
+        if (!_blackboardTypes.containsKey(category)) {
+          _blackboardTypes[category] = {};
+        }
+        _blackboardTypes[category]![item] = selectedType;
+      });
+    }
   }
 
   /// 保存処理
@@ -106,6 +174,7 @@ class _SitePhotoSelectionScreenState extends State<SitePhotoSelectionScreen> {
       await _firestoreService.initializeWithSelectedItems(
         widget.projectId,
         _selectedItems,
+        blackboardTypes: _blackboardTypes,
       );
       
       // 完了コールバックを実行
@@ -213,13 +282,45 @@ class _SitePhotoSelectionScreenState extends State<SitePhotoSelectionScreen> {
                           subtitle: Text('${selectedInCategory.length} / ${allItems.length} 選択中'),
                           children: allItems.map((item) {
                             final isSelected = selectedInCategory.contains(item);
+                            final blackboardType = _getBlackboardType(category, item);
+                            final typeLabel = _getBlackboardTypeLabel(blackboardType);
                             
-                            return CheckboxListTile(
-                              value: isSelected,
-                              onChanged: (value) => _toggleItem(category, item, value),
+                            return ListTile(
+                              contentPadding: const EdgeInsets.only(left: 16, right: 8),
+                              leading: Checkbox(
+                                value: isSelected,
+                                onChanged: (value) => _toggleItem(category, item, value),
+                              ),
                               title: Text(item),
-                              controlAffinity: ListTileControlAffinity.leading,
-                              contentPadding: const EdgeInsets.only(left: 16, right: 16),
+                              // 黒板タイプ設定ボタン
+                              trailing: isSelected
+                                  ? TextButton.icon(
+                                      onPressed: () => _openBlackboardSettings(category, item),
+                                      icon: const Icon(
+                                        CupertinoIcons.rectangle_grid_2x2,
+                                        size: 18,
+                                      ),
+                                      label: Text(
+                                        typeLabel,
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      style: TextButton.styleFrom(
+                                        foregroundColor: const Color(0xFF007AFF),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 6,
+                                        ),
+                                        backgroundColor: const Color(0xFF007AFF).withOpacity(0.1),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                      ),
+                                    )
+                                  : null,
+                              onTap: () => _toggleItem(category, item, !isSelected),
                             );
                           }).toList(),
                         ),

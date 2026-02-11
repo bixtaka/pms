@@ -5,6 +5,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'site_photo_list_screen.dart';  // リスト画面をインポート
+import 'blackboard_settings_screen.dart';  // 黒板設定画面をインポート
 
 /// 工程写真機能のホーム画面
 /// 
@@ -128,6 +129,43 @@ class SitePhotoHomeScreen extends StatelessWidget {
               
               const SizedBox(height: 16),
               
+              // === 黒板設定ボタン ===
+              CupertinoButton(
+                padding: EdgeInsets.zero,
+                onPressed: () => _navigateToSettings(context),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: const Color(0xFFE5E5EA),
+                    ),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        CupertinoIcons.settings,
+                        color: Color(0xFF007AFF),
+                        size: 28,
+                      ),
+                      SizedBox(width: 12),
+                      Text(
+                        '黒板設定',
+                        style: TextStyle(
+                          color: Color(0xFF007AFF),
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              
+              const SizedBox(height: 16),
+              
               // === 写真一覧ボタン（将来の機能用） ===
               CupertinoButton(
                 padding: EdgeInsets.zero,
@@ -195,6 +233,15 @@ class SitePhotoHomeScreen extends StatelessWidget {
           projectName: 'Aマンション改修工事',  // 工事名
           projectId: 'demo_project_001',      // 工事ID (Firestore用)
         ),
+      ),
+    );
+  }
+
+  /// 黒板設定画面へ遷移する
+  void _navigateToSettings(BuildContext context) {
+    Navigator.of(context).push(
+      CupertinoPageRoute(
+        builder: (context) => const BlackboardSettingsScreen(),
       ),
     );
   }
