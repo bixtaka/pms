@@ -24,6 +24,9 @@ class PhotoItem {
   /// 備考
   String? memo;
   
+  /// 黒板の作業内容（編集可能なフリースペース等のテキスト）
+  String? contentText;
+  
   /// 黒板のレイアウトタイプ（'type2' | 'type3'）
   String blackboardType;
   
@@ -37,6 +40,7 @@ class PhotoItem {
     this.status = 'pending',
     this.imagePath,
     this.memo,
+    this.contentText,
     this.blackboardType = 'type2',
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
@@ -56,6 +60,7 @@ class PhotoItem {
       status: data['status'] as String? ?? 'pending',
       imagePath: data['imagePath'] as String?,
       memo: data['memo'] as String?,
+      contentText: data['contentText'] as String?,
       blackboardType: data['blackboardType'] as String? ?? 'type2',
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
@@ -69,6 +74,7 @@ class PhotoItem {
       'status': status,
       'imagePath': imagePath,
       'memo': memo,
+      'contentText': contentText,
       'blackboardType': blackboardType,
       'createdAt': Timestamp.fromDate(createdAt),
     };
@@ -82,6 +88,7 @@ class PhotoItem {
     String? status,
     String? imagePath,
     String? memo,
+    String? contentText,
     String? blackboardType,
     DateTime? createdAt,
   }) {
@@ -92,6 +99,7 @@ class PhotoItem {
       status: status ?? this.status,
       imagePath: imagePath ?? this.imagePath,
       memo: memo ?? this.memo,
+      contentText: contentText ?? this.contentText,
       blackboardType: blackboardType ?? this.blackboardType,
       createdAt: createdAt ?? this.createdAt,
     );

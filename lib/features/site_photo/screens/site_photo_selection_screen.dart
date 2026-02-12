@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/master_data.dart';
 import '../services/firestore_service.dart';
 import 'blackboard_settings_screen.dart';
+import '../widgets/blackboard_preview.dart';
 
 class SitePhotoSelectionScreen extends StatefulWidget {
   final String projectName;
@@ -146,6 +147,7 @@ class _SitePhotoSelectionScreenState extends State<SitePhotoSelectionScreen> {
     final selectedType = await Navigator.of(context).push<String>(
       CupertinoPageRoute(
         builder: (context) => BlackboardSettingsScreen(
+          projectName: widget.projectName,
           initialType: currentType,
         ),
       ),
@@ -280,49 +282,54 @@ class _SitePhotoSelectionScreenState extends State<SitePhotoSelectionScreen> {
                             ),
                           ),
                           subtitle: Text('${selectedInCategory.length} / ${allItems.length} 選択中'),
-                          children: allItems.map((item) {
-                            final isSelected = selectedInCategory.contains(item);
-                            final blackboardType = _getBlackboardType(category, item);
-                            final typeLabel = _getBlackboardTypeLabel(blackboardType);
-                            
-                            return ListTile(
-                              contentPadding: const EdgeInsets.only(left: 16, right: 8),
-                              leading: Checkbox(
-                                value: isSelected,
-                                onChanged: (value) => _toggleItem(category, item, value),
+                          children: [
+                            // グリッド形式で項目を表示
+                            Padding(
+                              padding: const EdgeInsets.all(8),
+                              child: LayoutBuilder(
+                                builder: (context, constraints) {
+                                  // 画面幅に応じて列数を調整
+                                  int crossAxisCount = 1;
+                                  if (constraints.maxWidth > 1200) {
+                                    crossAxisCount = 4;
+                                  } else if (constraints.maxWidth > 900) {
+                                    crossAxisCount = 3;
+                                  } else if (constraints.maxWidth > 600) {
+                                    crossAxisCount = 2;
+                                  }
+                                  
+                                  return GridView.builder(
+                                    shrinkWrap: true,
+                                    physics: const NeverScrollableScrollPhysics(),
+                                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount: crossAxisCount,
+                                      childAspectRatio: 1.1,
+                                      crossAxisSpacing: 12,
+                                      mainAxisSpacing: 12,
+                                    ),
+                                    itemCount: allItems.length,
+                                    itemBuilder: (context, index) {
+                                      final item = allItems[index];
+                                      final isSelected = selectedInCategory.contains(item);
+                                      final blackboardType = _getBlackboardType(category, item);
+                                      final typeLabel = _getBlackboardTypeLabel(blackboardType);
+                                      
+                                      return _ItemSelectionCard(
+                                        projectName: widget.projectName,
+                                        category: category,
+                                        itemName: item,
+                                        isSelected: isSelected,
+                                        blackboardType: blackboardType,
+                                        typeLabel: typeLabel,
+                                        onToggle: (value) => _toggleItem(category, item, value),
+                                        onTypeButtonTap: () => _openBlackboardSettings(category, item),
+                                      );
+                                    },
+                                  );
+                                },
                               ),
-                              title: Text(item),
-                              // 黒板タイプ設定ボタン
-                              trailing: isSelected
-                                  ? TextButton.icon(
-                                      onPressed: () => _openBlackboardSettings(category, item),
-                                      icon: const Icon(
-                                        CupertinoIcons.rectangle_grid_2x2,
-                                        size: 18,
-                                      ),
-                                      label: Text(
-                                        typeLabel,
-                                        style: const TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      style: TextButton.styleFrom(
-                                        foregroundColor: const Color(0xFF007AFF),
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 6,
-                                        ),
-                                        backgroundColor: const Color(0xFF007AFF).withOpacity(0.1),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(8),
-                                        ),
-                                      ),
-                                    )
-                                  : null,
-                              onTap: () => _toggleItem(category, item, !isSelected),
-                            );
-                          }).toList(),
+                            ),
+                          ],
                         ),
                       );
                     },
@@ -370,3 +377,123 @@ class _SitePhotoSelectionScreenState extends State<SitePhotoSelectionScreen> {
     );
   }
 }
+
+/// 項目選択カード（チェックボックス + 黒板プレビュー統合）
+class _ItemSelectionCard extends StatelessWidget {
+  final String projectName;
+  final String category;
+  final String itemName;
+  final bool isSelected;
+  final String blackboardType;
+  final String typeLabel;
+  final ValueChanged<bool?> onToggle;
+  final VoidCallback onTypeButtonTap;
+  
+  const _ItemSelectionCard({
+    required this.projectName,
+    required this.category,
+    required this.itemName,
+    required this.isSelected,
+    required this.blackboardType,
+    required this.typeLabel,
+    required this.onToggle,
+    required this.onTypeButtonTap,
+  });
+  
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: isSelected ? Colors.blue.withOpacity(0.3) : Colors.grey[300]!,
+          width: isSelected ? 2 : 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // ヘッダー部分
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: Row(
+              children: [
+                // チェックボックス
+                Checkbox(
+                  value: isSelected,
+                  onChanged: onToggle,
+                ),
+                // 項目名
+                Expanded(
+                  child: Text(
+                    itemName,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: isSelected ? Colors.black87 : Colors.grey,
+                    ),
+                  ),
+                ),
+                // 黒板タイプボタン
+                if (isSelected)
+                  TextButton.icon(
+                    onPressed: onTypeButtonTap,
+                    icon: const Icon(
+                      CupertinoIcons.rectangle_grid_2x2,
+                      size: 16,
+                    ),
+                    label: Text(
+                      typeLabel,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFF007AFF),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      backgroundColor: const Color(0xFF007AFF).withOpacity(0.1),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          
+          // 黒板プレビュー部分
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+            child: Opacity(
+              opacity: isSelected ? 1.0 : 0.6, // 未選択時は少し薄く
+              child: AspectRatio(
+                aspectRatio: 4 / 3,
+                child: BlackboardPreview(
+              projectName: projectName,
+              category: '鉄骨工事', // ユーザー要望により固定
+              // Process + Type
+              freeSpaceText: '$category\n$itemName\n撮影者：ユーザー名',
+              constructionType: itemName,
+              photographer: 'ユーザー名',
+              blackboardType: blackboardType,
+              showDate: false, // 選択画面では日付は不要（シンプルに）
+            ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+

@@ -241,7 +241,9 @@ class SitePhotoHomeScreen extends StatelessWidget {
   void _navigateToSettings(BuildContext context) {
     Navigator.of(context).push(
       CupertinoPageRoute(
-        builder: (context) => const BlackboardSettingsScreen(),
+        builder: (context) => const BlackboardSettingsScreen(
+          projectName: 'Aマンション改修工事', // サンプルプロジェクト名
+        ),
       ),
     );
   }
