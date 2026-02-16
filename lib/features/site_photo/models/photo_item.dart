@@ -19,7 +19,11 @@ class PhotoItem {
   String status;
   
   /// 画像の保存パス（Webテスト時は空）
+  /// ※非推奨: 複数枚対応のため `photos` を使用すること
   String? imagePath;
+  
+  /// 写真リスト（URLまたはパスのリスト）
+  final List<String> photos;
   
   /// 備考
   String? memo;
@@ -39,23 +43,35 @@ class PhotoItem {
     required this.name,
     this.status = 'pending',
     this.imagePath,
+    List<String>? photos,
     this.memo,
     this.contentText,
     this.blackboardType = 'type2',
     DateTime? createdAt,
-  }) : createdAt = createdAt ?? DateTime.now();
+  }) : photos = photos ?? [],
+       createdAt = createdAt ?? DateTime.now();
 
-  /// 撮影済みかどうか
-  bool get isCompleted => status == 'completed';
+  /// 撮影済みかどうか（写真が1枚以上あるか）
+  bool get isCompleted => status == 'completed' || photos.isNotEmpty;
 
   /// Firestore ドキュメントから PhotoItem を作成
   factory PhotoItem.fromFirestore(String id, Map<String, dynamic> data) {
+    // photosフィールドがあればそれを使用、なければimagePathから移行
+    List<String> photos = (data['photos'] as List<dynamic>?)?.map((e) => e as String).toList() ?? [];
+    String? imagePath = data['imagePath'] as String?;
+
+    // 互換性維持: photosが空でimagePathがある場合、photosに追加
+    if (photos.isEmpty && imagePath != null && imagePath.isNotEmpty) {
+      photos = [imagePath];
+    }
+
     return PhotoItem(
       id: id,
       category: data['category'] as String? ?? '',
       name: data['name'] as String? ?? '',
       status: data['status'] as String? ?? 'pending',
-      imagePath: data['imagePath'] as String?,
+      imagePath: imagePath, // 念のため保持
+      photos: photos,
       memo: data['memo'] as String?,
       contentText: data['contentText'] as String?,
       blackboardType: data['blackboardType'] as String? ?? 'type2',
@@ -69,7 +85,8 @@ class PhotoItem {
       'category': category,
       'name': name,
       'status': status,
-      'imagePath': imagePath,
+      'imagePath': imagePath, // 互換性のため残すが、更新時はphotosの先頭を入れるなどの対応が可能
+      'photos': photos,
       'memo': memo,
       'contentText': contentText,
       'blackboardType': blackboardType,
@@ -84,6 +101,7 @@ class PhotoItem {
     String? name,
     String? status,
     String? imagePath,
+    List<String>? photos,
     String? memo,
     String? contentText,
     String? blackboardType,
@@ -95,6 +113,7 @@ class PhotoItem {
       name: name ?? this.name,
       status: status ?? this.status,
       imagePath: imagePath ?? this.imagePath,
+      photos: photos ?? this.photos,
       memo: memo ?? this.memo,
       contentText: contentText ?? this.contentText,
       blackboardType: blackboardType ?? this.blackboardType,
