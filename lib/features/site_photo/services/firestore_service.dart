@@ -118,25 +118,42 @@ class FirestoreService {
     await resetAllData(projectId);
 
     // 新規データの作成（500件ごとにバッチ分割）
-    final collectionRef = _firestore
+    final photosRef = _firestore
         .collection('projects')
         .doc(projectId)
         .collection('site_photos');
+    
+    final categoriesRef = _firestore
+        .collection('projects')
+        .doc(projectId)
+        .collection('categories');
 
     WriteBatch batch = _firestore.batch();
     int batchCount = 0;
 
-    for (final category in selectedItems.keys) {
-      final items = selectedItems[category]!;
+    // カテゴリーごとに処理
+    for (final categoryName in selectedItems.keys) {
+      // 1. カテゴリーを作成
+      final catDocRef = categoriesRef.doc();
+      final category = SiteCategory(
+        id: catDocRef.id,
+        name: categoryName,
+        createdAt: DateTime.now(), // オーダー代わり
+      );
+      batch.set(catDocRef, category.toFirestore());
+      batchCount++;
+
+      // 2. 項目を作成
+      final items = selectedItems[categoryName]!;
       for (final itemName in items) {
-        final docRef = collectionRef.doc();
+        final docRef = photosRef.doc();
         
         // 黒板タイプを取得（指定がなければデフォルト）
-        final blackboardType = blackboardTypes?[category]?[itemName] ?? defaultBlackboardType;
+        final blackboardType = blackboardTypes?[categoryName]?[itemName] ?? defaultBlackboardType;
         
         final item = PhotoItem(
           id: docRef.id,
-          category: category,
+          category: categoryName,
           name: itemName,
           status: 'pending', // 必ず pending で初期化
           blackboardType: blackboardType,
@@ -147,7 +164,7 @@ class FirestoreService {
         batchCount++;
 
         // 500件に達したらコミット
-        if (batchCount >= 450) { // マージンをとって450
+        if (batchCount >= 450) { 
           await batch.commit();
           batch = _firestore.batch();
           batchCount = 0;
@@ -163,30 +180,164 @@ class FirestoreService {
 
   /// 工事写真データを全て削除（リセット）
   Future<void> resetAllData(String projectId) async {
-    final collectionRef = _firestore
+    // 1. 写真データの削除
+    final photosRef = _firestore
         .collection('projects')
         .doc(projectId)
         .collection('site_photos');
 
-    // データがなくなるまで繰り返し削除（大量データ対応）
-    bool dataRemains = true;
-    while (dataRemains) {
-      final snapshot = await collectionRef.limit(400).get();
-      
+    bool photosRemain = true;
+    while (photosRemain) {
+      final snapshot = await photosRef.limit(400).get();
       if (snapshot.docs.isEmpty) {
-        dataRemains = false;
+        photosRemain = false;
         break;
       }
-
       final batch = _firestore.batch();
       for (final doc in snapshot.docs) {
         batch.delete(doc.reference);
       }
       await batch.commit();
-      
-      // 少し待機してFirestoreの整合性を保つ
       await Future.delayed(const Duration(milliseconds: 100));
     }
+
+    // 2. カテゴリーデータの削除
+    final categoriesRef = _firestore
+        .collection('projects')
+        .doc(projectId)
+        .collection('categories');
+
+    bool categoriesRemain = true;
+    while (categoriesRemain) {
+      final snapshot = await categoriesRef.limit(400).get();
+      if (snapshot.docs.isEmpty) {
+        categoriesRemain = false;
+        break;
+      }
+      final batch = _firestore.batch();
+      for (final doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+  }
+
+  // ==========================================
+  // カテゴリー（工程）管理メソッド
+  // ==========================================
+
+  /// カテゴリー一覧を取得
+  Stream<List<SiteCategory>> getCategories(String projectId) {
+    return _firestore
+        .collection('projects')
+        .doc(projectId)
+        .collection('categories')
+        .orderBy('createdAt')
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs
+          .map((doc) => SiteCategory.fromFirestore(doc.id, doc.data()))
+          .toList();
+    });
+  }
+
+  /// カテゴリーを追加
+  Future<void> addCategory(String projectId, String name) async {
+    final ref = _firestore
+        .collection('projects')
+        .doc(projectId)
+        .collection('categories')
+        .doc();
+    
+    final category = SiteCategory(
+      id: ref.id,
+      name: name,
+    );
+    
+    await ref.set(category.toFirestore());
+  }
+
+  /// カテゴリーを更新（名称変更）
+  /// 関連する項目のカテゴリー名も一括更新する
+  Future<void> updateCategory(String projectId, String categoryId, String oldName, String newName) async {
+    // 1. カテゴリー自体の更新
+    await _firestore
+        .collection('projects')
+        .doc(projectId)
+        .collection('categories')
+        .doc(categoryId)
+        .update({'name': newName});
+
+    // 2. 関連する項目のカテゴリー名を更新（Batch処理）
+    // 注意: データ量が多い場合は分割処理が必要だが、ここでは簡易的に実装
+    final photosRef = _firestore
+        .collection('projects')
+        .doc(projectId)
+        .collection('site_photos');
+    
+    final snapshot = await photosRef.where('category', isEqualTo: oldName).get();
+    
+    if (snapshot.docs.isNotEmpty) {
+      final batch = _firestore.batch();
+      for (final doc in snapshot.docs) {
+        batch.update(doc.reference, {'category': newName});
+      }
+      await batch.commit();
+    }
+  }
+
+  /// カテゴリーを削除
+  /// 項目が含まれている場合はエラーを投げるか、呼び出し元でチェックすること
+  Future<void> deleteCategory(String projectId, String categoryId) async {
+    await _firestore
+        .collection('projects')
+        .doc(projectId)
+        .collection('categories')
+        .doc(categoryId)
+        .delete();
+  }
+
+  // ==========================================
+  // 項目（種別）管理メソッド
+  // ==========================================
+
+  /// 項目を追加
+  Future<void> addPhotoItem(String projectId, String category, String name) async {
+    final ref = _firestore
+        .collection('projects')
+        .doc(projectId)
+        .collection('site_photos')
+        .doc();
+
+    final item = PhotoItem(
+      id: ref.id,
+      category: category,
+      name: name,
+      createdAt: DateTime.now(),
+    );
+
+    await ref.set(item.toFirestore());
+  }
+
+  /// 項目を削除
+  Future<void> deletePhotoItem(String projectId, String itemId) async {
+    await _firestore
+        .collection('projects')
+        .doc(projectId)
+        .collection('site_photos')
+        .doc(itemId)
+        .delete();
+  }
+
+  /// 項目名を更新
+  Future<void> updatePhotoItemName(String projectId, String itemId, String newName) async {
+    await _firestore
+        .collection('projects')
+        .doc(projectId)
+        .collection('site_photos')
+        .doc(itemId)
+        .update({'name': newName});
   }
 
   /// テスト用: デモデータを手動で初期化

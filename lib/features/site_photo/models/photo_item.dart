@@ -49,9 +49,6 @@ class PhotoItem {
   bool get isCompleted => status == 'completed';
 
   /// Firestore ドキュメントから PhotoItem を作成
-  /// 
-  /// [id] ドキュメント ID
-  /// [data] ドキュメントデータ
   factory PhotoItem.fromFirestore(String id, Map<String, dynamic> data) {
     return PhotoItem(
       id: id,
@@ -80,7 +77,7 @@ class PhotoItem {
     };
   }
 
-  /// コピーを作成（一部フィールドを更新）
+  /// コピーを作成
   PhotoItem copyWith({
     String? id,
     String? category,
@@ -103,5 +100,33 @@ class PhotoItem {
       blackboardType: blackboardType ?? this.blackboardType,
       createdAt: createdAt ?? this.createdAt,
     );
+  }
+}
+
+/// カテゴリー（工程）のデータクラス
+class SiteCategory {
+  final String id;
+  final String name;
+  final DateTime createdAt;
+
+  SiteCategory({
+    required this.id,
+    required this.name,
+    DateTime? createdAt,
+  }) : createdAt = createdAt ?? DateTime.now();
+
+  factory SiteCategory.fromFirestore(String id, Map<String, dynamic> data) {
+    return SiteCategory(
+      id: id,
+      name: data['name'] as String? ?? '',
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+    );
+  }
+
+  Map<String, dynamic> toFirestore() {
+    return {
+      'name': name,
+      'createdAt': Timestamp.fromDate(createdAt),
+    };
   }
 }
