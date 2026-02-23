@@ -94,7 +94,7 @@ class _SitePhotoCameraScreenState extends State<SitePhotoCameraScreen> {
       // カメラコントローラーを作成
       _cameraController = CameraController(
         backCamera,
-        ResolutionPreset.high, // 高解像度で撮影
+        ResolutionPreset.high, // 高解像度（通常4:3）で撮影
         enableAudio: false,    // 音声は不要
       );
       
@@ -385,73 +385,124 @@ class _SitePhotoCameraScreenState extends State<SitePhotoCameraScreen> {
       );
     }
     
-    // === メインのStack構造 ===
-    // Screenshot の外側に撮影ボタンを配置することで、
-    // ボタンが写真に写り込まないようにします
-    return Stack(
-      children: [
-        // === Screenshot でラップする部分（カメラ+黒板のみ） ===
-        // この部分だけが画像としてキャプチャされます
-        Screenshot(
-          controller: _screenshotController,
-          child: Stack(
-            children: [
-              // === カメラプレビュー ===
-              // SizedBox.expandで画面いっぱいに広げる
-              SizedBox.expand(
-                child: FittedBox(
-                  fit: BoxFit.cover,
-                  child: SizedBox(
-                    width: _cameraController!.value.previewSize!.height,
-                    height: _cameraController!.value.previewSize!.width,
-                    child: CameraPreview(_cameraController!),
+    // === メインのコンテナ（全体レイアウト） ===
+    // 横画面を前提としたレイアウト（左にプレビュー、右にコントロール）
+    // 縦画面の場合は適宜Columnなどに切り替えることも可能ですが、
+    // ここではリクエストに従い、黒帯付きの4:3プレビューを実装します。
+    return SafeArea(
+      child: Container(
+        color: Colors.black,
+        child: Row(
+          children: [
+            // === 左側: カメラプレビューエリア (4:3) ===
+            Expanded(
+              child: Center(
+                // アスペクト比を 4:3 に強制
+                child: AspectRatio(
+                  aspectRatio: 4 / 3,
+                  child: Screenshot(
+                    controller: _screenshotController,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        return Stack(
+                          clipBehavior: Clip.hardEdge, // はみ出しをカット
+                          children: [
+                            // === カメラプレビュー ===
+                            SizedBox.expand(
+                              child: FittedBox(
+                                fit: BoxFit.cover,
+                                child: SizedBox(
+                                  // カメラのプレビューサイズに合わせて表示
+                                  // ※多くの場合、ResolutionPreset.highで4:3になるが、
+                                  //  念のためFittedBox.coverで4:3の枠内に収める
+                                  width: _cameraController!.value.previewSize!.height,
+                                  height: _cameraController!.value.previewSize!.width,
+                                  child: CameraPreview(_cameraController!),
+                                ),
+                              ),
+                            ),
+                            
+                            // === 電子小黒板（移動・拡大縮小可能） ===
+                            Positioned(
+                              left: _boardPosition.dx,
+                              top: _boardPosition.dy,
+                              child: GestureDetector(
+                                // === スケール操作開始 ===
+                                onScaleStart: (details) {
+                                  _baseScale = _boardScale;
+                                },
+                                // === スケール操作中（移動と拡大縮小） ===
+                                onScaleUpdate: (details) {
+                                  setState(() {
+                                    // 黒板のサイズ（固定サイズ x スケール）
+                                    final blackboardWidth = 300.0 * _boardScale;
+                                    final blackboardHeight = 225.0 * _boardScale;
+
+                                    // 移動：focalPointDelta を使用して新しい位置を計算
+                                    double newLeft = _boardPosition.dx + details.focalPointDelta.dx;
+                                    double newTop = _boardPosition.dy + details.focalPointDelta.dy;
+
+                                    // 移動可能範囲の最大値（4:3プレビュー領域 - 黒板サイズ）
+                                    // ★ constraintsはAspectRatio(4/3)のサイズになっている
+                                    double maxLeft = constraints.maxWidth - blackboardWidth;
+                                    double maxTop = constraints.maxHeight - blackboardHeight;
+                                    
+                                    // 画面外にはみ出さないように制限 (0.0 〜 max)
+                                    newLeft = newLeft.clamp(0.0, maxLeft > 0 ? maxLeft : 0.0);
+                                    newTop = newTop.clamp(0.0, maxTop > 0 ? maxTop : 0.0);
+
+                                    _boardPosition = Offset(newLeft, newTop);
+                                    
+                                    // 拡大縮小：0.5倍〜3.0倍に制限
+                                    _boardScale = (_baseScale * details.scale).clamp(0.5, 3.0);
+                                  });
+                                },
+                                child: Transform.scale(
+                                  scale: _boardScale,
+                                  alignment: Alignment.topLeft,
+                                  child: SizedBox(
+                                    width: 300, // 固定サイズ
+                                    height: 225, // 固定サイズ
+                                    child: _buildKokuban(),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
                   ),
                 ),
               ),
-              
-              // === 電子小黒板（移動・拡大縮小可能） ===
-              Positioned(
-                right: 16 + _boardPosition.dx,
-                bottom: 120 + _boardPosition.dy, // 撮影ボタンの上に配置
-                child: GestureDetector(
-                  // === スケール操作開始 ===
-                  onScaleStart: (details) {
-                    _baseScale = _boardScale;
-                  },
-                  // === スケール操作中（移動と拡大縮小） ===
-                  onScaleUpdate: (details) {
-                    setState(() {
-                      // 移動：focalPointDelta を使用
-                      // right/bottom を使用しているため、符号を反転
-                      _boardPosition -= details.focalPointDelta;
-                      
-                      // 拡大縮小：0.5倍〜3.0倍に制限
-                      _boardScale = (_baseScale * details.scale).clamp(0.5, 3.0);
-                    });
-                  },
-                  child: Transform.scale(
-                    scale: _boardScale,
-                    child: _buildKokuban(),
-                  ),
-                ),
+            ),
+            
+            // === 右側: コントロールエリア（黒帯） ===
+            Container(
+              width: 120, // 固定幅
+              color: Colors.black,
+              padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 8),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+
+                  
+                  const Spacer(), // スペーサーでシャッターボタンを下部に寄せる
+
+                  // シャッターボタン
+                  _buildCaptureButton(),
+                  
+                  const SizedBox(height: 32),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-        
-        // === 撮影ボタン（Screenshot の外側） ===
-        // この部分は画像には写りませんが、画面には表示されます
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 32,
-          child: Center(
-            child: _buildCaptureButton(),
-          ),
-        ),
-      ],
+      ),
     );
   }
+
+
 
   /// 電子小黒板（共通ウィジェット使用）を構築
   Widget _buildKokuban() {

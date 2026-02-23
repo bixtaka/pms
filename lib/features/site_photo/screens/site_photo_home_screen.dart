@@ -6,6 +6,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'site_photo_list_screen.dart';  // リスト画面をインポート
 import 'blackboard_settings_screen.dart';  // 黒板設定画面をインポート
+import '../../tape_inspection/screens/tape_inspection_screen.dart'; // テープ合わせ画面をインポート
+import '../../witness_inspection/screens/witness_inspection_screen.dart'; // 立会検査画面をインポート
 
 /// 工程写真機能のホーム画面
 /// 
@@ -128,6 +130,52 @@ class SitePhotoHomeScreen extends StatelessWidget {
               ),
               
               const SizedBox(height: 16),
+
+              // === テープ合わせボタン ===
+              _buildActionButton(
+                context,
+                icon: Icons.straighten,
+                label: 'テープ合わせ',
+                onPressed: () {
+                  Navigator.of(context).push(
+                    CupertinoPageRoute(
+                      builder: (context) => const TapeInspectionScreen(),
+                    ),
+                  );
+                },
+              ),
+
+              const SizedBox(height: 16),
+
+              // === 立会検査ボタン ===
+              _buildActionButton(
+                context,
+                icon: Icons.people,
+                label: '立会検査',
+                onPressed: () {
+                  Navigator.of(context).push(
+                    CupertinoPageRoute(
+                      builder: (context) => const WitnessInspectionScreen(),
+                    ),
+                  );
+                },
+              ),
+
+              const SizedBox(height: 16),
+
+              // === テンプレートボタン ===
+              _buildActionButton(
+                context,
+                icon: Icons.grid_view,
+                label: 'テンプレート',
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('テンプレート選択（未実装）')),
+                  );
+                },
+              ),
+              
+              const SizedBox(height: 16),
               
               // === 黒板設定ボタン ===
               CupertinoButton(
@@ -243,6 +291,47 @@ class SitePhotoHomeScreen extends StatelessWidget {
       CupertinoPageRoute(
         builder: (context) => const BlackboardSettingsScreen(
           projectName: 'Aマンション改修工事', // サンプルプロジェクト名
+        ),
+      ),
+    );
+  }
+  /// 共通のデザインのアクションボタンを作成
+  Widget _buildActionButton(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required VoidCallback onPressed,
+  }) {
+    return CupertinoButton(
+      padding: EdgeInsets.zero,
+      onPressed: onPressed,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: const Color(0xFFE5E5EA),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              color: const Color(0xFF007AFF),
+              size: 28,
+            ),
+            const SizedBox(width: 12),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Color(0xFF007AFF),
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ),
       ),
     );

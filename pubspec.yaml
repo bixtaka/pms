@@ -61,6 +61,12 @@ dependencies:
   pdf: ^3.11.3
   printing: ^5.14.2
   shared_preferences: ^2.3.4
+  flutter_slidable: ^3.1.1   # Swipe-to-reveal actions for list items
+  freezed_annotation: ^3.1.0
+  json_annotation: ^4.9.0
+  image_picker: ^1.2.1
+  google_generative_ai: ^0.4.7
+  flutter_dotenv: ^6.0.0
 
 dev_dependencies:
   flutter_test:
@@ -71,6 +77,9 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
+  build_runner: ^2.11.1
+  freezed: ^3.2.3
+  json_serializable: ^6.11.2
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -89,6 +98,8 @@ flutter:
   #   - images/a_dot_ham.jpeg
   assets:
     - assets/sample/
+    - .env
+
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

@@ -4,6 +4,7 @@
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import 'site_photo_camera_screen.dart';
 
 import 'site_photo_selection_screen.dart';
@@ -271,70 +272,87 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
                         final isSelected = _selectedItem?.id == item.id;
                         final displayItem = isSelected ? _selectedItem! : item;
                         
-                        return ListTile(
+                        return Slidable(
                           key: ValueKey(item.id),
-                          selected: isSelected,
-                          selectedTileColor: Colors.blue[100],
-                          selectedColor: Colors.blue[900],
-                          contentPadding: const EdgeInsets.only(left: 32, right: 16),
-                          leading: Icon(
-                            displayItem.isCompleted
-                                ? CupertinoIcons.checkmark_circle_fill
-                                : CupertinoIcons.circle,
-                            color: displayItem.isCompleted ? Colors.green : Colors.grey,
-                          ),
-                          title: Text(
-                            displayItem.name,
-                            style: TextStyle(
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                            ),
-                          ),
-                          subtitle: displayItem.contentText != null && displayItem.contentText!.isNotEmpty
-                              ? Text(
-                                  displayItem.contentText!.replaceAll('\n', ' / '),
-                                  style: const TextStyle(color: Colors.grey, fontSize: 12),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                )
-                              : null,
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
+                          endActionPane: ActionPane(
+                            motion: const DrawerMotion(),
+                            extentRatio: 0.4,
                             children: [
-                              IconButton(
-                                icon: const Icon(Icons.edit, color: Colors.blue),
-                                onPressed: () {
-                                  setState(() { _selectedItem = item; });
-                                  _showBlackboardEditor(context, item);
-                                },
+                              // 名称変更アクション
+                              SlidableAction(
+                                onPressed: (_) => _showEditItemMenu(item),
+                                backgroundColor: Colors.blueGrey,
+                                foregroundColor: Colors.white,
+                                icon: Icons.edit,
+                                label: '名称変更',
+                                padding: EdgeInsets.zero,
                               ),
-                              const SizedBox(width: 8),
-                              Text(
-                                displayItem.isCompleted ? '済' : '未',
-                                style: TextStyle(
-                                  color: displayItem.isCompleted ? Colors.green : Colors.grey,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                              // 削除アクション
+                              SlidableAction(
+                                onPressed: (_) => _confirmDeleteItem(item),
+                                backgroundColor: Colors.red,
+                                foregroundColor: Colors.white,
+                                icon: Icons.delete,
+                                label: '削除',
+                                padding: EdgeInsets.zero,
                               ),
                             ],
                           ),
-                          onTap: () {
-                            setState(() {
-                              _selectedItem = item;
-                              _notesController.text = item.memo ?? '';
-                              _contentTextController.text = item.contentText ?? '${item.category}\n${item.name}';
-                            });
-                          },
-                          onLongPress: () => _showEditItemMenu(item),
+                          child: ListTile(
+                            selected: isSelected,
+                            selectedTileColor: Colors.blue[50],
+                            selectedColor: Colors.blue[900],
+                            contentPadding: const EdgeInsets.only(left: 32, right: 8),
+                            leading: Icon(
+                              displayItem.isCompleted
+                                  ? CupertinoIcons.checkmark_circle_fill
+                                  : CupertinoIcons.circle,
+                              color: displayItem.isCompleted ? Colors.green : Colors.grey[400],
+                            ),
+                            title: Text(
+                              displayItem.name,
+                              style: TextStyle(
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                              ),
+                            ),
+                            subtitle: displayItem.contentText != null && displayItem.contentText!.isNotEmpty
+                                ? Text(
+                                    displayItem.contentText!.replaceAll('\n', ' / '),
+                                    style: TextStyle(color: Colors.grey[500], fontSize: 12.0),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  )
+                                : null,
+                            // 編集アイコンのみ、薄いグレーで目立たなく
+                            trailing: IconButton(
+                              icon: Icon(
+                                Icons.edit,
+                                size: 18,
+                                color: isSelected ? Colors.blue[300] : Colors.grey[300],
+                              ),
+                              onPressed: () {
+                                setState(() { _selectedItem = item; });
+                                _showBlackboardEditor(context, item);
+                              },
+                            ),
+                            onTap: () {
+                              setState(() {
+                                _selectedItem = item;
+                                _notesController.text = item.memo ?? '';
+                                _contentTextController.text = item.contentText ?? '${item.category}\n${item.name}';
+                              });
+                            },
+                          ),
                         );
-                      }), // .toList() is not needed with spread operator if map returns Iterable
+                      }),
                       
-                      // === 「項目を追加」ボタン ===
+              // === 「項目を追加」ボタン（控えめデザイン）===
                       ListTile(
                         contentPadding: const EdgeInsets.only(left: 32, right: 16),
-                        leading: const Icon(Icons.add, color: Colors.blue),
-                        title: const Text(
+                        leading: Icon(Icons.add, color: Colors.grey[400], size: 18),
+                        title: Text(
                           '項目を追加',
-                          style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
+                          style: TextStyle(color: Colors.grey[400], fontSize: 13),
                         ),
                         onTap: () => _showAddItemDialog(category.name),
                       ),
@@ -394,9 +412,10 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
 
   /// 上部：写真ギャラリーセクション
   Widget _buildPhotoGallerySection() {
+    final photos = _selectedItem!.photos;
     return Container(
       color: Colors.grey[100],
-      child: _selectedItem!.imagePath != null && _selectedItem!.imagePath!.isNotEmpty
+      child: photos.isNotEmpty
           ? _buildPhotoGrid()
           : _buildNoPhotoMessage(),
     );
@@ -441,6 +460,8 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
                   child: Image.network(
                     photoPath,
                     fit: BoxFit.cover,
+                    // グリッドサムネイル用：デコードサイズを制限してメモリ節約
+                    cacheWidth: 400,
                     loadingBuilder: (context, child, loadingProgress) {
                       if (loadingProgress == null) return child;
                       return Center(
@@ -449,6 +470,7 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
                               ? loadingProgress.cumulativeBytesLoaded /
                                   loadingProgress.expectedTotalBytes!
                               : null,
+                          strokeWidth: 2,
                         ),
                       );
                     },
