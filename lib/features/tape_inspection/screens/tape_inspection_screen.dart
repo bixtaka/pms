@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/tape_inspection_model.dart';
-import '../models/tape_inspection_model.dart';
 import 'manual_measurement_overlay.dart';
+import 'pdf_preview_screen.dart';
 
 class TapeInspectionScreen extends ConsumerStatefulWidget {
   const TapeInspectionScreen({super.key});
@@ -132,11 +132,67 @@ class _TapeInspectionScreenState extends ConsumerState<TapeInspectionScreen> {
     }
   }
 
+  /// PDF出力プレビュー画面を開く（工事名・会社名の入力ダイアログを経由）
+  Future<void> _openPdfPreview(BuildContext context) async {
+    final projectNameCtrl = TextEditingController(text: '〇〇工事');
+    final companyNameCtrl = TextEditingController(text: '〇〇株式会社');
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('PDF出力'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: projectNameCtrl,
+              decoration: const InputDecoration(labelText: '工事名称'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: companyNameCtrl,
+              decoration: const InputDecoration(labelText: '会社名'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('キャンセル'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('生成する'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && context.mounted) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => PdfPreviewScreen(
+            inspection: _inspection,
+            projectName: projectNameCtrl.text,
+            companyName: companyNameCtrl.text,
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('テープ合わせ（鋼製巻尺検査）'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.picture_as_pdf),
+            tooltip: 'PDFプレビュー',
+            onPressed: () => _openPdfPreview(context),
+          ),
+        ],
       ),
       body: Row(
         children: [
