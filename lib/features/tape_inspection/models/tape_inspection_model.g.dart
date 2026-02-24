@@ -13,9 +13,11 @@ _TapeInspection _$TapeInspectionFromJson(Map<String, dynamic> json) =>
       inspectionDate: DateTime.parse(json['inspectionDate'] as String),
       inspectorName: json['inspectorName'] as String,
       tension: json['tension'] as String,
-      checkpoints:
-          (json['checkpoints'] as List<dynamic>?)
-              ?.map((e) => TapeCheckpoint.fromJson(e as Map<String, dynamic>))
+      items:
+          (json['items'] as List<dynamic>?)
+              ?.map(
+                (e) => TapeInspectionItem.fromJson(e as Map<String, dynamic>),
+              )
               .toList() ??
           const [],
     );
@@ -27,12 +29,14 @@ Map<String, dynamic> _$TapeInspectionToJson(_TapeInspection instance) =>
       'inspectionDate': instance.inspectionDate.toIso8601String(),
       'inspectorName': instance.inspectorName,
       'tension': instance.tension,
-      'checkpoints': instance.checkpoints,
+      'items': instance.items,
     };
 
-_TapeCheckpoint _$TapeCheckpointFromJson(Map<String, dynamic> json) =>
-    _TapeCheckpoint(
-      distance: json['distance'] as String,
+_TapeInspectionItem _$TapeInspectionItemFromJson(Map<String, dynamic> json) =>
+    _TapeInspectionItem(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      isMeasurement: json['isMeasurement'] as bool,
       widePhotoUrl: json['widePhotoUrl'] as String?,
       closeupPhotoUrl: json['closeupPhotoUrl'] as String?,
       errorValue: json['errorValue'] as String? ?? '',
@@ -40,9 +44,11 @@ _TapeCheckpoint _$TapeCheckpointFromJson(Map<String, dynamic> json) =>
       isCloseupPhotoTaken: json['isCloseupPhotoTaken'] as bool? ?? false,
     );
 
-Map<String, dynamic> _$TapeCheckpointToJson(_TapeCheckpoint instance) =>
+Map<String, dynamic> _$TapeInspectionItemToJson(_TapeInspectionItem instance) =>
     <String, dynamic>{
-      'distance': instance.distance,
+      'id': instance.id,
+      'name': instance.name,
+      'isMeasurement': instance.isMeasurement,
       'widePhotoUrl': instance.widePhotoUrl,
       'closeupPhotoUrl': instance.closeupPhotoUrl,
       'errorValue': instance.errorValue,

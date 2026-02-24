@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$TapeInspection {
 
- String get id; String get projectId; DateTime get inspectionDate; String get inspectorName; String get tension; List<TapeCheckpoint> get checkpoints;
+ String get id; String get projectId; DateTime get inspectionDate; String get inspectorName; String get tension; List<TapeInspectionItem> get items;
 /// Create a copy of TapeInspection
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +28,16 @@ $TapeInspectionCopyWith<TapeInspection> get copyWith => _$TapeInspectionCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TapeInspection&&(identical(other.id, id) || other.id == id)&&(identical(other.projectId, projectId) || other.projectId == projectId)&&(identical(other.inspectionDate, inspectionDate) || other.inspectionDate == inspectionDate)&&(identical(other.inspectorName, inspectorName) || other.inspectorName == inspectorName)&&(identical(other.tension, tension) || other.tension == tension)&&const DeepCollectionEquality().equals(other.checkpoints, checkpoints));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TapeInspection&&(identical(other.id, id) || other.id == id)&&(identical(other.projectId, projectId) || other.projectId == projectId)&&(identical(other.inspectionDate, inspectionDate) || other.inspectionDate == inspectionDate)&&(identical(other.inspectorName, inspectorName) || other.inspectorName == inspectorName)&&(identical(other.tension, tension) || other.tension == tension)&&const DeepCollectionEquality().equals(other.items, items));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,projectId,inspectionDate,inspectorName,tension,const DeepCollectionEquality().hash(checkpoints));
+int get hashCode => Object.hash(runtimeType,id,projectId,inspectionDate,inspectorName,tension,const DeepCollectionEquality().hash(items));
 
 @override
 String toString() {
-  return 'TapeInspection(id: $id, projectId: $projectId, inspectionDate: $inspectionDate, inspectorName: $inspectorName, tension: $tension, checkpoints: $checkpoints)';
+  return 'TapeInspection(id: $id, projectId: $projectId, inspectionDate: $inspectionDate, inspectorName: $inspectorName, tension: $tension, items: $items)';
 }
 
 
@@ -48,7 +48,7 @@ abstract mixin class $TapeInspectionCopyWith<$Res>  {
   factory $TapeInspectionCopyWith(TapeInspection value, $Res Function(TapeInspection) _then) = _$TapeInspectionCopyWithImpl;
 @useResult
 $Res call({
- String id, String projectId, DateTime inspectionDate, String inspectorName, String tension, List<TapeCheckpoint> checkpoints
+ String id, String projectId, DateTime inspectionDate, String inspectorName, String tension, List<TapeInspectionItem> items
 });
 
 
@@ -65,15 +65,15 @@ class _$TapeInspectionCopyWithImpl<$Res>
 
 /// Create a copy of TapeInspection
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? projectId = null,Object? inspectionDate = null,Object? inspectorName = null,Object? tension = null,Object? checkpoints = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? projectId = null,Object? inspectionDate = null,Object? inspectorName = null,Object? tension = null,Object? items = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,projectId: null == projectId ? _self.projectId : projectId // ignore: cast_nullable_to_non_nullable
 as String,inspectionDate: null == inspectionDate ? _self.inspectionDate : inspectionDate // ignore: cast_nullable_to_non_nullable
 as DateTime,inspectorName: null == inspectorName ? _self.inspectorName : inspectorName // ignore: cast_nullable_to_non_nullable
 as String,tension: null == tension ? _self.tension : tension // ignore: cast_nullable_to_non_nullable
-as String,checkpoints: null == checkpoints ? _self.checkpoints : checkpoints // ignore: cast_nullable_to_non_nullable
-as List<TapeCheckpoint>,
+as String,items: null == items ? _self.items : items // ignore: cast_nullable_to_non_nullable
+as List<TapeInspectionItem>,
   ));
 }
 
@@ -158,10 +158,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String projectId,  DateTime inspectionDate,  String inspectorName,  String tension,  List<TapeCheckpoint> checkpoints)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String projectId,  DateTime inspectionDate,  String inspectorName,  String tension,  List<TapeInspectionItem> items)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _TapeInspection() when $default != null:
-return $default(_that.id,_that.projectId,_that.inspectionDate,_that.inspectorName,_that.tension,_that.checkpoints);case _:
+return $default(_that.id,_that.projectId,_that.inspectionDate,_that.inspectorName,_that.tension,_that.items);case _:
   return orElse();
 
 }
@@ -179,10 +179,10 @@ return $default(_that.id,_that.projectId,_that.inspectionDate,_that.inspectorNam
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String projectId,  DateTime inspectionDate,  String inspectorName,  String tension,  List<TapeCheckpoint> checkpoints)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String projectId,  DateTime inspectionDate,  String inspectorName,  String tension,  List<TapeInspectionItem> items)  $default,) {final _that = this;
 switch (_that) {
 case _TapeInspection():
-return $default(_that.id,_that.projectId,_that.inspectionDate,_that.inspectorName,_that.tension,_that.checkpoints);case _:
+return $default(_that.id,_that.projectId,_that.inspectionDate,_that.inspectorName,_that.tension,_that.items);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -199,10 +199,10 @@ return $default(_that.id,_that.projectId,_that.inspectionDate,_that.inspectorNam
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String projectId,  DateTime inspectionDate,  String inspectorName,  String tension,  List<TapeCheckpoint> checkpoints)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String projectId,  DateTime inspectionDate,  String inspectorName,  String tension,  List<TapeInspectionItem> items)?  $default,) {final _that = this;
 switch (_that) {
 case _TapeInspection() when $default != null:
-return $default(_that.id,_that.projectId,_that.inspectionDate,_that.inspectorName,_that.tension,_that.checkpoints);case _:
+return $default(_that.id,_that.projectId,_that.inspectionDate,_that.inspectorName,_that.tension,_that.items);case _:
   return null;
 
 }
@@ -214,7 +214,7 @@ return $default(_that.id,_that.projectId,_that.inspectionDate,_that.inspectorNam
 @JsonSerializable()
 
 class _TapeInspection implements TapeInspection {
-  const _TapeInspection({required this.id, required this.projectId, required this.inspectionDate, required this.inspectorName, required this.tension, final  List<TapeCheckpoint> checkpoints = const []}): _checkpoints = checkpoints;
+  const _TapeInspection({required this.id, required this.projectId, required this.inspectionDate, required this.inspectorName, required this.tension, final  List<TapeInspectionItem> items = const []}): _items = items;
   factory _TapeInspection.fromJson(Map<String, dynamic> json) => _$TapeInspectionFromJson(json);
 
 @override final  String id;
@@ -222,11 +222,11 @@ class _TapeInspection implements TapeInspection {
 @override final  DateTime inspectionDate;
 @override final  String inspectorName;
 @override final  String tension;
- final  List<TapeCheckpoint> _checkpoints;
-@override@JsonKey() List<TapeCheckpoint> get checkpoints {
-  if (_checkpoints is EqualUnmodifiableListView) return _checkpoints;
+ final  List<TapeInspectionItem> _items;
+@override@JsonKey() List<TapeInspectionItem> get items {
+  if (_items is EqualUnmodifiableListView) return _items;
   // ignore: implicit_dynamic_type
-  return EqualUnmodifiableListView(_checkpoints);
+  return EqualUnmodifiableListView(_items);
 }
 
 
@@ -243,16 +243,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TapeInspection&&(identical(other.id, id) || other.id == id)&&(identical(other.projectId, projectId) || other.projectId == projectId)&&(identical(other.inspectionDate, inspectionDate) || other.inspectionDate == inspectionDate)&&(identical(other.inspectorName, inspectorName) || other.inspectorName == inspectorName)&&(identical(other.tension, tension) || other.tension == tension)&&const DeepCollectionEquality().equals(other._checkpoints, _checkpoints));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TapeInspection&&(identical(other.id, id) || other.id == id)&&(identical(other.projectId, projectId) || other.projectId == projectId)&&(identical(other.inspectionDate, inspectionDate) || other.inspectionDate == inspectionDate)&&(identical(other.inspectorName, inspectorName) || other.inspectorName == inspectorName)&&(identical(other.tension, tension) || other.tension == tension)&&const DeepCollectionEquality().equals(other._items, _items));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,projectId,inspectionDate,inspectorName,tension,const DeepCollectionEquality().hash(_checkpoints));
+int get hashCode => Object.hash(runtimeType,id,projectId,inspectionDate,inspectorName,tension,const DeepCollectionEquality().hash(_items));
 
 @override
 String toString() {
-  return 'TapeInspection(id: $id, projectId: $projectId, inspectionDate: $inspectionDate, inspectorName: $inspectorName, tension: $tension, checkpoints: $checkpoints)';
+  return 'TapeInspection(id: $id, projectId: $projectId, inspectionDate: $inspectionDate, inspectorName: $inspectorName, tension: $tension, items: $items)';
 }
 
 
@@ -263,7 +263,7 @@ abstract mixin class _$TapeInspectionCopyWith<$Res> implements $TapeInspectionCo
   factory _$TapeInspectionCopyWith(_TapeInspection value, $Res Function(_TapeInspection) _then) = __$TapeInspectionCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String projectId, DateTime inspectionDate, String inspectorName, String tension, List<TapeCheckpoint> checkpoints
+ String id, String projectId, DateTime inspectionDate, String inspectorName, String tension, List<TapeInspectionItem> items
 });
 
 
@@ -280,15 +280,15 @@ class __$TapeInspectionCopyWithImpl<$Res>
 
 /// Create a copy of TapeInspection
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? projectId = null,Object? inspectionDate = null,Object? inspectorName = null,Object? tension = null,Object? checkpoints = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? projectId = null,Object? inspectionDate = null,Object? inspectorName = null,Object? tension = null,Object? items = null,}) {
   return _then(_TapeInspection(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,projectId: null == projectId ? _self.projectId : projectId // ignore: cast_nullable_to_non_nullable
 as String,inspectionDate: null == inspectionDate ? _self.inspectionDate : inspectionDate // ignore: cast_nullable_to_non_nullable
 as DateTime,inspectorName: null == inspectorName ? _self.inspectorName : inspectorName // ignore: cast_nullable_to_non_nullable
 as String,tension: null == tension ? _self.tension : tension // ignore: cast_nullable_to_non_nullable
-as String,checkpoints: null == checkpoints ? _self._checkpoints : checkpoints // ignore: cast_nullable_to_non_nullable
-as List<TapeCheckpoint>,
+as String,items: null == items ? _self._items : items // ignore: cast_nullable_to_non_nullable
+as List<TapeInspectionItem>,
   ));
 }
 
@@ -297,42 +297,42 @@ as List<TapeCheckpoint>,
 
 
 /// @nodoc
-mixin _$TapeCheckpoint {
+mixin _$TapeInspectionItem {
 
- String get distance; String? get widePhotoUrl; String? get closeupPhotoUrl; String get errorValue; bool get isWidePhotoTaken; bool get isCloseupPhotoTaken;
-/// Create a copy of TapeCheckpoint
+ String get id; String get name; bool get isMeasurement; String? get widePhotoUrl; String? get closeupPhotoUrl; String get errorValue; bool get isWidePhotoTaken; bool get isCloseupPhotoTaken;
+/// Create a copy of TapeInspectionItem
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
 @pragma('vm:prefer-inline')
-$TapeCheckpointCopyWith<TapeCheckpoint> get copyWith => _$TapeCheckpointCopyWithImpl<TapeCheckpoint>(this as TapeCheckpoint, _$identity);
+$TapeInspectionItemCopyWith<TapeInspectionItem> get copyWith => _$TapeInspectionItemCopyWithImpl<TapeInspectionItem>(this as TapeInspectionItem, _$identity);
 
-  /// Serializes this TapeCheckpoint to a JSON map.
+  /// Serializes this TapeInspectionItem to a JSON map.
   Map<String, dynamic> toJson();
 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TapeCheckpoint&&(identical(other.distance, distance) || other.distance == distance)&&(identical(other.widePhotoUrl, widePhotoUrl) || other.widePhotoUrl == widePhotoUrl)&&(identical(other.closeupPhotoUrl, closeupPhotoUrl) || other.closeupPhotoUrl == closeupPhotoUrl)&&(identical(other.errorValue, errorValue) || other.errorValue == errorValue)&&(identical(other.isWidePhotoTaken, isWidePhotoTaken) || other.isWidePhotoTaken == isWidePhotoTaken)&&(identical(other.isCloseupPhotoTaken, isCloseupPhotoTaken) || other.isCloseupPhotoTaken == isCloseupPhotoTaken));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TapeInspectionItem&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.isMeasurement, isMeasurement) || other.isMeasurement == isMeasurement)&&(identical(other.widePhotoUrl, widePhotoUrl) || other.widePhotoUrl == widePhotoUrl)&&(identical(other.closeupPhotoUrl, closeupPhotoUrl) || other.closeupPhotoUrl == closeupPhotoUrl)&&(identical(other.errorValue, errorValue) || other.errorValue == errorValue)&&(identical(other.isWidePhotoTaken, isWidePhotoTaken) || other.isWidePhotoTaken == isWidePhotoTaken)&&(identical(other.isCloseupPhotoTaken, isCloseupPhotoTaken) || other.isCloseupPhotoTaken == isCloseupPhotoTaken));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,distance,widePhotoUrl,closeupPhotoUrl,errorValue,isWidePhotoTaken,isCloseupPhotoTaken);
+int get hashCode => Object.hash(runtimeType,id,name,isMeasurement,widePhotoUrl,closeupPhotoUrl,errorValue,isWidePhotoTaken,isCloseupPhotoTaken);
 
 @override
 String toString() {
-  return 'TapeCheckpoint(distance: $distance, widePhotoUrl: $widePhotoUrl, closeupPhotoUrl: $closeupPhotoUrl, errorValue: $errorValue, isWidePhotoTaken: $isWidePhotoTaken, isCloseupPhotoTaken: $isCloseupPhotoTaken)';
+  return 'TapeInspectionItem(id: $id, name: $name, isMeasurement: $isMeasurement, widePhotoUrl: $widePhotoUrl, closeupPhotoUrl: $closeupPhotoUrl, errorValue: $errorValue, isWidePhotoTaken: $isWidePhotoTaken, isCloseupPhotoTaken: $isCloseupPhotoTaken)';
 }
 
 
 }
 
 /// @nodoc
-abstract mixin class $TapeCheckpointCopyWith<$Res>  {
-  factory $TapeCheckpointCopyWith(TapeCheckpoint value, $Res Function(TapeCheckpoint) _then) = _$TapeCheckpointCopyWithImpl;
+abstract mixin class $TapeInspectionItemCopyWith<$Res>  {
+  factory $TapeInspectionItemCopyWith(TapeInspectionItem value, $Res Function(TapeInspectionItem) _then) = _$TapeInspectionItemCopyWithImpl;
 @useResult
 $Res call({
- String distance, String? widePhotoUrl, String? closeupPhotoUrl, String errorValue, bool isWidePhotoTaken, bool isCloseupPhotoTaken
+ String id, String name, bool isMeasurement, String? widePhotoUrl, String? closeupPhotoUrl, String errorValue, bool isWidePhotoTaken, bool isCloseupPhotoTaken
 });
 
 
@@ -340,19 +340,21 @@ $Res call({
 
 }
 /// @nodoc
-class _$TapeCheckpointCopyWithImpl<$Res>
-    implements $TapeCheckpointCopyWith<$Res> {
-  _$TapeCheckpointCopyWithImpl(this._self, this._then);
+class _$TapeInspectionItemCopyWithImpl<$Res>
+    implements $TapeInspectionItemCopyWith<$Res> {
+  _$TapeInspectionItemCopyWithImpl(this._self, this._then);
 
-  final TapeCheckpoint _self;
-  final $Res Function(TapeCheckpoint) _then;
+  final TapeInspectionItem _self;
+  final $Res Function(TapeInspectionItem) _then;
 
-/// Create a copy of TapeCheckpoint
+/// Create a copy of TapeInspectionItem
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? distance = null,Object? widePhotoUrl = freezed,Object? closeupPhotoUrl = freezed,Object? errorValue = null,Object? isWidePhotoTaken = null,Object? isCloseupPhotoTaken = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? isMeasurement = null,Object? widePhotoUrl = freezed,Object? closeupPhotoUrl = freezed,Object? errorValue = null,Object? isWidePhotoTaken = null,Object? isCloseupPhotoTaken = null,}) {
   return _then(_self.copyWith(
-distance: null == distance ? _self.distance : distance // ignore: cast_nullable_to_non_nullable
-as String,widePhotoUrl: freezed == widePhotoUrl ? _self.widePhotoUrl : widePhotoUrl // ignore: cast_nullable_to_non_nullable
+id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
+as String,isMeasurement: null == isMeasurement ? _self.isMeasurement : isMeasurement // ignore: cast_nullable_to_non_nullable
+as bool,widePhotoUrl: freezed == widePhotoUrl ? _self.widePhotoUrl : widePhotoUrl // ignore: cast_nullable_to_non_nullable
 as String?,closeupPhotoUrl: freezed == closeupPhotoUrl ? _self.closeupPhotoUrl : closeupPhotoUrl // ignore: cast_nullable_to_non_nullable
 as String?,errorValue: null == errorValue ? _self.errorValue : errorValue // ignore: cast_nullable_to_non_nullable
 as String,isWidePhotoTaken: null == isWidePhotoTaken ? _self.isWidePhotoTaken : isWidePhotoTaken // ignore: cast_nullable_to_non_nullable
@@ -364,8 +366,8 @@ as bool,
 }
 
 
-/// Adds pattern-matching-related methods to [TapeCheckpoint].
-extension TapeCheckpointPatterns on TapeCheckpoint {
+/// Adds pattern-matching-related methods to [TapeInspectionItem].
+extension TapeInspectionItemPatterns on TapeInspectionItem {
 /// A variant of `map` that fallback to returning `orElse`.
 ///
 /// It is equivalent to doing:
@@ -378,10 +380,10 @@ extension TapeCheckpointPatterns on TapeCheckpoint {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _TapeCheckpoint value)?  $default,{required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _TapeInspectionItem value)?  $default,{required TResult orElse(),}){
 final _that = this;
 switch (_that) {
-case _TapeCheckpoint() when $default != null:
+case _TapeInspectionItem() when $default != null:
 return $default(_that);case _:
   return orElse();
 
@@ -400,10 +402,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _TapeCheckpoint value)  $default,){
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _TapeInspectionItem value)  $default,){
 final _that = this;
 switch (_that) {
-case _TapeCheckpoint():
+case _TapeInspectionItem():
 return $default(_that);case _:
   throw StateError('Unexpected subclass');
 
@@ -421,10 +423,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _TapeCheckpoint value)?  $default,){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _TapeInspectionItem value)?  $default,){
 final _that = this;
 switch (_that) {
-case _TapeCheckpoint() when $default != null:
+case _TapeInspectionItem() when $default != null:
 return $default(_that);case _:
   return null;
 
@@ -442,10 +444,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String distance,  String? widePhotoUrl,  String? closeupPhotoUrl,  String errorValue,  bool isWidePhotoTaken,  bool isCloseupPhotoTaken)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String name,  bool isMeasurement,  String? widePhotoUrl,  String? closeupPhotoUrl,  String errorValue,  bool isWidePhotoTaken,  bool isCloseupPhotoTaken)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
-case _TapeCheckpoint() when $default != null:
-return $default(_that.distance,_that.widePhotoUrl,_that.closeupPhotoUrl,_that.errorValue,_that.isWidePhotoTaken,_that.isCloseupPhotoTaken);case _:
+case _TapeInspectionItem() when $default != null:
+return $default(_that.id,_that.name,_that.isMeasurement,_that.widePhotoUrl,_that.closeupPhotoUrl,_that.errorValue,_that.isWidePhotoTaken,_that.isCloseupPhotoTaken);case _:
   return orElse();
 
 }
@@ -463,10 +465,10 @@ return $default(_that.distance,_that.widePhotoUrl,_that.closeupPhotoUrl,_that.er
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String distance,  String? widePhotoUrl,  String? closeupPhotoUrl,  String errorValue,  bool isWidePhotoTaken,  bool isCloseupPhotoTaken)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String name,  bool isMeasurement,  String? widePhotoUrl,  String? closeupPhotoUrl,  String errorValue,  bool isWidePhotoTaken,  bool isCloseupPhotoTaken)  $default,) {final _that = this;
 switch (_that) {
-case _TapeCheckpoint():
-return $default(_that.distance,_that.widePhotoUrl,_that.closeupPhotoUrl,_that.errorValue,_that.isWidePhotoTaken,_that.isCloseupPhotoTaken);case _:
+case _TapeInspectionItem():
+return $default(_that.id,_that.name,_that.isMeasurement,_that.widePhotoUrl,_that.closeupPhotoUrl,_that.errorValue,_that.isWidePhotoTaken,_that.isCloseupPhotoTaken);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -483,10 +485,10 @@ return $default(_that.distance,_that.widePhotoUrl,_that.closeupPhotoUrl,_that.er
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String distance,  String? widePhotoUrl,  String? closeupPhotoUrl,  String errorValue,  bool isWidePhotoTaken,  bool isCloseupPhotoTaken)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String name,  bool isMeasurement,  String? widePhotoUrl,  String? closeupPhotoUrl,  String errorValue,  bool isWidePhotoTaken,  bool isCloseupPhotoTaken)?  $default,) {final _that = this;
 switch (_that) {
-case _TapeCheckpoint() when $default != null:
-return $default(_that.distance,_that.widePhotoUrl,_that.closeupPhotoUrl,_that.errorValue,_that.isWidePhotoTaken,_that.isCloseupPhotoTaken);case _:
+case _TapeInspectionItem() when $default != null:
+return $default(_that.id,_that.name,_that.isMeasurement,_that.widePhotoUrl,_that.closeupPhotoUrl,_that.errorValue,_that.isWidePhotoTaken,_that.isCloseupPhotoTaken);case _:
   return null;
 
 }
@@ -497,51 +499,53 @@ return $default(_that.distance,_that.widePhotoUrl,_that.closeupPhotoUrl,_that.er
 /// @nodoc
 @JsonSerializable()
 
-class _TapeCheckpoint implements TapeCheckpoint {
-  const _TapeCheckpoint({required this.distance, this.widePhotoUrl, this.closeupPhotoUrl, this.errorValue = '', this.isWidePhotoTaken = false, this.isCloseupPhotoTaken = false});
-  factory _TapeCheckpoint.fromJson(Map<String, dynamic> json) => _$TapeCheckpointFromJson(json);
+class _TapeInspectionItem implements TapeInspectionItem {
+  const _TapeInspectionItem({required this.id, required this.name, required this.isMeasurement, this.widePhotoUrl, this.closeupPhotoUrl, this.errorValue = '', this.isWidePhotoTaken = false, this.isCloseupPhotoTaken = false});
+  factory _TapeInspectionItem.fromJson(Map<String, dynamic> json) => _$TapeInspectionItemFromJson(json);
 
-@override final  String distance;
+@override final  String id;
+@override final  String name;
+@override final  bool isMeasurement;
 @override final  String? widePhotoUrl;
 @override final  String? closeupPhotoUrl;
 @override@JsonKey() final  String errorValue;
 @override@JsonKey() final  bool isWidePhotoTaken;
 @override@JsonKey() final  bool isCloseupPhotoTaken;
 
-/// Create a copy of TapeCheckpoint
+/// Create a copy of TapeInspectionItem
 /// with the given fields replaced by the non-null parameter values.
 @override @JsonKey(includeFromJson: false, includeToJson: false)
 @pragma('vm:prefer-inline')
-_$TapeCheckpointCopyWith<_TapeCheckpoint> get copyWith => __$TapeCheckpointCopyWithImpl<_TapeCheckpoint>(this, _$identity);
+_$TapeInspectionItemCopyWith<_TapeInspectionItem> get copyWith => __$TapeInspectionItemCopyWithImpl<_TapeInspectionItem>(this, _$identity);
 
 @override
 Map<String, dynamic> toJson() {
-  return _$TapeCheckpointToJson(this, );
+  return _$TapeInspectionItemToJson(this, );
 }
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TapeCheckpoint&&(identical(other.distance, distance) || other.distance == distance)&&(identical(other.widePhotoUrl, widePhotoUrl) || other.widePhotoUrl == widePhotoUrl)&&(identical(other.closeupPhotoUrl, closeupPhotoUrl) || other.closeupPhotoUrl == closeupPhotoUrl)&&(identical(other.errorValue, errorValue) || other.errorValue == errorValue)&&(identical(other.isWidePhotoTaken, isWidePhotoTaken) || other.isWidePhotoTaken == isWidePhotoTaken)&&(identical(other.isCloseupPhotoTaken, isCloseupPhotoTaken) || other.isCloseupPhotoTaken == isCloseupPhotoTaken));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TapeInspectionItem&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.isMeasurement, isMeasurement) || other.isMeasurement == isMeasurement)&&(identical(other.widePhotoUrl, widePhotoUrl) || other.widePhotoUrl == widePhotoUrl)&&(identical(other.closeupPhotoUrl, closeupPhotoUrl) || other.closeupPhotoUrl == closeupPhotoUrl)&&(identical(other.errorValue, errorValue) || other.errorValue == errorValue)&&(identical(other.isWidePhotoTaken, isWidePhotoTaken) || other.isWidePhotoTaken == isWidePhotoTaken)&&(identical(other.isCloseupPhotoTaken, isCloseupPhotoTaken) || other.isCloseupPhotoTaken == isCloseupPhotoTaken));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,distance,widePhotoUrl,closeupPhotoUrl,errorValue,isWidePhotoTaken,isCloseupPhotoTaken);
+int get hashCode => Object.hash(runtimeType,id,name,isMeasurement,widePhotoUrl,closeupPhotoUrl,errorValue,isWidePhotoTaken,isCloseupPhotoTaken);
 
 @override
 String toString() {
-  return 'TapeCheckpoint(distance: $distance, widePhotoUrl: $widePhotoUrl, closeupPhotoUrl: $closeupPhotoUrl, errorValue: $errorValue, isWidePhotoTaken: $isWidePhotoTaken, isCloseupPhotoTaken: $isCloseupPhotoTaken)';
+  return 'TapeInspectionItem(id: $id, name: $name, isMeasurement: $isMeasurement, widePhotoUrl: $widePhotoUrl, closeupPhotoUrl: $closeupPhotoUrl, errorValue: $errorValue, isWidePhotoTaken: $isWidePhotoTaken, isCloseupPhotoTaken: $isCloseupPhotoTaken)';
 }
 
 
 }
 
 /// @nodoc
-abstract mixin class _$TapeCheckpointCopyWith<$Res> implements $TapeCheckpointCopyWith<$Res> {
-  factory _$TapeCheckpointCopyWith(_TapeCheckpoint value, $Res Function(_TapeCheckpoint) _then) = __$TapeCheckpointCopyWithImpl;
+abstract mixin class _$TapeInspectionItemCopyWith<$Res> implements $TapeInspectionItemCopyWith<$Res> {
+  factory _$TapeInspectionItemCopyWith(_TapeInspectionItem value, $Res Function(_TapeInspectionItem) _then) = __$TapeInspectionItemCopyWithImpl;
 @override @useResult
 $Res call({
- String distance, String? widePhotoUrl, String? closeupPhotoUrl, String errorValue, bool isWidePhotoTaken, bool isCloseupPhotoTaken
+ String id, String name, bool isMeasurement, String? widePhotoUrl, String? closeupPhotoUrl, String errorValue, bool isWidePhotoTaken, bool isCloseupPhotoTaken
 });
 
 
@@ -549,19 +553,21 @@ $Res call({
 
 }
 /// @nodoc
-class __$TapeCheckpointCopyWithImpl<$Res>
-    implements _$TapeCheckpointCopyWith<$Res> {
-  __$TapeCheckpointCopyWithImpl(this._self, this._then);
+class __$TapeInspectionItemCopyWithImpl<$Res>
+    implements _$TapeInspectionItemCopyWith<$Res> {
+  __$TapeInspectionItemCopyWithImpl(this._self, this._then);
 
-  final _TapeCheckpoint _self;
-  final $Res Function(_TapeCheckpoint) _then;
+  final _TapeInspectionItem _self;
+  final $Res Function(_TapeInspectionItem) _then;
 
-/// Create a copy of TapeCheckpoint
+/// Create a copy of TapeInspectionItem
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? distance = null,Object? widePhotoUrl = freezed,Object? closeupPhotoUrl = freezed,Object? errorValue = null,Object? isWidePhotoTaken = null,Object? isCloseupPhotoTaken = null,}) {
-  return _then(_TapeCheckpoint(
-distance: null == distance ? _self.distance : distance // ignore: cast_nullable_to_non_nullable
-as String,widePhotoUrl: freezed == widePhotoUrl ? _self.widePhotoUrl : widePhotoUrl // ignore: cast_nullable_to_non_nullable
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? isMeasurement = null,Object? widePhotoUrl = freezed,Object? closeupPhotoUrl = freezed,Object? errorValue = null,Object? isWidePhotoTaken = null,Object? isCloseupPhotoTaken = null,}) {
+  return _then(_TapeInspectionItem(
+id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
+as String,isMeasurement: null == isMeasurement ? _self.isMeasurement : isMeasurement // ignore: cast_nullable_to_non_nullable
+as bool,widePhotoUrl: freezed == widePhotoUrl ? _self.widePhotoUrl : widePhotoUrl // ignore: cast_nullable_to_non_nullable
 as String?,closeupPhotoUrl: freezed == closeupPhotoUrl ? _self.closeupPhotoUrl : closeupPhotoUrl // ignore: cast_nullable_to_non_nullable
 as String?,errorValue: null == errorValue ? _self.errorValue : errorValue // ignore: cast_nullable_to_non_nullable
 as String,isWidePhotoTaken: null == isWidePhotoTaken ? _self.isWidePhotoTaken : isWidePhotoTaken // ignore: cast_nullable_to_non_nullable

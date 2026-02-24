@@ -11,7 +11,7 @@ abstract class TapeInspection with _$TapeInspection {
     required DateTime inspectionDate,
     required String inspectorName,
     required String tension,
-    @Default([]) List<TapeCheckpoint> checkpoints,
+    @Default([]) List<TapeInspectionItem> items,
   }) = _TapeInspection;
 
   factory TapeInspection.fromJson(Map<String, dynamic> json) =>
@@ -19,16 +19,18 @@ abstract class TapeInspection with _$TapeInspection {
 }
 
 @freezed
-abstract class TapeCheckpoint with _$TapeCheckpoint {
-  const factory TapeCheckpoint({
-    required String distance,
+abstract class TapeInspectionItem with _$TapeInspectionItem {
+  const factory TapeInspectionItem({
+    required String id,
+    required String name,
+    required bool isMeasurement,
     String? widePhotoUrl,
     String? closeupPhotoUrl,
     @Default('') String errorValue,
     @Default(false) bool isWidePhotoTaken,
     @Default(false) bool isCloseupPhotoTaken,
-  }) = _TapeCheckpoint;
+  }) = _TapeInspectionItem;
 
-  factory TapeCheckpoint.fromJson(Map<String, dynamic> json) =>
-      _$TapeCheckpointFromJson(json);
+  factory TapeInspectionItem.fromJson(Map<String, dynamic> json) =>
+      _$TapeInspectionItemFromJson(json);
 }

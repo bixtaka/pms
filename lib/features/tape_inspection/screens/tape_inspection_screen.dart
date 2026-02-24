@@ -5,7 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/tape_inspection_model.dart';
-import '../services/tape_inspection_vision_service.dart';
+import '../models/tape_inspection_model.dart';
+import 'manual_measurement_overlay.dart';
 
 class TapeInspectionScreen extends ConsumerStatefulWidget {
   const TapeInspectionScreen({super.key});
@@ -18,25 +19,36 @@ class _TapeInspectionScreenState extends ConsumerState<TapeInspectionScreen> {
 
   int _selectedCheckpointIndex = 0;
   late TapeInspection _inspection;
-  final _visionService = TapeInspectionVisionService();
   final _errorController = TextEditingController();
-  bool _isAnalyzing = false;
 
   @override
   void initState() {
     super.initState();
-    // モックデータで初期化
+    // モックデータで初期化（初期項目のセット）
     _inspection = TapeInspection(
       id: 'mock-id',
       projectId: 'mock-project-id',
       inspectionDate: DateTime.now(),
       inspectorName: 'Mock Inspector',
       tension: '50N',
-      checkpoints: List.generate(7, (index) {
-        return TapeCheckpoint(
-          distance: '${index * 5}m',
-        );
-      }),
+      items: [
+        // 写真のみの項目
+        TapeInspectionItem(id: 'item_01', name: '集合写真', isMeasurement: false),
+        TapeInspectionItem(id: 'item_02', name: 'テープ合わせ（全景）', isMeasurement: false),
+        TapeInspectionItem(id: 'item_03', name: '気温・湿度', isMeasurement: false),
+        TapeInspectionItem(id: 'item_04', name: '張力確認（テープ）（全景）', isMeasurement: false),
+        TapeInspectionItem(id: 'item_05', name: '張力確認（テープ）（現場）（近景）', isMeasurement: false),
+        TapeInspectionItem(id: 'item_06', name: '張力確認（テープ）（工場）（近景）', isMeasurement: false),
+        TapeInspectionItem(id: 'item_07', name: '張力確認（バネ）（全景）', isMeasurement: false),
+        TapeInspectionItem(id: 'item_08', name: '張力確認（バネ）（近景）', isMeasurement: false),
+        // 計測ありの項目
+        TapeInspectionItem(id: 'item_09', name: '0m', isMeasurement: true),
+        TapeInspectionItem(id: 'item_10', name: '5m', isMeasurement: true),
+        TapeInspectionItem(id: 'item_11', name: '10m', isMeasurement: true),
+        TapeInspectionItem(id: 'item_12', name: '15m', isMeasurement: true),
+        TapeInspectionItem(id: 'item_13', name: '20m', isMeasurement: true),
+        TapeInspectionItem(id: 'item_14', name: '25m', isMeasurement: true),
+      ],
     );
     _updateErrorController();
   }
@@ -48,13 +60,13 @@ class _TapeInspectionScreenState extends ConsumerState<TapeInspectionScreen> {
   }
 
   void _updateErrorController() {
-    _errorController.text = _inspection.checkpoints[_selectedCheckpointIndex].errorValue;
+    if (_inspection.items.isNotEmpty && _selectedCheckpointIndex < _inspection.items.length) {
+      _errorController.text = _inspection.items[_selectedCheckpointIndex].errorValue;
+    }
   }
 
 
   Future<void> _pickImage(bool isCloseup) async {
-    if (_isAnalyzing) return; // 解析中は連打防止のためリターン
-
     try {
       final picker = ImagePicker();
       debugPrint('Picking image...Source: Camera');
@@ -71,92 +83,51 @@ class _TapeInspectionScreenState extends ConsumerState<TapeInspectionScreen> {
 
       debugPrint('Image picked: ${photo.path}');
 
-      final checkpoint = _inspection.checkpoints[_selectedCheckpointIndex];
+      final item = _inspection.items[_selectedCheckpointIndex];
       
       setState(() {
-        var newCheckpoints = List<TapeCheckpoint>.from(_inspection.checkpoints);
-        newCheckpoints[_selectedCheckpointIndex] = isCloseup
-            ? checkpoint.copyWith(
+        var newItems = List<TapeInspectionItem>.from(_inspection.items);
+        newItems[_selectedCheckpointIndex] = isCloseup
+            ? item.copyWith(
                 closeupPhotoUrl: photo.path,
                 isCloseupPhotoTaken: true,
               )
-            : checkpoint.copyWith(
+            : item.copyWith(
                 widePhotoUrl: photo.path,
                 isWidePhotoTaken: true,
               );
-        _inspection = _inspection.copyWith(checkpoints: newCheckpoints);
+        _inspection = _inspection.copyWith(items: newItems);
       });
 
-      // 近景の場合、AI解析を実行
-      if (isCloseup) {
-        // WebではFile(path)が使えないため、XFileから直接バイトデータを読み取って渡す
-        final bytes = await photo.readAsBytes();
-        await _analyzeImage(bytes);
+      // 手動計測（キャリブレーション）が必要な項目の場合のみ近景撮影後にオーバーレイを表示
+      if (isCloseup && item.isMeasurement) {
+        if (!mounted) return;
+        final result = await Navigator.of(context).push<String>(
+          MaterialPageRoute(
+            builder: (context) => ManualMeasurementOverlay(imagePath: photo.path),
+            fullscreenDialog: true,
+          ),
+        );
+
+        if (result != null && mounted) {
+          setState(() {
+            _errorController.text = result;
+            var newItems = List<TapeInspectionItem>.from(_inspection.items);
+            newItems[_selectedCheckpointIndex] = newItems[_selectedCheckpointIndex].copyWith(
+              errorValue: result,
+            );
+            _inspection = _inspection.copyWith(items: newItems);
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('手動計測完了: 誤差 $result mm')),
+          );
+        }
       }
     } catch (e) {
       debugPrint('Error picking image: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('カメラの起動に失敗しました: $e')),
-      );
-    }
-  }
-
-  DateTime? _lastApiCallTime;
-
-  Future<void> _analyzeImage(Uint8List imageBytes) async {
-    // 429エラーを防ぐためのクールダウン設定（前回から60秒以内はブロック）
-    if (_lastApiCallTime != null) {
-      final difference = DateTime.now().difference(_lastApiCallTime!);
-      if (difference.inSeconds < 60) {
-        final waitTime = 60 - difference.inSeconds;
-        debugPrint('Cooldown active: wait $waitTime seconds');
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('連続呼び出し防止：あと $waitTime 秒お待ちください')),
-        );
-        return;
-      }
-    }
-
-    setState(() {
-      _isAnalyzing = true;
-    });
-
-    try {
-      debugPrint('[API CALL] Sending request to Gemini API...');
-      _lastApiCallTime = DateTime.now(); // 呼び出し時刻を記録
-      
-      final result = await _visionService.analyzeGap(imageBytes);
-      
-      debugPrint('[API SUCCESS] Received result: $result');
-      
-      if (!mounted) return;
-
-      setState(() {
-        _isAnalyzing = false;
-        // 誤差値を更新
-        _errorController.text = result;
-        
-        // モデルも更新
-        var newCheckpoints = List<TapeCheckpoint>.from(_inspection.checkpoints);
-        newCheckpoints[_selectedCheckpointIndex] = newCheckpoints[_selectedCheckpointIndex].copyWith(
-          errorValue: result,
-        );
-        _inspection = _inspection.copyWith(checkpoints: newCheckpoints);
-      });
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('AI解析完了: 誤差 $result mm')),
-      );
-    } catch (e) {
-      debugPrint('[API ERROR] Failed to analyze image: $e');
-      if (!mounted) return;
-      setState(() {
-        _isAnalyzing = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('AI解析エラー: $e')),
       );
     }
   }
@@ -172,29 +143,71 @@ class _TapeInspectionScreenState extends ConsumerState<TapeInspectionScreen> {
           // 左ペイン: 測定点リスト
           Expanded(
             flex: 2,
-            child: ListView.builder(
-              itemCount: _inspection.checkpoints.length,
-              itemBuilder: (context, index) {
-                final checkpoint = _inspection.checkpoints[index];
-                final isSelected = index == _selectedCheckpointIndex;
-                return ListTile(
-                  title: Text(checkpoint.distance),
-                  selected: isSelected,
-                  selectedTileColor: Colors.blue.withOpacity(0.1),
-                  leading: Icon(
-                    Icons.check_circle,
-                    color: (checkpoint.isWidePhotoTaken && checkpoint.isCloseupPhotoTaken)
-                        ? Colors.green
-                        : Colors.grey,
+            child: Column(
+              children: [
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: _inspection.items.length,
+                    itemBuilder: (context, index) {
+                      final item = _inspection.items[index];
+                      final isSelected = index == _selectedCheckpointIndex;
+                      // 写真ありかどうかの判定。計測項目の場合は両方、写真項目の場合は全景のみでOKとするなど柔軟に
+                      final isCompleted = item.isMeasurement 
+                        ? (item.isWidePhotoTaken && item.isCloseupPhotoTaken && item.errorValue.isNotEmpty)
+                        : (item.isWidePhotoTaken || item.isCloseupPhotoTaken);
+
+                      return ListTile(
+                        title: Text(item.name),
+                        selected: isSelected,
+                        selectedTileColor: Colors.blue.withOpacity(0.1),
+                        leading: Icon(
+                          Icons.check_circle,
+                          color: isCompleted ? Colors.green : Colors.grey,
+                        ),
+                        trailing: PopupMenuButton<String>(
+                          icon: const Icon(Icons.more_vert),
+                          onSelected: (value) {
+                            if (value == 'edit') {
+                              _showEditDialog(index, item);
+                            } else if (value == 'delete') {
+                              _deleteItem(index);
+                            }
+                          },
+                          itemBuilder: (context) => [
+                            const PopupMenuItem(value: 'edit', child: Text('名前を変更')),
+                            const PopupMenuItem(value: 'delete', child: Text('削除', style: TextStyle(color: Colors.red))),
+                          ],
+                        ),
+                        onTap: () {
+                          setState(() {
+                            _selectedCheckpointIndex = index;
+                            _updateErrorController();
+                          });
+                        },
+                      );
+                    },
                   ),
-                  onTap: () {
-                    setState(() {
-                      _selectedCheckpointIndex = index;
-                      _updateErrorController();
-                    });
-                  },
-                );
-              },
+                ),
+                const Divider(height: 1),
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      TextButton.icon(
+                        icon: const Icon(Icons.add_photo_alternate),
+                        label: const Text('写真追加'),
+                        onPressed: () => _showAddDialog(false),
+                      ),
+                      TextButton.icon(
+                        icon: const Icon(Icons.add_location_alt),
+                        label: const Text('計測追加'),
+                        onPressed: () => _showAddDialog(true),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
           const VerticalDivider(width: 1),
@@ -209,7 +222,11 @@ class _TapeInspectionScreenState extends ConsumerState<TapeInspectionScreen> {
   }
 
   Widget _buildDetailPane() {
-    final checkpoint = _inspection.checkpoints[_selectedCheckpointIndex];
+    if (_inspection.items.isEmpty) {
+      return const Center(child: Text('項目がありません'));
+    }
+
+    final item = _inspection.items[_selectedCheckpointIndex];
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: SingleChildScrollView(
@@ -217,55 +234,136 @@ class _TapeInspectionScreenState extends ConsumerState<TapeInspectionScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '${checkpoint.distance} 地点',
+              item.name,
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: 20),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _buildPhotoCard('全景', checkpoint.widePhotoUrl, () => _pickImage(false)),
-                _buildPhotoCard('近景', checkpoint.closeupPhotoUrl, () => _pickImage(true)),
+                Expanded(child: _buildPhotoCard('全体・全景', item.widePhotoUrl, () => _pickImage(false))),
+                const SizedBox(width: 16),
+                Expanded(child: _buildPhotoCard('近景', item.closeupPhotoUrl, () => _pickImage(true))),
               ],
             ),
-            const SizedBox(height: 30),
-            Row(
-              children: [
-                const Text('誤差 (mm)', style: TextStyle(fontWeight: FontWeight.bold)),
-                if (_isAnalyzing) ...[
-                  const SizedBox(width: 16),
-                  const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                  const SizedBox(width: 8),
-                  const Text('AI解析中...', style: TextStyle(color: Colors.blue)),
+            // isMeasurement が true の時だけ誤差UIを表示
+            if (item.isMeasurement) ...[
+              const SizedBox(height: 30),
+              Row(
+                children: [
+                  const Text('誤差 (mm)', style: TextStyle(fontWeight: FontWeight.bold)),
                 ],
-              ],
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _errorController,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                hintText: '+0.5',
-                suffixText: 'mm',
               ),
-              onChanged: (value) {
-                setState(() {
-                  var newCheckpoints = List<TapeCheckpoint>.from(_inspection.checkpoints);
-                  newCheckpoints[_selectedCheckpointIndex] = checkpoint.copyWith(
-                    errorValue: value,
-                  );
-                  _inspection = _inspection.copyWith(checkpoints: newCheckpoints);
-                });
-              },
-            ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _errorController,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  hintText: '+0.5',
+                  suffixText: 'mm',
+                ),
+                onChanged: (value) {
+                  setState(() {
+                    var newItems = List<TapeInspectionItem>.from(_inspection.items);
+                    newItems[_selectedCheckpointIndex] = item.copyWith(
+                      errorValue: value,
+                    );
+                    _inspection = _inspection.copyWith(items: newItems);
+                  });
+                },
+              ),
+            ],
           ],
         ),
       ),
     );
+  }
+
+  // ==== リストの操作メソッド ====
+  void _showAddDialog(bool isMeasurement) {
+    final textController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(isMeasurement ? '計測項目を追加' : '写真項目を追加'),
+        content: TextField(
+          controller: textController,
+          decoration: const InputDecoration(hintText: '項目名 (例: 30m, 現場状況)'),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('キャンセル'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (textController.text.isNotEmpty) {
+                setState(() {
+                  final newItem = TapeInspectionItem(
+                    id: DateTime.now().millisecondsSinceEpoch.toString(),
+                    name: textController.text,
+                    isMeasurement: isMeasurement,
+                  );
+                  _inspection = _inspection.copyWith(
+                    items: [..._inspection.items, newItem],
+                  );
+                  _selectedCheckpointIndex = _inspection.items.length - 1;
+                  _updateErrorController();
+                });
+                Navigator.of(context).pop();
+              }
+            },
+            child: const Text('追加'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditDialog(int index, TapeInspectionItem item) {
+    final textController = TextEditingController(text: item.name);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('名前を変更'),
+        content: TextField(
+          controller: textController,
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('キャンセル'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (textController.text.isNotEmpty) {
+                setState(() {
+                  var newItems = List<TapeInspectionItem>.from(_inspection.items);
+                  newItems[index] = item.copyWith(name: textController.text);
+                  _inspection = _inspection.copyWith(items: newItems);
+                });
+                Navigator.of(context).pop();
+              }
+            },
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _deleteItem(int index) {
+    setState(() {
+      var newItems = List<TapeInspectionItem>.from(_inspection.items);
+      newItems.removeAt(index);
+      _inspection = _inspection.copyWith(items: newItems);
+      if (_selectedCheckpointIndex >= newItems.length) {
+        _selectedCheckpointIndex = newItems.length - 1;
+        if (_selectedCheckpointIndex < 0) _selectedCheckpointIndex = 0;
+      }
+      _updateErrorController();
+    });
   }
 
   Widget _buildPhotoCard(String label, String? photoUrl, VoidCallback onTap) {
@@ -273,7 +371,7 @@ class _TapeInspectionScreenState extends ConsumerState<TapeInspectionScreen> {
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
-        onTap: _isAnalyzing ? null : onTap, // 解析中はタップ無効化
+        onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Container(
           width: 200,
@@ -281,7 +379,7 @@ class _TapeInspectionScreenState extends ConsumerState<TapeInspectionScreen> {
           alignment: Alignment.center,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            color: _isAnalyzing ? Colors.grey[300] : Colors.grey[100], // 解析中は背景色を少し暗く
+            color: Colors.grey[100],
           ),
           child: photoUrl != null
               ? ClipRRect(

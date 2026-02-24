@@ -46,3 +46,5 @@ app.*.map.json
 
 pms1-89339-firebase-adminsdk-fbsvc-d640a72c90.json
 
+# Environment variables
+.env
