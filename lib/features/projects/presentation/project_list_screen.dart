@@ -4,6 +4,7 @@ import '../../../providers/project_providers.dart';
 import '../../products/presentation/product_list_screen.dart';
 import '../../gantt/presentation/gantt_screen.dart';
 import '../../site_photo/screens/site_photo_home_screen.dart';
+import '../../gantt/presentation/mock_legacy_gantt_screen.dart';
 import '../../../models/project.dart';
 
 /// プロジェクト一覧画面
@@ -18,6 +19,24 @@ class ProjectListScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('プロジェクト一覧'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.table_chart),
+            tooltip: '新ガントチャートテスト',
+            onPressed: () {
+              final projects = projectsAsync.valueOrNull;
+              if (projects != null && projects.isNotEmpty) {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => MockLegacyGanttScreen(projectId: projects.first.id),
+                  ),
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('プロジェクトが未取得または0件です')),
+                );
+              }
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.camera_alt),
             tooltip: '工程写真',
