@@ -10,13 +10,14 @@ import '../../process_progress/data/process_progress_repository.dart';
 import '../../../models/process_progress.dart';
 
 import 'package:intl/intl.dart';
+import 'dart:ui' as ui;
 
 // ─── 共通定数 ─────────────────────────────────────────────────────────────────
 /// 左ペインと右チャートで使う 1行の高さ（両側で完全一致）
 const double kRowHeight = 55.0;
 
 /// タイムラインヘッダーの高さ（左ペインヘッダーと完全一致）
-const double kAxisHeight = 40.0;
+const double kAxisHeight = 60.0;
 
 /// 左ペインの幅
 const double kLeftPaneWidth = 280.0;
@@ -66,20 +67,13 @@ class MockLegacyGanttScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('新ガントチャートテスト (legacy_gantt_chart)'),
-      ),
-      body: SafeArea(
-        child: ref.watch(mockGanttDataProvider(projectId)).when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('エラー: $e')),
-              data: (data) => data.tasks.isEmpty
-                  ? const Center(child: Text('データがありません'))
-                  : _GanttChartWrapper(data: data, projectId: projectId),
-            ),
-      ),
-    );
+    return ref.watch(mockGanttDataProvider(projectId)).when(
+          loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+          error: (e, _) => Scaffold(body: Center(child: Text('エラー: $e'))),
+          data: (data) => data.tasks.isEmpty
+              ? const Scaffold(body: Center(child: Text('データがありません')))
+              : _GanttChartWrapper(data: data, projectId: projectId),
+        );
   }
 }
 
@@ -126,9 +120,13 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
     final now = DateTime.now();
     minStart ??= now.subtract(const Duration(days: 3));
     maxEnd ??= now.add(const Duration(days: 30));
-    final initialDuration = _currentScale == GanttViewScale.day ? const Duration(days: 7) 
-        : _currentScale == GanttViewScale.week ? const Duration(days: 30) 
-        : const Duration(days: 90);
+    
+    final isMobile = ui.PlatformDispatcher.instance.views.first.physicalSize.width / ui.PlatformDispatcher.instance.views.first.devicePixelRatio < 600;
+    
+    final initialDuration = _currentScale == GanttViewScale.day 
+        ? (isMobile ? const Duration(days: 7) : const Duration(days: 30))
+        : _currentScale == GanttViewScale.week ? const Duration(days: 90) 
+        : const Duration(days: 365);
 
     _ganttController = LegacyGanttController(
       initialVisibleStartDate: minStart.subtract(const Duration(days: 3)),
@@ -141,23 +139,26 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
   void _changeScale(GanttViewScale newScale) {
     if (_currentScale == newScale) return;
     
+    final isMobile = MediaQuery.sizeOf(context).width < 600;
+    
     final currentStart = _ganttController.visibleStartDate;
     final currentEnd = _ganttController.visibleEndDate;
     // 現在の表示範囲の中心を計算
     final centerMs = (currentStart.millisecondsSinceEpoch + currentEnd.millisecondsSinceEpoch) ~/ 2;
     final center = DateTime.fromMillisecondsSinceEpoch(centerMs);
     
-    // スケールに応じた表示期間を設定（例: 日単位=7日, 週単位=30日, 月単位=90日）
+    // スケールに応じた表示期間を設定
+    // 時間単位に細分化されないよう、画面の表示幅（日数）を広めに設定する
     Duration duration;
     switch (newScale) {
       case GanttViewScale.day:
-        duration = const Duration(days: 7);
+        duration = isMobile ? const Duration(days: 7) : const Duration(days: 30);
         break;
       case GanttViewScale.week:
-        duration = const Duration(days: 30);
+        duration = const Duration(days: 90);
         break;
       case GanttViewScale.month:
-        duration = const Duration(days: 90);
+        duration = const Duration(days: 365);
         break;
     }
     
@@ -261,7 +262,8 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
     };
 
     for (final cat in widget.data.categoryTrees) {
-      final catId = 'cat_${cat.categoryName}';
+      final isEventRoot = cat.categoryId == 'prj_events_root';
+      final catId = isEventRoot ? 'prj_events_root' : 'cat_${cat.categoryName}';
       final expanded = _expandedCategoryIds.contains(catId);
       final parentTask = taskMap[catId];
 
@@ -276,27 +278,30 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
           child: InkWell(
             onTap: () => _toggleCategory(catId),
             child: Container(
-              color: Colors.grey.shade200,
+              color: isEventRoot ? Colors.red.shade50 : Colors.grey.shade200,
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               child: Row(
                 children: [
                   Icon(
-                    expanded
-                        ? Icons.keyboard_arrow_down
-                        : Icons.keyboard_arrow_right,
+                    isEventRoot 
+                        ? (expanded ? Icons.flag : Icons.outlined_flag)
+                        : (expanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_right),
                     size: 18,
+                    color: isEventRoot ? Colors.red.shade700 : null,
                   ),
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
                       cat.categoryName,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 13),
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 13,
+                          color: isEventRoot ? Colors.red.shade900 : Colors.black87),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   // 右側のリッチな情報（ダミー値 + 日付）
-                  Column(
+                  if (!isEventRoot)
+                    Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -345,18 +350,18 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Expanded(
+                  Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
-                            leaf.displayName,
-                            style: const TextStyle(fontSize: 13, color: Colors.black87),
+                            isEventRoot ? '📍 ${leaf.displayName}' : leaf.displayName,
+                            style: TextStyle(fontSize: 13, color: isEventRoot ? Colors.red.shade900 : Colors.black87),
                             overflow: TextOverflow.ellipsis,
                           ),
                           Text(
-                            'タスク数: 104 / $dateRangeStr', // TODO: 実際のタスク数に置き換え
+                            isEventRoot ? '対象日: $dateRangeStr' : 'タスク数: 104 / $dateRangeStr', // TODO: 実際のタスク数に置き換え
                             style: const TextStyle(fontSize: 10, color: Colors.black54),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -388,6 +393,33 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
         if (actualDurationMs <= 0 || actualWidth <= 0) {
           return Container(color: task.color);
         }
+
+        // ── 【プロジェクトイベントの特例描画】 ──
+        if (task.parentId == 'prj_events_root') {
+          return OverflowBox(
+            maxWidth: double.infinity,
+            alignment: Alignment.centerLeft,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('📍 ', style: TextStyle(fontSize: 14)),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: Colors.redAccent),
+                  ),
+                  child: Text(
+                    task.name ?? '',
+                    style: const TextStyle(fontSize: 10, color: Colors.red, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+        // ────────────────────────────────────────
 
         final double msPerPixel = actualDurationMs / actualWidth;
 
@@ -642,75 +674,90 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
     final visible = _buildVisibleData();
     final visibleRows = visible.rows;
     final leftItems = _buildLeftItems();
+    final isMobile = MediaQuery.sizeOf(context).width < 600;
 
-    return Column(
+    final leftPaneContent = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // ── ツールバー（スケール切り替え） ──────────────────────────────────────
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              SegmentedButton<GanttViewScale>(
-                segments: const [
-                  ButtonSegment(value: GanttViewScale.day, label: Text('日', style: TextStyle(fontSize: 12))),
-                  ButtonSegment(value: GanttViewScale.week, label: Text('週', style: TextStyle(fontSize: 12))),
-                  ButtonSegment(value: GanttViewScale.month, label: Text('月', style: TextStyle(fontSize: 12))),
-                ],
-                selected: <GanttViewScale>{_currentScale},
-                onSelectionChanged: (Set<GanttViewScale> newSelection) {
-                  _changeScale(newSelection.first);
-                },
-                style: const ButtonStyle(
-                  visualDensity: VisualDensity.compact,
-                ),
-              ),
-            ],
+        // ヘッダー: チャートの axisHeight と同じ kAxisHeight で厳格に固定
+        Container(
+          height: kAxisHeight,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          alignment: Alignment.centerLeft,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border(
+              right: BorderSide(color: Colors.grey.shade300),
+              bottom: BorderSide(color: Colors.grey.shade300),
+            ),
+          ),
+          child: const Text(
+            '工程 / 大分類',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
           ),
         ),
-        
-        // ── メインビュー（左リスト ＋ 右チャート） ──────────────────────────────
+        // 行リスト: _sharedScroll で縦スクロール (スマホDrawer時は新規コントローラー)
         Expanded(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── 左ペイン ────────────────────────────────────────────────────────
-        SizedBox(
-          width: kLeftPaneWidth,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // ヘッダー: チャートの axisHeight と同じ kAxisHeight で厳格に固定
-              Container(
-                height: kAxisHeight,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                alignment: Alignment.centerLeft,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  border: Border(
-                    right: BorderSide(color: Colors.grey.shade300),
-                    bottom: BorderSide(color: Colors.grey.shade300),
-                  ),
-                ),
-                child: const Text(
-                  '工程 / 大分類',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                ),
-              ),
-              // 行リスト: _sharedScroll で縦スクロール
-              //   各アイテムは SizedBox(height: kRowHeight) で高さ固定済み
-              Expanded(
-                child: ListView.builder(
-                  controller: _sharedScroll,
-                  itemCount: leftItems.length,
-                  itemBuilder: (_, i) => leftItems[i],
-                ),
-              ),
-            ],
+          child: ListView.builder(
+            controller: isMobile ? ScrollController() : _sharedScroll,
+            itemCount: leftItems.length,
+            itemBuilder: (_, i) => leftItems[i],
           ),
         ),
+      ],
+    );
 
-        // ── 右ペイン ─────────────────────────────────────────────────────────
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('新ガントチャートテスト (legacy_gantt_chart)'),
+      ),
+      drawer: isMobile
+          ? Drawer(
+              child: SafeArea(
+                child: leftPaneContent,
+              ),
+            )
+          : null,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // ── ツールバー（スケール切り替え） ──────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  SegmentedButton<GanttViewScale>(
+                    segments: const [
+                      ButtonSegment(value: GanttViewScale.day, label: Text('日', style: TextStyle(fontSize: 12))),
+                      ButtonSegment(value: GanttViewScale.week, label: Text('週', style: TextStyle(fontSize: 12))),
+                      ButtonSegment(value: GanttViewScale.month, label: Text('月', style: TextStyle(fontSize: 12))),
+                    ],
+                    selected: <GanttViewScale>{_currentScale},
+                    onSelectionChanged: (Set<GanttViewScale> newSelection) {
+                      _changeScale(newSelection.first);
+                    },
+                    style: const ButtonStyle(
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            // ── メインビュー（左リスト ＋ 右チャート） ──────────────────────────────
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ── 左ペイン ────────────────────────────────────────────────────────
+                  if (!isMobile)
+                    SizedBox(
+                      width: kLeftPaneWidth,
+                      child: leftPaneContent,
+                    ),
+
+                  // ── 右ペイン ─────────────────────────────────────────────────────────
         // パッケージのバグ回避:
         //   (1) ヘッダー领域（kAxisHeight）に透明 GestureDetector を被せ、
         //       ドラッグを _shiftGanttRange で水平パンに変換。
@@ -745,15 +792,41 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
                 },
                 child: Stack(
                   children: [
-                      LegacyGanttChartWidget(
-                        controller: _ganttController,
-                        visibleRows: visibleRows,
-                        rowMaxStackDepth: widget.data.rowMaxStackDepth,
+                    // ── カスタム背景グリッド（本体の背面に描画） ──
+                    Positioned(
+                      top: kAxisHeight,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: AnimatedBuilder(
+                        animation: _ganttController,
+                        builder: (context, child) {
+                          if (_chartWidth <= 0) return const SizedBox.shrink();
+                          return RepaintBoundary(
+                            child: CustomPaint(
+                              painter: _CustomAxisPainter(
+                                visibleStart: _ganttController.visibleStartDate,
+                                visibleEnd: _ganttController.visibleEndDate,
+                                viewScale: _currentScale,
+                                chartWidth: _chartWidth,
+                                isHeader: false,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+
+                    // ── ガント本体 ──
+                    LegacyGanttChartWidget(
+                      controller: _ganttController,
+                      visibleRows: visibleRows,
+                      rowMaxStackDepth: widget.data.rowMaxStackDepth,
 
                       // ── 左ペインと同じ定数で厳格に固定 ───────────────
-                      rowHeight: kRowHeight,   // 40px: 左ペイン SizedBox(height: kRowHeight) と一致
-                      axisHeight: kAxisHeight, // 40px: 左ペイン Container(height: kAxisHeight) と一致
-                      showEmptyRows: true,     // タスクのない行も表示（左ペインと行数を合わせる）
+                      rowHeight: kRowHeight,
+                      axisHeight: kAxisHeight,
+                      showEmptyRows: true,
 
                       // ── 縦スクロール同期 ──────────────────────────────
                       scrollController: _sharedScroll,
@@ -762,32 +835,37 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
                       enableDragAndDrop: true,
                       enableResize: true,
                       onTaskUpdate: _onTaskUpdate,
-
-                      // ── 休日（土日）の背景色設定 ─────────────────────────
-                      weekendDays: const [DateTime.saturday, DateTime.sunday],
-                      weekendColor: Colors.grey.withValues(alpha: 0.15),
-
-                      // ── ヘッダー時間軸の日本語化 ─────────────────────────
-                      timelineAxisLabelBuilder: (DateTime date, Duration interval) {
-                        final weekdays = ['月', '火', '水', '木', '金', '土', '日'];
-                        final wd = weekdays[date.weekday - 1];
-                        
-                        switch (_currentScale) {
-                          case GanttViewScale.month:
-                            return '${date.year}年${date.month}月';
-                          case GanttViewScale.week:
-                            return '${date.month}/${date.day}〜';
-                          case GanttViewScale.day:
-                            return '${date.month}/${date.day}($wd)';
-                        }
-                      },
-
+                      
                       // ── 現在日（Today）ライン表示 ───────────────────
                       showNowLine: true,
                       nowLineDate: DateTime.now(),
+
+                      // ── カスタム背景やヘッダーを描画するためデフォルトは透過 ──
                       theme: LegacyGanttTheme.fromTheme(Theme.of(context)).copyWith(
                         nowLineColor: Colors.red,
+                        gridColor: Colors.transparent,       // デフォルトの罫線を消す
+                        backgroundColor: Colors.transparent, // チャート本体背景を透けさせる
                       ),
+
+                      // ── 独自定義したヘッダー（境界線の中央に文字を配置） ──
+                      timelineAxisHeaderBuilder: (context, scale, visibleDomain, totalDomain, theme, width) {
+                        return Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white, // 重なるタスクを隠すために背景白
+                            border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
+                          ),
+                          child: CustomPaint(
+                            size: Size(_chartWidth, kAxisHeight),
+                            painter: _CustomAxisPainter(
+                              visibleStart: _ganttController.visibleStartDate,
+                              visibleEnd: _ganttController.visibleEndDate,
+                              viewScale: _currentScale,
+                              chartWidth: _chartWidth,
+                              isHeader: true,
+                            ),
+                          ),
+                        );
+                      },
 
                       // ── タスクバーカスタマイズ（予実） ────────────────
                       taskBarBuilder: _buildCustomTaskBar,
@@ -861,10 +939,140 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
             },
           ),
         ),
-            ],
-          ),
+                ],
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
+  }
+}
+
+// ── 指定されたスケール（日/週/月）に合わせた独自背景グリッド・ヘッダー描画 ────────
+
+class _CustomAxisPainter extends CustomPainter {
+  final DateTime visibleStart;
+  final DateTime visibleEnd;
+  final GanttViewScale viewScale;
+  final double chartWidth;
+  final bool isHeader;
+
+  _CustomAxisPainter({
+    required this.visibleStart,
+    required this.visibleEnd,
+    required this.viewScale,
+    required this.chartWidth,
+    required this.isHeader,
+  });
+
+  double _getX(DateTime date) {
+    final startMs = visibleStart.millisecondsSinceEpoch;
+    final endMs = visibleEnd.millisecondsSinceEpoch;
+    final durationMs = endMs - startMs;
+    if (durationMs == 0) return 0;
+    return (date.millisecondsSinceEpoch - startMs) / durationMs * chartWidth;
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (chartWidth <= 0 || visibleStart.isAfter(visibleEnd)) return;
+
+    final linePaint = Paint()
+      ..color = Colors.grey.shade300
+      ..strokeWidth = 1.0;
+      
+    final weekendPaint = Paint()..color = Colors.grey.withValues(alpha: 0.15);
+
+    // 描画する境界線のリストを生成
+    List<DateTime> boundaries = [];
+    
+    if (viewScale == GanttViewScale.day) {
+      DateTime current = DateTime(visibleStart.year, visibleStart.month, visibleStart.day);
+      while (current.isBefore(visibleEnd) || current.isAtSameMomentAs(visibleEnd)) {
+        boundaries.add(current);
+        current = current.add(const Duration(days: 1));
+      }
+      boundaries.add(current); // テキスト中央揃え用にはみ出た日も追加
+    } else if (viewScale == GanttViewScale.week) {
+      int daysToSubtract = visibleStart.weekday - 1; // 月曜始まり
+      DateTime current = DateTime(visibleStart.year, visibleStart.month, visibleStart.day - daysToSubtract);
+      while (current.isBefore(visibleEnd) || current.isAtSameMomentAs(visibleEnd)) {
+        boundaries.add(current);
+        current = current.add(const Duration(days: 7));
+      }
+      boundaries.add(current);
+    } else if (viewScale == GanttViewScale.month) {
+      DateTime current = DateTime(visibleStart.year, visibleStart.month, 1);
+      while (current.isBefore(visibleEnd) || current.isAtSameMomentAs(visibleEnd)) {
+        boundaries.add(current);
+        current = DateTime(current.year, current.month + 1, 1);
+      }
+      boundaries.add(current);
+    }
+
+    for (int i = 0; i < boundaries.length - 1; i++) {
+      final current = boundaries[i];
+      final next = boundaries[i + 1];
+      
+      final x = _getX(current);
+      final nextX = _getX(next);
+      
+      // 縦罫線の描画（ヘッダーと背景共通、画面内の場合のみ）
+      if (x >= -1 && x <= chartWidth + 1) {
+        canvas.drawLine(Offset(x, 0), Offset(x, size.height), linePaint);
+      }
+      
+      if (isHeader) {
+        // ヘッダーテキストの描画（マス目の中央）
+        final textCenterX = (x + nextX) / 2;
+        
+        // テキスト位置が完全に画面外ならスキップ
+        if (textCenterX < -50 || textCenterX > chartWidth + 50) continue;
+
+        String text = '';
+        if (viewScale == GanttViewScale.day) {
+          final weekdays = ['月', '火', '水', '木', '金', '土', '日'];
+          final wd = weekdays[current.weekday - 1];
+          text = '${current.month}月\n${current.day}\n($wd)';
+        } else if (viewScale == GanttViewScale.week) {
+          text = '${current.month}/${current.day}〜';
+        } else if (viewScale == GanttViewScale.month) {
+          text = '${current.year}年 ${current.month}月';
+        }
+
+        final textSpan = TextSpan(
+          text: text,
+          style: const TextStyle(fontSize: 11, color: Colors.black87, height: 1.2),
+        );
+        final textPainter = TextPainter(
+          text: textSpan,
+          textAlign: TextAlign.center,
+          textDirection: ui.TextDirection.ltr,
+        );
+        textPainter.layout();
+        
+        // 縦方向も中央揃え
+        final textY = (size.height - textPainter.height) / 2;
+        textPainter.paint(canvas, Offset(textCenterX - textPainter.width / 2, textY));
+      } else {
+        // 背景の描画（土日の背景色）
+        if (viewScale == GanttViewScale.day) {
+          if (current.weekday == 6 || current.weekday == 7) {
+            final rect = Rect.fromLTRB(x, 0, nextX, size.height);
+            canvas.drawRect(rect, weekendPaint);
+          }
+        }
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _CustomAxisPainter oldDelegate) {
+    return oldDelegate.visibleStart != visibleStart ||
+           oldDelegate.visibleEnd != visibleEnd ||
+           oldDelegate.viewScale != viewScale ||
+           oldDelegate.chartWidth != chartWidth ||
+           oldDelegate.isHeader != isHeader;
   }
 }
