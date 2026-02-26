@@ -22,8 +22,9 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
   Widget build(BuildContext context) {
     final projectsAsync = ref.watch(projectsProvider);
 
-    // プロジェクトがロードされた後に最初のプロジェクトIDを取得（新ガント用）
-    final String? firstProjectId = projectsAsync.valueOrNull?.firstOrNull?.id;
+    // プロジェクトがロードされた後に最初のプロジェクトを取得（新ガント・実績入力用）
+    final Project? firstProject = projectsAsync.valueOrNull?.firstOrNull;
+    final String? firstProjectId = firstProject?.id;
 
     // 画面切り替え用のWidgets
     final List<Widget> pages = [
@@ -32,11 +33,13 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
           ? MockLegacyGanttScreen(projectId: firstProjectId)
           : const Center(child: Text('プロジェクトが未取得または0件です')),
 
-      // インデックス1: 工程写真 (仮)
-      const Center(child: Text('工程写真画面')),
+      // インデックス1: 工程写真
+      const SitePhotoHomeScreen(),
 
-      // インデックス2: 検査入力 (仮)
-      const Center(child: Text('検査入力画面')),
+      // インデックス2: 検査入力 (製品実績入力画面)
+      firstProject != null
+          ? ProductResultInputPage(project: firstProject)
+          : const Center(child: Text('プロジェクトが未取得または0件です')),
 
       // インデックス3: 旧UI (プロジェクト一覧)
       _buildOldUI(projectsAsync),
