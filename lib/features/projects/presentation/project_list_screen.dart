@@ -8,16 +8,82 @@ import '../../gantt/presentation/mock_legacy_gantt_screen.dart';
 import '../../../models/project.dart';
 
 /// プロジェクト一覧画面
-class ProjectListScreen extends ConsumerWidget {
+class ProjectListScreen extends ConsumerStatefulWidget {
   const ProjectListScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ProjectListScreen> createState() => _ProjectListScreenState();
+}
+
+class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
+  int _currentIndex = 0;
+
+  @override
+  Widget build(BuildContext context) {
     final projectsAsync = ref.watch(projectsProvider);
 
+    // プロジェクトがロードされた後に最初のプロジェクトIDを取得（新ガント用）
+    final String? firstProjectId = projectsAsync.valueOrNull?.firstOrNull?.id;
+
+    // 画面切り替え用のWidgets
+    final List<Widget> pages = [
+      // インデックス0: 新ガントチャート
+      firstProjectId != null
+          ? MockLegacyGanttScreen(projectId: firstProjectId)
+          : const Center(child: Text('プロジェクトが未取得または0件です')),
+
+      // インデックス1: 工程写真 (仮)
+      const Center(child: Text('工程写真画面')),
+
+      // インデックス2: 検査入力 (仮)
+      const Center(child: Text('検査入力画面')),
+
+      // インデックス3: 旧UI (プロジェクト一覧)
+      _buildOldUI(projectsAsync),
+    ];
+
+    return Scaffold(
+      body: IndexedStack(
+        index: _currentIndex,
+        children: pages,
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        type: BottomNavigationBarType.fixed, // 4つ以上の場合はfixedにすると見やすい
+        selectedItemColor: Theme.of(context).primaryColor,
+        unselectedItemColor: Colors.grey,
+        onTap: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.bar_chart),
+            label: '新ガント',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.photo_camera),
+            label: '工程写真',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.fact_check),
+            label: '検査入力',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.settings), // または Icons.history
+            label: '旧UI',
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 以前のプロジェクト一覧画面のUIをそのまま構築する
+  Widget _buildOldUI(AsyncValue<List<Project>> projectsAsync) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('プロジェクト一覧'),
+        title: const Text('プロジェクト一覧 (旧UI)'),
         actions: [
           IconButton(
             icon: const Icon(Icons.table_chart),

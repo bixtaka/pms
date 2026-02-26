@@ -176,17 +176,22 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
   ({List<LegacyGanttRow> rows, List<LegacyGanttTask> tasks}) _buildVisibleData() {
     final rows = <LegacyGanttRow>[];
     final visibleTasks = <LegacyGanttTask>[];
-    final byRowId = {for (final t in _tasks) t.rowId: t};
 
     for (final cat in widget.data.categoryTrees) {
-      final catId = 'cat_${cat.categoryName}';
+      final isEventRoot = cat.categoryId == 'prj_events_root';
+      final catId = isEventRoot ? 'prj_events_root' : 'cat_${cat.categoryName}';
+      
       rows.add(LegacyGanttRow(id: catId, label: cat.categoryName));
-      if (byRowId.containsKey(catId)) visibleTasks.add(byRowId[catId]!);
+      
+      // 同じ行(rowId)に複数のタスクが存在する可能性があるため、Mapで上書きせずwhereで全て抽出
+      final parentTasks = _tasks.where((t) => t.rowId == catId).toList();
+      visibleTasks.addAll(parentTasks);
 
-      if (_expandedCategoryIds.contains(catId)) {
+      if (_expandedCategoryIds.contains(catId) && !isEventRoot) {
         for (final leaf in cat.processes) {
           rows.add(LegacyGanttRow(id: leaf.rowId, label: leaf.displayName));
-          if (byRowId.containsKey(leaf.rowId)) visibleTasks.add(byRowId[leaf.rowId]!);
+          final leafTasks = _tasks.where((t) => t.rowId == leaf.rowId).toList();
+          if (leafTasks.isNotEmpty) visibleTasks.addAll(leafTasks);
         }
       }
     }
@@ -323,7 +328,7 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
       );
 
       // ── プロセス行（小分類） ─── 高さ: kRowHeight ─────────────────────
-      if (expanded) {
+      if (expanded && !isEventRoot) {
         for (final leaf in cat.processes) {
           final childTask = taskMap[leaf.rowId];
           final Color dotColor = childTask?.color ?? Colors.blue;
@@ -356,12 +361,12 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
-                            isEventRoot ? '📍 ${leaf.displayName}' : leaf.displayName,
-                            style: TextStyle(fontSize: 13, color: isEventRoot ? Colors.red.shade900 : Colors.black87),
+                            leaf.displayName,
+                            style: const TextStyle(fontSize: 13, color: Colors.black87),
                             overflow: TextOverflow.ellipsis,
                           ),
                           Text(
-                            isEventRoot ? '対象日: $dateRangeStr' : 'タスク数: 104 / $dateRangeStr', // TODO: 実際のタスク数に置き換え
+                            'タスク数: 104 / $dateRangeStr', // TODO: 実際のタスク数に置き換え
                             style: const TextStyle(fontSize: 10, color: Colors.black54),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -394,34 +399,51 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
           return Container(color: task.color);
         }
 
+        final double msPerPixel = actualDurationMs / actualWidth;
+
         // ── 【プロジェクトイベントの特例描画】 ──
-        if (task.parentId == 'prj_events_root') {
+        if (task.rowId == 'prj_events_root') {
+          final dateFormat = DateFormat('M/d');
+          final evtName = task.name ?? '';
+          final evtDateStr = '${dateFormat.format(task.start)}';
+
+          // ピンの色を要件に応じて変更
+          Color pinColor = Colors.red;
+          if (evtName.contains('材料入荷')) pinColor = Colors.green;
+          if (evtName.contains('立会検査')) pinColor = Colors.red;
+          if (evtName.contains('第三者')) pinColor = Colors.blue;
+
           return OverflowBox(
             maxWidth: double.infinity,
-            alignment: Alignment.centerLeft,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('📍 ', style: TextStyle(fontSize: 14)),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.redAccent.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: Colors.redAccent),
-                  ),
-                  child: Text(
-                    task.name ?? '',
-                    style: const TextStyle(fontSize: 10, color: Colors.red, fontWeight: FontWeight.bold),
+            maxHeight: double.infinity,
+            alignment: Alignment.centerLeft, // 左端基準（開始日）
+            child: FractionalTranslation(
+              // 左端を中心にしつつ、縦方向はマスの中央あたりに配置（-0.2だと上が見切れるので 0.0付近に）
+              translation: const Offset(-0.5, 0.0), 
+              child: GestureDetector(
+                onTap: () {
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('📌 $evtName (対象日: $evtDateStr)'),
+                      behavior: SnackBarBehavior.floating,
+                      duration: const Duration(seconds: 3),
+                    ),
+                  );
+                },
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: Tooltip(
+                    message: '$evtName ($evtDateStr)',
+                    child: Icon(Icons.push_pin, color: pinColor, size: 20),
                   ),
                 ),
-              ],
+              ),
             ),
           );
         }
         // ────────────────────────────────────────
 
-        final double msPerPixel = actualDurationMs / actualWidth;
 
         // 【UI要件1・2】進行度のダミー値設定とテキスト生成
         // （※将来 ProcessProgress から取得した実データに差し替える）
@@ -982,7 +1004,7 @@ class _CustomAxisPainter extends CustomPainter {
       ..color = Colors.grey.shade300
       ..strokeWidth = 1.0;
       
-    final weekendPaint = Paint()..color = Colors.grey.withValues(alpha: 0.15);
+    final weekendPaint = Paint()..color = Colors.grey.shade300; // 休日の背景を少し濃く
 
     // 描画する境界線のリストを生成
     List<DateTime> boundaries = [];
@@ -1011,6 +1033,13 @@ class _CustomAxisPainter extends CustomPainter {
       boundaries.add(current);
     }
 
+    // ヘッダー領域に横罫線を描画 (3段に見えるように)
+    if (isHeader && viewScale == GanttViewScale.day) {
+      final double rowH = size.height / 3;
+      canvas.drawLine(Offset(0, rowH), Offset(size.width, rowH), linePaint);
+      canvas.drawLine(Offset(0, rowH * 2), Offset(size.width, rowH * 2), linePaint);
+    }
+
     for (int i = 0; i < boundaries.length - 1; i++) {
       final current = boundaries[i];
       final next = boundaries[i + 1];
@@ -1020,7 +1049,15 @@ class _CustomAxisPainter extends CustomPainter {
       
       // 縦罫線の描画（ヘッダーと背景共通、画面内の場合のみ）
       if (x >= -1 && x <= chartWidth + 1) {
-        canvas.drawLine(Offset(x, 0), Offset(x, size.height), linePaint);
+        double lineTopY = 0;
+        // 「日」ビューのヘッダーの場合、1段目（月）のセルを疑似結合するため、
+        // 縦線は原則2段目（rowH）から下のみ引く。ただし1日や左端の場合は全段引く。
+        if (isHeader && viewScale == GanttViewScale.day) {
+           if (i != 0 && current.day != 1) {
+             lineTopY = size.height / 3;
+           }
+        }
+        canvas.drawLine(Offset(x, lineTopY), Offset(x, size.height), linePaint);
       }
       
       if (isHeader) {
@@ -1030,31 +1067,41 @@ class _CustomAxisPainter extends CustomPainter {
         // テキスト位置が完全に画面外ならスキップ
         if (textCenterX < -50 || textCenterX > chartWidth + 50) continue;
 
-        String text = '';
         if (viewScale == GanttViewScale.day) {
           final weekdays = ['月', '火', '水', '木', '金', '土', '日'];
           final wd = weekdays[current.weekday - 1];
-          text = '${current.month}月\n${current.day}\n($wd)';
-        } else if (viewScale == GanttViewScale.week) {
-          text = '${current.month}/${current.day}〜';
-        } else if (viewScale == GanttViewScale.month) {
-          text = '${current.year}年 ${current.month}月';
+          
+          // 土日のテキスト色判定（2・3段目用）
+          Color textColor = Colors.black87;
+          if (current.weekday == 6) textColor = Colors.blue; 
+          if (current.weekday == 7) textColor = Colors.red;
+
+          // 月表記の重複排除: 左端の列、または1日の場合のみ表示
+          final String monthText = (i == 0 || current.day == 1) ? '${current.month}月' : '';
+          final String dayText = '${current.day}';
+          final String wdText = wd;
+
+          final double rowH = size.height / 3;
+          
+          // 月の描画 (上段) - 疑似セル結合として独立スタイル・左寄せ
+          if (monthText.isNotEmpty) {
+             _drawLeftAlignedText(canvas, monthText, x + 4, 0, rowH, Colors.black87, FontWeight.bold);
+          }
+          // 日の描画 (中段)
+          _drawCenteredText(canvas, dayText, textCenterX, rowH, rowH, textColor, FontWeight.normal);
+          // 曜日の描画 (下段)
+          _drawCenteredText(canvas, wdText, textCenterX, rowH * 2, rowH, textColor, FontWeight.normal);
+
+        } else {
+          String text = '';
+          if (viewScale == GanttViewScale.week) {
+            text = '${current.month}/${current.day}〜';
+          } else if (viewScale == GanttViewScale.month) {
+            text = '${current.year}年 ${current.month}月';
+          }
+          _drawCenteredText(canvas, text, textCenterX, 0, size.height, Colors.black87, FontWeight.normal);
         }
 
-        final textSpan = TextSpan(
-          text: text,
-          style: const TextStyle(fontSize: 11, color: Colors.black87, height: 1.2),
-        );
-        final textPainter = TextPainter(
-          text: textSpan,
-          textAlign: TextAlign.center,
-          textDirection: ui.TextDirection.ltr,
-        );
-        textPainter.layout();
-        
-        // 縦方向も中央揃え
-        final textY = (size.height - textPainter.height) / 2;
-        textPainter.paint(canvas, Offset(textCenterX - textPainter.width / 2, textY));
       } else {
         // 背景の描画（土日の背景色）
         if (viewScale == GanttViewScale.day) {
@@ -1065,6 +1112,43 @@ class _CustomAxisPainter extends CustomPainter {
         }
       }
     }
+  }
+
+  // 補助関数: 指定した領域の中央にテキストを描画
+  void _drawCenteredText(Canvas canvas, String text, double textCenterX, double topY, double height, Color color, FontWeight weight) {
+    if (text.isEmpty) return;
+    final textSpan = TextSpan(
+      text: text,
+      style: TextStyle(fontSize: 11, color: color, height: 1.2, fontWeight: weight),
+    );
+    final textPainter = TextPainter(
+      text: textSpan,
+      textAlign: TextAlign.center,
+      textDirection: ui.TextDirection.ltr,
+    );
+    textPainter.layout();
+    
+    final textY = topY + (height - textPainter.height) / 2;
+    textPainter.paint(canvas, Offset(textCenterX - textPainter.width / 2, textY));
+  }
+
+  // 補助関数: 指定した領域の左寄せにテキストを描画（はみ出し許容）
+  void _drawLeftAlignedText(Canvas canvas, String text, double leftX, double topY, double height, Color color, FontWeight weight) {
+    if (text.isEmpty) return;
+    final textSpan = TextSpan(
+      text: text,
+      style: TextStyle(fontSize: 11, color: color, height: 1.2, fontWeight: weight),
+    );
+    final textPainter = TextPainter(
+      text: textSpan,
+      textAlign: TextAlign.left,
+      textDirection: ui.TextDirection.ltr,
+    );
+    // はみ出しを許容するため幅制限なしで layout
+    textPainter.layout();
+    
+    final textY = topY + (height - textPainter.height) / 2;
+    textPainter.paint(canvas, Offset(leftX, textY));
   }
 
   @override

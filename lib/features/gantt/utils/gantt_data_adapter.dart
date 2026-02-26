@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:legacy_gantt_chart/legacy_gantt_chart.dart';
 import '../../../models/product.dart';
@@ -308,56 +309,30 @@ class GanttDataAdapter {
     // ── 【新規】最上部に「プロジェクトイベント」を追加 ──
     final String eventRootId = 'prj_events_root';
     final DateTime eventDate1 = fallbackStart.add(const Duration(days: 5));
-    final DateTime eventDate2 = fallbackStart.add(const Duration(days: 15));
+    final DateTime eventDate2 = fallbackStart.add(const Duration(days: 10)); // 追加: 第三者検査
+    final DateTime eventDate3 = fallbackStart.add(const Duration(days: 15));
     
-    final List<GanttProcessLeaf> eventLeaves = [
-      GanttProcessLeaf(
-        stepId: '${eventRootId}_1',
-        displayName: '材料入荷',
-        sortOrder: 0,
-        taskId: '${eventRootId}_1',
-        rowId: '${eventRootId}_1',
-        start: eventDate1,
-        end: eventDate1.add(const Duration(days: 1)),
-      ),
-      GanttProcessLeaf(
-        stepId: '${eventRootId}_2',
-        displayName: '立会検査',
-        sortOrder: 1,
-        taskId: '${eventRootId}_2',
-        rowId: '${eventRootId}_2',
-        start: eventDate2,
-        end: eventDate2.add(const Duration(days: 1)),
-      ),
+    // イベントデータを個別のタスクとして同じ行（eventRootId）に追加
+    final List<Map<String, dynamic>> projectEvents = [
+      {'id': '${eventRootId}_1', 'name': '材料入荷', 'date': eventDate1},
+      {'id': '${eventRootId}_2', 'name': '第三者検査', 'date': eventDate2},
+      {'id': '${eventRootId}_3', 'name': '立会検査', 'date': eventDate3},
     ];
-    
-    // イベント子タスクの追加
-    for (int i = 0; i < eventLeaves.length; i++) {
-      final leaf = eventLeaves[i];
-      tasks.insert(i, LegacyGanttTask(
-        id: leaf.taskId,
-        rowId: leaf.rowId,
-        name: leaf.displayName,
-        parentId: eventRootId,
-        start: leaf.start,
-        end: leaf.end,
-        color: Colors.transparent, // イベントは背景透明
+
+    for (final evt in projectEvents) {
+      final evtDate = evt['date'] as DateTime;
+      tasks.insert(0, LegacyGanttTask(
+        id: evt['id'] as String,
+        rowId: eventRootId, // 同じ行に描画
+        name: evt['name'] as String,
+        start: evtDate,
+        end: evtDate.add(const Duration(days: 1)),
+        isSummary: false,
+        color: Colors.transparent, // 背景透明
       ));
-      // 行データも一番上に挿入
-      rows.insert(i, LegacyGanttRow(id: leaf.rowId, label: leaf.displayName));
-      rowMaxStackDepth[leaf.rowId] = 1;
     }
     
-    // イベント親タスクの追加
-    tasks.insert(0, LegacyGanttTask(
-      id: eventRootId,
-      rowId: eventRootId,
-      name: 'プロジェクトイベント',
-      start: fallbackStart,
-      end: fallbackEnd,
-      isSummary: true,
-      color: Colors.orange,
-    ));
+    // 行データの追加
     rows.insert(0, LegacyGanttRow(id: eventRootId, label: 'プロジェクトイベント'));
     rowMaxStackDepth[eventRootId] = 1;
 
@@ -365,7 +340,7 @@ class GanttDataAdapter {
       categoryId: eventRootId,
       categoryName: 'プロジェクトイベント',
       sortOrder: -1,
-      processes: eventLeaves,
+      processes: [], // 左ペインでは展開しないため空
       start: fallbackStart,
       end: fallbackEnd,
     ));
