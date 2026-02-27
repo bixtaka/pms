@@ -46,8 +46,9 @@ class InspectionFilterState {
       selectedKind: selectedKind ?? this.selectedKind,
       selectedFloor: clearFloor ? null : selectedFloor ?? this.selectedFloor,
       selectedSetsu: clearSetsu ? null : selectedSetsu ?? this.selectedSetsu,
-      selectedProcessStepId:
-          clearProcessStep ? null : selectedProcessStepId ?? this.selectedProcessStepId,
+      selectedProcessStepId: clearProcessStep
+          ? null
+          : selectedProcessStepId ?? this.selectedProcessStepId,
       sectionQuery: sectionQuery ?? this.sectionQuery,
       lengthMin: lengthMin ?? this.lengthMin,
       lengthMax: lengthMax ?? this.lengthMax,
@@ -90,7 +91,8 @@ class InspectionFilterNotifier extends StateNotifier<InspectionFilterState> {
   void setKind(String? value) {
     final normalized = value?.isEmpty == true ? null : value;
     final isColumn = normalized == '柱';
-    final isBeam = normalized == '大梁' || normalized == '小梁' || normalized == '間柱';
+    final isBeam =
+        normalized == '大梁' || normalized == '小梁' || normalized == '間柱';
     state = state.copyWith(
       selectedKind: normalized,
       clearFloor: !isBeam,
@@ -103,7 +105,9 @@ class InspectionFilterNotifier extends StateNotifier<InspectionFilterState> {
   }
 
   void setSetsu(String? value) {
-    state = state.copyWith(selectedSetsu: value?.isEmpty == true ? null : value);
+    state = state.copyWith(
+      selectedSetsu: value?.isEmpty == true ? null : value,
+    );
   }
 
   void setSectionQuery(String value) {
@@ -146,10 +150,11 @@ class InspectionProductEntry {
 }
 
 final inspectionFilterProvider =
-    StateNotifierProvider<InspectionFilterNotifier, InspectionFilterState>(
-        (ref) {
-  return InspectionFilterNotifier();
-});
+    StateNotifierProvider<InspectionFilterNotifier, InspectionFilterState>((
+      ref,
+    ) {
+      return InspectionFilterNotifier();
+    });
 
 List<T> _sortedList<T extends Comparable>(Iterable<T> values) {
   final list = values.toSet().toList()..sort();
@@ -158,15 +163,35 @@ List<T> _sortedList<T extends Comparable>(Iterable<T> values) {
 
 final koukuCandidatesProvider = Provider<List<String>>((ref) {
   final rows = ref.watch(shippingRowsProvider);
+  if (rows.isNotEmpty) {
+    return _sortedList(
+      rows.map((r) => r.kouku.trim()).where((v) => v.isNotEmpty),
+    );
+  }
+  // CSV未読込時はFirestore製品のareaフィールドを使用
+  final projectId = ref.watch(selectedProjectIdProvider) ?? '';
+  if (projectId.isEmpty) return const [];
+  final products =
+      ref.watch(productsByProjectProvider(projectId)).asData?.value ?? const [];
   return _sortedList(
-    rows.map((r) => r.kouku.trim()).where((v) => v.isNotEmpty),
+    products.map((p) => p.area.trim()).where((v) => v.isNotEmpty),
   );
 });
 
 final kindCandidatesProvider = Provider<List<String>>((ref) {
   final rows = ref.watch(shippingRowsProvider);
+  if (rows.isNotEmpty) {
+    return _sortedList(
+      rows.map((r) => r.kind.trim()).where((v) => v.isNotEmpty),
+    );
+  }
+  // CSV未読込時はFirestore製品のmemberTypeフィールドを使用
+  final projectId = ref.watch(selectedProjectIdProvider) ?? '';
+  if (projectId.isEmpty) return const [];
+  final products =
+      ref.watch(productsByProjectProvider(projectId)).asData?.value ?? const [];
   return _sortedList(
-    rows.map((r) => r.kind.trim()).where((v) => v.isNotEmpty),
+    products.map((p) => p.memberType.trim()).where((v) => v.isNotEmpty),
   );
 });
 
@@ -176,8 +201,8 @@ final floorCandidatesProvider = Provider<List<int>>((ref) {
   final kind = filter.selectedKind;
   final isBeam = kind == '大梁' || kind == '小梁' || kind == '間柱';
   if (!isBeam) return const <int>[];
-  final floors =
-      rows.map((r) => r.floor).whereType<int>().toSet().toList()..sort();
+  final floors = rows.map((r) => r.floor).whereType<int>().toSet().toList()
+    ..sort();
   return floors;
 });
 
@@ -185,9 +210,7 @@ final setsuCandidatesProvider = Provider<List<String>>((ref) {
   final rows = ref.watch(shippingRowsProvider);
   final filter = ref.watch(inspectionFilterProvider);
   if (filter.selectedKind != '柱') return const <String>[];
-  return _sortedList(
-    rows.map((r) => r.setsu ?? '').where((v) => v.isNotEmpty),
-  );
+  return _sortedList(rows.map((r) => r.setsu ?? '').where((v) => v.isNotEmpty));
 });
 
 final sectionCandidatesProvider = Provider<List<String>>((ref) {
@@ -204,7 +227,9 @@ final sectionCandidatesProvider = Provider<List<String>>((ref) {
   return all.where((s) => s.toLowerCase().contains(query)).toList();
 });
 
-final inspectionFilteredShippingRowsProvider = Provider<List<ShippingRow>>((ref) {
+final inspectionFilteredShippingRowsProvider = Provider<List<ShippingRow>>((
+  ref,
+) {
   final rows = ref.watch(shippingRowsProvider);
   final filter = ref.watch(inspectionFilterProvider);
 
@@ -215,7 +240,8 @@ final inspectionFilteredShippingRowsProvider = Provider<List<ShippingRow>>((ref)
     }
     if (filter.selectedKind != null &&
         filter.selectedKind!.isNotEmpty &&
-        row.kind.trim().toLowerCase() != filter.selectedKind!.trim().toLowerCase()) {
+        row.kind.trim().toLowerCase() !=
+            filter.selectedKind!.trim().toLowerCase()) {
       return false;
     }
     if (filter.selectedFloor != null) {
@@ -223,41 +249,126 @@ final inspectionFilteredShippingRowsProvider = Provider<List<ShippingRow>>((ref)
     }
     if (filter.selectedSetsu != null &&
         filter.selectedSetsu!.isNotEmpty &&
-        (row.setsu ?? '').toLowerCase() != filter.selectedSetsu!.toLowerCase()) {
+        (row.setsu ?? '').toLowerCase() !=
+            filter.selectedSetsu!.toLowerCase()) {
       return false;
     }
     if (filter.sectionQuery.trim().isNotEmpty &&
-        !row.sectionSize.toLowerCase().contains(filter.sectionQuery.trim().toLowerCase())) {
+        !row.sectionSize.toLowerCase().contains(
+          filter.sectionQuery.trim().toLowerCase(),
+        )) {
       return false;
     }
     if (filter.productCodeQuery.trim().isNotEmpty &&
-        !row.productCode
-            .toLowerCase()
-            .contains(filter.productCodeQuery.trim().toLowerCase())) {
+        !row.productCode.toLowerCase().contains(
+          filter.productCodeQuery.trim().toLowerCase(),
+        )) {
       return false;
     }
-    if (filter.lengthMin != null && row.lengthMm < filter.lengthMin!) return false;
-    if (filter.lengthMax != null && row.lengthMm > filter.lengthMax!) return false;
+    if (filter.lengthMin != null && row.lengthMm < filter.lengthMin!)
+      return false;
+    if (filter.lengthMax != null && row.lengthMm > filter.lengthMax!)
+      return false;
     return true;
   }).toList();
 });
 
 final inspectionFilteredEntriesProvider =
     Provider.family<List<InspectionProductEntry>, String>((ref, projectId) {
-  final rows = ref.watch(inspectionFilteredShippingRowsProvider);
-  final productsAsync = ref.watch(productsByProjectProvider(projectId));
-  final products = productsAsync.asData?.value ?? const <Product>[];
-  final productMap = <String, Product>{};
-  for (final p in products) {
-    final code = p.productCode.trim().toUpperCase();
-    if (code.isEmpty) continue;
-    productMap.putIfAbsent(code, () => p);
+      final rows = ref.watch(inspectionFilteredShippingRowsProvider);
+      final productsAsync = ref.watch(productsByProjectProvider(projectId));
+      final products = productsAsync.asData?.value ?? const <Product>[];
+
+      debugPrint(
+        '[entries] projectId=$projectId rows=${rows.length} products=${products.length} asyncState=${productsAsync.runtimeType}',
+      );
+
+      // CSVが読み込まれている場合は従来のShippingRow駆動でエントリを生成
+      if (rows.isNotEmpty) {
+        final productMap = <String, Product>{};
+        for (final p in products) {
+          final code = p.productCode.trim().toUpperCase();
+          if (code.isEmpty) continue;
+          productMap.putIfAbsent(code, () => p);
+        }
+        return [
+          for (final row in rows)
+            InspectionProductEntry(
+              shippingRow: row,
+              // Firestoreに一致する製品がない場合、ShippingRowから合成Productを生成する
+              product:
+                  productMap[row.productCode.trim().toUpperCase()] ??
+                  _syntheticProductFromRow(row, projectId),
+            ),
+        ];
+      }
+
+      // CSVが未読込の場合はFirestoreの製品データから直接エントリを生成
+      final filter = ref.watch(inspectionFilterProvider);
+      debugPrint(
+        '[entries] Firestore path: filter.selectedKoukus=${filter.selectedKoukus} filter.selectedKind=${filter.selectedKind}',
+      );
+      final result = [
+        for (final p in products)
+          if (_productMatchesFilter(p, filter))
+            InspectionProductEntry(
+              shippingRow: ShippingRow(
+                kouku: p.area.isNotEmpty ? p.area : p.storyOrSet,
+                kind: p.memberType,
+                productCode: p.productCode,
+                sectionSize: p.section,
+                lengthMm: 0,
+                floor: int.tryParse(p.floor),
+                setsu: p.grid.isNotEmpty
+                    ? p.grid
+                    : (p.storyOrSet.isNotEmpty ? p.storyOrSet : null),
+              ),
+              product: p,
+            ),
+      ];
+      debugPrint('[entries] Firestore result count=${result.length}');
+      return result;
+    });
+
+bool _productMatchesFilter(Product p, InspectionFilterState filter) {
+  if (filter.selectedKoukus.isNotEmpty) {
+    final area = p.area.trim();
+    if (!filter.selectedKoukus.contains(area)) return false;
   }
-  return [
-    for (final row in rows)
-      InspectionProductEntry(
-        shippingRow: row,
-        product: productMap[row.productCode.trim().toUpperCase()],
-      ),
-  ];
-});
+  if (filter.selectedKind != null && filter.selectedKind!.isNotEmpty) {
+    if (p.memberType.trim().toLowerCase() !=
+        filter.selectedKind!.trim().toLowerCase()) {
+      return false;
+    }
+  }
+  if (filter.sectionQuery.trim().isNotEmpty &&
+      !p.section.toLowerCase().contains(
+        filter.sectionQuery.trim().toLowerCase(),
+      )) {
+    return false;
+  }
+  if (filter.productCodeQuery.trim().isNotEmpty &&
+      !p.productCode.toLowerCase().contains(
+        filter.productCodeQuery.trim().toLowerCase(),
+      )) {
+    return false;
+  }
+  return true;
+}
+
+/// ShippingRowからFirestore Productが見つからない場合、合成Productを生成する。
+/// productCode をIDとして使用し、onTapが常に有効化されるようにする。
+Product _syntheticProductFromRow(ShippingRow row, String projectId) {
+  return Product(
+    id: row.productCode.trim(),
+    projectId: projectId,
+    productCode: row.productCode.trim(),
+    memberType: row.kind,
+    section: row.sectionSize,
+    area: row.kouku,
+    floor: row.floor?.toString() ?? '',
+    setsu: row.setsu ?? '',
+    storyOrSet: row.setsu ?? row.kouku,
+    overallStatus: 'not_started',
+  );
+}

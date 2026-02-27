@@ -379,6 +379,8 @@ final realProjectGanttDataProvider = Provider.autoDispose
 
 // ─── 画面本体 ─────────────────────────────────────────────────────────────────
 
+final selectedProjectIdProvider = StateProvider<String?>((ref) => null);
+
 class MockLegacyGanttScreen extends ConsumerStatefulWidget {
   final String projectId;
   const MockLegacyGanttScreen({super.key, required this.projectId});
@@ -389,13 +391,15 @@ class MockLegacyGanttScreen extends ConsumerStatefulWidget {
 }
 
 class _MockLegacyGanttScreenState extends ConsumerState<MockLegacyGanttScreen> {
-  late String _selectedProjectId;
   GanttViewScale _currentScale = GanttViewScale.week;
 
   @override
   void initState() {
     super.initState();
-    _selectedProjectId = widget.projectId;
+    // 初期値としてウィジェットに渡された projectId をセット
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(selectedProjectIdProvider.notifier).state = widget.projectId;
+    });
   }
 
   void _changeScale(GanttViewScale scale) {
@@ -405,6 +409,9 @@ class _MockLegacyGanttScreenState extends ConsumerState<MockLegacyGanttScreen> {
   @override
   Widget build(BuildContext context) {
     final projectsAsync = ref.watch(projectsProvider);
+
+    final selectedProjectId =
+        ref.watch(selectedProjectIdProvider) ?? widget.projectId;
 
     return DefaultTabController(
       length: 4,
@@ -418,10 +425,12 @@ class _MockLegacyGanttScreenState extends ConsumerState<MockLegacyGanttScreen> {
               data: (projects) {
                 if (projects.isEmpty) return const SizedBox();
 
-                if (!projects.any((p) => p.id == _selectedProjectId)) {
+                if (!projects.any((p) => p.id == selectedProjectId)) {
                   WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (mounted)
-                      setState(() => _selectedProjectId = projects.first.id);
+                    if (mounted) {
+                      ref.read(selectedProjectIdProvider.notifier).state =
+                          projects.first.id;
+                    }
                   });
                 }
 
@@ -438,8 +447,8 @@ class _MockLegacyGanttScreenState extends ConsumerState<MockLegacyGanttScreen> {
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
-                        value: projects.any((p) => p.id == _selectedProjectId)
-                            ? _selectedProjectId
+                        value: projects.any((p) => p.id == selectedProjectId)
+                            ? selectedProjectId
                             : projects.first.id,
                         dropdownColor: Theme.of(context).colorScheme.surface,
                         icon: const Icon(
@@ -461,8 +470,10 @@ class _MockLegacyGanttScreenState extends ConsumerState<MockLegacyGanttScreen> {
                           );
                         }).toList(),
                         onChanged: (val) {
-                          if (val != null)
-                            setState(() => _selectedProjectId = val);
+                          if (val != null) {
+                            ref.read(selectedProjectIdProvider.notifier).state =
+                                val;
+                          }
                         },
                       ),
                     ),
@@ -544,7 +555,7 @@ class _MockLegacyGanttScreenState extends ConsumerState<MockLegacyGanttScreen> {
 
               // 1: 物件
               ProjectGanttTab(
-                projectId: _selectedProjectId,
+                projectId: selectedProjectId,
                 currentScale: _currentScale,
               ),
 

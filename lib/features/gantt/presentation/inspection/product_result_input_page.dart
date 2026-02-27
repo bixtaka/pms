@@ -2,10 +2,7 @@
 
 // --- 製品実績入力画面（検査入力画面） ---
 
-enum NextMode {
-  nextStepSameProduct,
-  nextProductSameStep,
-}
+enum NextMode { nextStepSameProduct, nextProductSameStep }
 
 enum InspectionStatus { pending, inProgress, done }
 
@@ -31,38 +28,62 @@ String _productLocationLine(
   int? remainingCount,
 ) {
   final locationParts = <String>[];
-  final kouku = shippingRow.kouku.isNotEmpty ? shippingRow.kouku : (product?.storyOrSet ?? '');
+  final kouku = shippingRow.kouku.isNotEmpty
+      ? shippingRow.kouku
+      : (product?.area.isNotEmpty == true
+            ? product!.area
+            : (product?.storyOrSet ?? ''));
   if (kouku.isNotEmpty) locationParts.add('工区 $kouku');
-  final floor = shippingRow.floor;
-  if (floor != null) locationParts.add('階 $floor');
-  final setsuValue = shippingRow.setsu ??
-      (product?.grid.isNotEmpty == true
-          ? product!.grid
-          : (product?.storyOrSet.isNotEmpty == true ? product!.storyOrSet : null));
+
+  final floorStr = shippingRow.floor?.toString() ?? product?.floor ?? '';
+  if (floorStr.isNotEmpty) locationParts.add('階 $floorStr');
+
+  final setsuValue = shippingRow.setsu?.isNotEmpty == true
+      ? shippingRow.setsu
+      : (product?.grid.isNotEmpty == true
+            ? product!.grid
+            : (product?.storyOrSet.isNotEmpty == true
+                  ? product!.storyOrSet
+                  : null));
   if (setsuValue != null && setsuValue.isNotEmpty) {
     locationParts.add('節 $setsuValue');
   }
-  final kindLabel = shippingRow.kind.trim();
+
+  final kindLabel = shippingRow.kind.isNotEmpty
+      ? shippingRow.kind
+      : (product?.memberType ?? '');
   if (kindLabel.isNotEmpty) {
     locationParts.add('種別 $kindLabel');
   }
+
   final remainingLabel = remainingCount != null ? '残 $remainingCount' : '残 ?';
   locationParts.add(remainingLabel);
   return locationParts.join(' / ');
 }
 
-String _productDetailLine(ShippingRow shippingRow, Product? product, int? remainingCount) {
+String _productDetailLine(
+  ShippingRow shippingRow,
+  Product? product,
+  int? remainingCount,
+) {
   final sectionLabel = () {
     if (shippingRow.sectionSize.isNotEmpty) return shippingRow.sectionSize;
     if (product != null && product.section.isNotEmpty) return product.section;
     return '-';
   }();
-  final lengthMm = shippingRow.lengthMm;
+
+  final lengthMm = shippingRow.lengthMm > 0
+      ? shippingRow.lengthMm
+      : (product?.lengthMm ?? 0);
   final lengthLabel = lengthMm > 0 ? '長さ $lengthMm mm' : '長さ -';
-  return [
-    '断面 $sectionLabel',
-    lengthLabel,
-  ].join('   ');
+
+  final direction = product?.direction ?? '';
+  final dirLabel = direction.isNotEmpty ? '方向 $direction' : '';
+
+  final parts = ['断面 $sectionLabel', lengthLabel];
+  if (dirLabel.isNotEmpty) parts.add(dirLabel);
+
+  return parts.join('   ');
 }
 
 const double _kNarrowInlineProcessWidth = 1100;
@@ -83,7 +104,11 @@ class _ProcessSummaryText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (steps.isEmpty || statusByStep == null || statusByStep!.isEmpty) {
-      return const Text('工程進捗: なし', maxLines: 2, overflow: TextOverflow.ellipsis);
+      return const Text(
+        '工程進捗: なし',
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      );
     }
     final stepById = {for (final s in steps) s.id: s};
     final completedIds = statusByStep!.entries
@@ -108,7 +133,8 @@ class _ProcessSummaryText extends StatelessWidget {
       final groupName = groupLabels[latestStep!.groupId] ?? 'その他';
       return '最新完了: $groupName / ${latestStep!.label}';
     }();
-    final dateLine = '日付: ${latestDaily != null ? _formatYmd(latestDaily!.date) : '—'}   担当者: —';
+    final dateLine =
+        '日付: ${latestDaily != null ? _formatYmd(latestDaily!.date) : '—'}   担当者: —';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -138,7 +164,9 @@ Map<String, Map<String, ProcessCellStatus>> _buildStatusMapFromBars(
     final actualBars = list.where((b) => b.kind == GanttBarKind.actual);
     final hasDone = actualBars.any((b) => b.status == GanttBarStatus.done);
     if (hasDone) return ProcessCellStatus.done;
-    final hasInProgress = actualBars.any((b) => b.status == GanttBarStatus.inProgress);
+    final hasInProgress = actualBars.any(
+      (b) => b.status == GanttBarStatus.inProgress,
+    );
     if (hasInProgress) return ProcessCellStatus.inProgress;
     return ProcessCellStatus.notStarted;
   }
@@ -180,13 +208,11 @@ void _showProgressDetailDialog(
   ProcessProgressDaily? daily,
   ProcessCellStatus status,
 ) {
-  final statusLabel = _statusLabel(
-    switch (status) {
-      ProcessCellStatus.notStarted => InspectionStatus.pending,
-      ProcessCellStatus.inProgress => InspectionStatus.inProgress,
-      ProcessCellStatus.done => InspectionStatus.done,
-    },
-  );
+  final statusLabel = _statusLabel(switch (status) {
+    ProcessCellStatus.notStarted => InspectionStatus.pending,
+    ProcessCellStatus.inProgress => InspectionStatus.inProgress,
+    ProcessCellStatus.done => InspectionStatus.done,
+  });
   final dateText = daily != null ? _formatYmd(daily.date) : '未入力';
   final noteText = daily?.note ?? '';
   showDialog<void>(
@@ -261,7 +287,8 @@ class _InlineStatusStrip extends StatelessWidget {
     for (final gid in groupOrder) {
       final children = grouped[gid]!;
       children.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
-      final width = children.length * cellWidth + spacing * (children.length - 1);
+      final width =
+          children.length * cellWidth + spacing * (children.length - 1);
       totalWidth += width;
       headerCells.add(
         Container(
@@ -279,11 +306,17 @@ class _InlineStatusStrip extends StatelessWidget {
       for (final step in children) {
         final status = statusByStep?[step.id] ?? ProcessCellStatus.notStarted;
         final color = _processCellStatusColor(status);
-        final label = step.label.length > 2 ? step.label.substring(0, 2) : step.label;
+        final label = step.label.length > 2
+            ? step.label.substring(0, 2)
+            : step.label;
         childCells.add(
           InkWell(
-            onTap: () =>
-                _showProgressDetailDialog(context, step, latestByStep?[step.id], status),
+            onTap: () => _showProgressDetailDialog(
+              context,
+              step,
+              latestByStep?[step.id],
+              status,
+            ),
             borderRadius: BorderRadius.circular(6),
             child: Container(
               width: cellWidth,
@@ -297,9 +330,9 @@ class _InlineStatusStrip extends StatelessWidget {
               child: Text(
                 label,
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: color,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  color: color,
+                  fontWeight: FontWeight.bold,
+                ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -316,7 +349,9 @@ class _InlineStatusStrip extends StatelessWidget {
         primary: false,
         physics: const ClampingScrollPhysics(),
         child: ConstrainedBox(
-          constraints: BoxConstraints(minWidth: totalWidth > 0 ? totalWidth : 0),
+          constraints: BoxConstraints(
+            minWidth: totalWidth > 0 ? totalWidth : 0,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.center,
@@ -330,7 +365,6 @@ class _InlineStatusStrip extends StatelessWidget {
       ),
     );
   }
-
 }
 
 String _statusLabel(InspectionStatus status) {
@@ -435,8 +469,9 @@ class _KoukuListSelector extends StatelessWidget {
               'すべて',
               style: theme.textTheme.bodyMedium?.copyWith(
                 fontWeight: isAllSelected ? FontWeight.bold : null,
-                color:
-                    isAllSelected ? theme.colorScheme.primary : theme.colorScheme.onSurface,
+                color: isAllSelected
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.onSurface,
               ),
             ),
           ),
@@ -467,8 +502,10 @@ class _KoukuListSelector extends StatelessWidget {
                       ),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     child: Text(
                       kouku,
                       style: theme.textTheme.bodyMedium?.copyWith(
@@ -496,13 +533,16 @@ final inspectionDateProvider = StateProvider<DateTime>((ref) {
 
 final inspectionIncompleteOnlyProvider = StateProvider<bool>((ref) => false);
 
-final inspectionSelectedProductIdProvider =
-    StateProvider<String?>((ref) => null);
+final inspectionSelectedProductIdProvider = StateProvider<String?>(
+  (ref) => null,
+);
 
 final inspectionSelectedProductIdsProvider =
-    StateNotifierProvider<InspectionSelectedProductsNotifier, Set<String>>((ref) {
-  return InspectionSelectedProductsNotifier();
-});
+    StateNotifierProvider<InspectionSelectedProductsNotifier, Set<String>>((
+      ref,
+    ) {
+      return InspectionSelectedProductsNotifier();
+    });
 
 class InspectionSelectedProductsNotifier extends StateNotifier<Set<String>> {
   InspectionSelectedProductsNotifier() : super(<String>{});
@@ -529,27 +569,56 @@ final inspectionSelectedStepIdProvider = StateProvider<String?>((ref) => null);
 
 final _selectedProcessGroupIdProvider = StateProvider<String?>((ref) => null);
 
-final inspectionNextModeProvider =
-    StateProvider<NextMode>((ref) => NextMode.nextStepSameProduct);
+final inspectionNextModeProvider = StateProvider<NextMode>(
+  (ref) => NextMode.nextStepSameProduct,
+);
 
-final inspectionStatusProvider =
-    StateProvider<InspectionStatus>((ref) => InspectionStatus.pending);
+final inspectionStatusProvider = StateProvider<InspectionStatus>(
+  (ref) => InspectionStatus.pending,
+);
 
 void _setSelectedProcessStep(WidgetRef ref, String? stepId) {
   ref.read(inspectionSelectedStepIdProvider.notifier).state = stepId;
   ref.read(inspectionFilterProvider.notifier).setProcessStep(stepId);
 }
 
-class ProductResultInputPage extends ConsumerWidget {
+class ProductResultInputPage extends ConsumerStatefulWidget {
   final Project project;
 
-  const ProductResultInputPage({
-    super.key,
-    required this.project,
-  });
+  const ProductResultInputPage({super.key, required this.project});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ProductResultInputPage> createState() =>
+      _ProductResultInputPageState();
+}
+
+class _ProductResultInputPageState
+    extends ConsumerState<ProductResultInputPage> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final current = ref.read(selectedProjectIdProvider);
+      if (current != widget.project.id) {
+        ref.read(selectedProjectIdProvider.notifier).state = widget.project.id;
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(ProductResultInputPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.project.id != widget.project.id) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ref.read(selectedProjectIdProvider.notifier).state = widget.project.id;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
@@ -566,7 +635,7 @@ class ProductResultInputPage extends ConsumerWidget {
                         children: [
                           SizedBox(
                             width: 280,
-                            child: _LeftPane(project: project),
+                            child: _LeftPane(project: widget.project),
                           ),
                           VerticalDivider(
                             width: 1,
@@ -575,7 +644,7 @@ class ProductResultInputPage extends ConsumerWidget {
                           ),
                           Expanded(
                             flex: 3,
-                            child: ProductListPane(project: project),
+                            child: ProductListPane(project: widget.project),
                           ),
                           VerticalDivider(
                             width: 1,
@@ -584,11 +653,11 @@ class ProductResultInputPage extends ConsumerWidget {
                           ),
                           SizedBox(
                             width: 380,
-                            child: ProcessInputPane(project: project),
+                            child: ProcessInputPane(project: widget.project),
                           ),
                         ],
                       ),
-                      ProductStatusTabContent(project: project),
+                      ProductStatusTabContent(project: widget.project),
                     ],
                   ),
                 ),
@@ -635,9 +704,7 @@ class _LeftPane extends StatelessWidget {
       children: [
         const _ProcessSelectionCard(),
         const SizedBox(height: 8),
-        Expanded(
-          child: _CollapsibleFilterPanel(project: project),
-        ),
+        Expanded(child: _CollapsibleFilterPanel(project: project)),
       ],
     );
   }
@@ -671,38 +738,45 @@ class _ProcessSelectionCard extends ConsumerWidget {
               children: [
                 Text(
                   '工程を選択',
-                  style: theme.textTheme.titleMedium
-                      ?.copyWith(fontWeight: FontWeight.bold, fontSize: 16),
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
                 ),
                 const Spacer(),
                 TextButton.icon(
-                  onPressed:
-                      selectedStepId == null
-                          ? null
-                          : () {
-                              ref.read(_selectedProcessGroupIdProvider.notifier).state =
-                                  null;
-                              _setSelectedProcessStep(ref, null);
-                            },
+                  onPressed: selectedStepId == null
+                      ? null
+                      : () {
+                          ref
+                                  .read(
+                                    _selectedProcessGroupIdProvider.notifier,
+                                  )
+                                  .state =
+                              null;
+                          _setSelectedProcessStep(ref, null);
+                        },
                   icon: const Icon(Icons.clear),
                   label: const Text('クリア'),
                 ),
-            ],
-          ),
-          const SizedBox(height: 8),
+              ],
+            ),
+            const SizedBox(height: 8),
             if (hasError)
               Text(
                 '工程の読み込みに失敗しました',
-                style:
-                    theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.error),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
               )
             else if (isLoading && steps.isEmpty)
               const LinearProgressIndicator(minHeight: 3)
             else if (steps.isEmpty)
               Text(
                 '工程マスタが取得できませんでした',
-                style: theme.textTheme.bodyMedium
-                    ?.copyWith(color: theme.colorScheme.error),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
               )
             else ...[
               DropdownButtonFormField<String>(
@@ -722,7 +796,8 @@ class _ProcessSelectionCard extends ConsumerWidget {
                     )
                     .toList(),
                 onChanged: (value) {
-                  ref.read(_selectedProcessGroupIdProvider.notifier).state = value;
+                  ref.read(_selectedProcessGroupIdProvider.notifier).state =
+                      value;
                   _setSelectedProcessStep(ref, null);
                 },
               ),
@@ -755,7 +830,8 @@ List<ProcessGroup> _sortedProcessGroups(List<ProcessGroup> groups) {
 }
 
 List<ProcessStep> _sortedProcessSteps(Iterable<ProcessStep> steps) {
-  final list = steps.toList()..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+  final list = steps.toList()
+    ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
   return list;
 }
 
@@ -780,13 +856,15 @@ class _StepChooser extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final groupSteps =
-        _sortedProcessSteps(steps.where((s) => s.groupId == selectedGroupId));
+    final groupSteps = _sortedProcessSteps(
+      steps.where((s) => s.groupId == selectedGroupId),
+    );
     if (groupSteps.isEmpty) {
       return Text(
         'この工程グループに工程がありません',
-        style:
-            theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.outline),
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: theme.colorScheme.outline,
+        ),
       );
     }
 
@@ -804,9 +882,10 @@ class _StepChooser extends StatelessWidget {
                   label: Text(step.label),
                   selected: selectedStepId == step.id,
                   showCheckmark: false,
-                  selectedColor:
-                      ProcessColors.fromLabels(stepLabel: step.label, groupLabel: null)
-                          .withOpacity(0.15),
+                  selectedColor: ProcessColors.fromLabels(
+                    stepLabel: step.label,
+                    groupLabel: null,
+                  ).withOpacity(0.15),
                   onSelected: (_) =>
                       onSelect(selectedStepId == step.id ? null : step.id),
                 ),
@@ -825,12 +904,15 @@ class _StepChooser extends StatelessWidget {
             Expanded(
               child: Text(
                 '子工程 (${groupSteps.length}件) : $selectedLabel',
-                style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
             TextButton(
-              onPressed: () => _showStepSheet(context, groupSteps, selectedStepId, onSelect),
+              onPressed: () =>
+                  _showStepSheet(context, groupSteps, selectedStepId, onSelect),
               child: const Text('選択'),
             ),
           ],
@@ -872,7 +954,10 @@ Future<void> _showStepSheet(
                 return ListTile(
                   title: Text(step.label),
                   trailing: isSelected
-                      ? Icon(Icons.check, color: Theme.of(ctx).colorScheme.primary)
+                      ? Icon(
+                          Icons.check,
+                          color: Theme.of(ctx).colorScheme.primary,
+                        )
                       : null,
                   onTap: () {
                     onSelect(isSelected ? null : step.id);
@@ -898,7 +983,8 @@ class _CollapsibleFilterPanel extends ConsumerStatefulWidget {
       _CollapsibleFilterPanelState();
 }
 
-class _CollapsibleFilterPanelState extends ConsumerState<_CollapsibleFilterPanel> {
+class _CollapsibleFilterPanelState
+    extends ConsumerState<_CollapsibleFilterPanel> {
   late final TextEditingController _sectionController;
   late final TextEditingController _productCodeController;
   late final ProviderSubscription<InspectionFilterState> _filterSub;
@@ -931,7 +1017,10 @@ class _CollapsibleFilterPanelState extends ConsumerState<_CollapsibleFilterPanel
                       setSheetState(() {});
                     },
                     trailing: selected.isEmpty
-                        ? Icon(Icons.check, color: Theme.of(ctx).colorScheme.primary)
+                        ? Icon(
+                            Icons.check,
+                            color: Theme.of(ctx).colorScheme.primary,
+                          )
                         : null,
                   ),
                   const Divider(),
@@ -953,7 +1042,10 @@ class _CollapsibleFilterPanelState extends ConsumerState<_CollapsibleFilterPanel
                             setSheetState(() {});
                           },
                           trailing: isSelected
-                              ? Icon(Icons.check, color: Theme.of(ctx).colorScheme.primary)
+                              ? Icon(
+                                  Icons.check,
+                                  color: Theme.of(ctx).colorScheme.primary,
+                                )
                               : null,
                         );
                       },
@@ -993,7 +1085,10 @@ class _CollapsibleFilterPanelState extends ConsumerState<_CollapsibleFilterPanel
                   Navigator.of(ctx).pop();
                 },
                 trailing: current == null
-                    ? Icon(Icons.check, color: Theme.of(ctx).colorScheme.primary)
+                    ? Icon(
+                        Icons.check,
+                        color: Theme.of(ctx).colorScheme.primary,
+                      )
                     : null,
               ),
               const Divider(),
@@ -1011,7 +1106,10 @@ class _CollapsibleFilterPanelState extends ConsumerState<_CollapsibleFilterPanel
                         Navigator.of(ctx).pop();
                       },
                       trailing: isSelected
-                          ? Icon(Icons.check, color: Theme.of(ctx).colorScheme.primary)
+                          ? Icon(
+                              Icons.check,
+                              color: Theme.of(ctx).colorScheme.primary,
+                            )
                           : null,
                     );
                   },
@@ -1049,7 +1147,10 @@ class _CollapsibleFilterPanelState extends ConsumerState<_CollapsibleFilterPanel
                   Navigator.of(ctx).pop();
                 },
                 trailing: current == null
-                    ? Icon(Icons.check, color: Theme.of(ctx).colorScheme.primary)
+                    ? Icon(
+                        Icons.check,
+                        color: Theme.of(ctx).colorScheme.primary,
+                      )
                     : null,
               ),
               const Divider(),
@@ -1067,7 +1168,10 @@ class _CollapsibleFilterPanelState extends ConsumerState<_CollapsibleFilterPanel
                         Navigator.of(ctx).pop();
                       },
                       trailing: isSelected
-                          ? Icon(Icons.check, color: Theme.of(ctx).colorScheme.primary)
+                          ? Icon(
+                              Icons.check,
+                              color: Theme.of(ctx).colorScheme.primary,
+                            )
                           : null,
                     );
                   },
@@ -1080,23 +1184,156 @@ class _CollapsibleFilterPanelState extends ConsumerState<_CollapsibleFilterPanel
     );
   }
 
-  Future<void> _loadSampleCsv(BuildContext context) async {
-    final messenger = ScaffoldMessenger.of(context);
+  /// CSVファイルを選択してFirestoreに一括保存する
+  Future<void> _importCsvAndSave(BuildContext context) async {
+    final projectId = ref.read(selectedProjectIdProvider);
+    if (projectId == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('プロジェクトが選択されていません')));
+      return;
+    }
+
+    // ── 1. ファイル選択 ──────────────────────────────────────────────
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['csv'],
+      withData: true,
+    );
+    if (!mounted) return;
+    if (result == null || result.files.isEmpty) return;
+
+    final bytes = result.files.first.bytes;
+    if (bytes == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('ファイルの読み込みに失敗しました')));
+      return;
+    }
+
+    // ── 2. 文字デコード（UTF-8 BOM・Shift-JIS 両対応） ──────────────────
+    // _decodeCsvBytes は gantt_screen.dart のトップレベルで定義
+    final csvString = _decodeCsvBytes(bytes);
+
+    // ── 3. CSVパース（EOL自動検出） ────────────────────────────────
+    final List<List<dynamic>> rows = const CsvToListConverter(
+      shouldParseNumbers: false,
+    ).convert(csvString);
+
+    if (rows.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('CSVにデータがありません')));
+      return;
+    }
+
+    // ヘッダー行を取得してカラムのインデックスを特定する
+    final headers = rows.first.map((h) => h.toString().trim()).toList();
+    final idxCode = headers.indexOf('製品符号');
+    final idxDir = headers.indexOf('方向');
+    final idxL = headers.indexOf('L');
+    final idxD1 = headers.indexOf('D1');
+    final idxD2 = headers.indexOf('D2');
+
+    if (idxCode == -1) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('CSVに「製品符号」列が見つかりません')));
+      return;
+    }
+
+    final dataRows = rows.skip(1).where((r) {
+      if (r.isEmpty) return false;
+      final code = idxCode < r.length ? r[idxCode].toString().trim() : '';
+      return code.isNotEmpty;
+    }).toList();
+
+    if (dataRows.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('有効なデータ行がありません')));
+      return;
+    }
+
+    // ── 3. ローディングダイアログ ────────────────────────────────────
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 16),
+            Text('Firestoreに保存中...'),
+          ],
+        ),
+      ),
+    );
+
+    // ── 4. WriteBatch で一括保存（500件ずつ） ──────────────────────
     try {
-      final content = await rootBundle.loadString('assets/sample/shipping_test_kuku_12.csv');
-      await ref
-          .read(shippingTableProvider.notifier)
-          .loadFromCsvString(content, logPreview: true);
-      final shippingState = ref.read(shippingTableProvider);
-      final rows = shippingState.rows.length;
-      final kukus = shippingState.rows.map((e) => e.kouku.trim()).toSet().length;
+      final col = FirebaseFirestore.instance
+          .collection('projects')
+          .doc(projectId)
+          .collection('products');
+
+      const batchSize = 500;
+      int saved = 0;
+
+      for (int start = 0; start < dataRows.length; start += batchSize) {
+        final chunk = dataRows.sublist(
+          start,
+          (start + batchSize).clamp(0, dataRows.length),
+        );
+        final batch = FirebaseFirestore.instance.batch();
+        for (final row in chunk) {
+          String _cell(int idx) =>
+              idx >= 0 && idx < row.length ? row[idx].toString().trim() : '';
+
+          final code = _cell(idxCode);
+          final dir = _cell(idxDir);
+          final lStr = _cell(idxL);
+          final d1Str = _cell(idxD1);
+          final d2Str = _cell(idxD2);
+
+          final docRef = col.doc(); // Firestore自動IDを使用
+          batch.set(docRef, {
+            'productCode': code,
+            'direction': dir,
+            'lengthMm': int.tryParse(lStr) ?? 0,
+            'd1': int.tryParse(d1Str) ?? 0,
+            'd2': int.tryParse(d2Str) ?? 0,
+            'status': '未',
+            'projectId': projectId,
+            'overallStatus': 'not_started',
+            'memberType': '',
+            'section': '${d1Str}x${d2Str}',
+            'area': '',
+            'floor': '',
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+        }
+        await batch.commit();
+        saved += chunk.length;
+      }
+
       if (!mounted) return;
-      messenger.showSnackBar(
-        SnackBar(content: Text('サンプルCSVを読み込みました rows=$rows kukus=$kukus')),
+      Navigator.of(context).pop(); // ダイアログを閉じる
+      // 出荷CSVメモリをクリア → Firestoreの製品データを直接使うパスに切り替え
+      ref.read(shippingTableProvider.notifier).clear();
+      // 旧CSV由来のフィルタ選択状態（工区・種別など）もクリアする
+      // （clearしないと selectedKoukus に 'A1','A2' 等が残り、
+      //   area='' の新製品がすべてフィルタアウトされてしまう）
+      ref.read(inspectionFilterProvider.notifier).clearAll();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('CSVを読み込みました ($saved件をFirestoreに保存しました)')),
       );
     } catch (e) {
       if (!mounted) return;
-      messenger.showSnackBar(SnackBar(content: Text('サンプル読み込みに失敗しました: $e')));
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('保存に失敗しました: $e')));
     }
   }
 
@@ -1105,15 +1342,17 @@ class _CollapsibleFilterPanelState extends ConsumerState<_CollapsibleFilterPanel
     super.initState();
     _sectionController = TextEditingController();
     _productCodeController = TextEditingController();
-    _filterSub =
-        ref.listenManual<InspectionFilterState>(inspectionFilterProvider, (prev, next) {
-      if (_sectionController.text != next.sectionQuery) {
-        _sectionController.text = next.sectionQuery;
-      }
-      if (_productCodeController.text != next.productCodeQuery) {
-        _productCodeController.text = next.productCodeQuery;
-      }
-    });
+    _filterSub = ref.listenManual<InspectionFilterState>(
+      inspectionFilterProvider,
+      (prev, next) {
+        if (_sectionController.text != next.sectionQuery) {
+          _sectionController.text = next.sectionQuery;
+        }
+        if (_productCodeController.text != next.productCodeQuery) {
+          _productCodeController.text = next.productCodeQuery;
+        }
+      },
+    );
   }
 
   @override
@@ -1153,9 +1392,11 @@ class _CollapsibleFilterPanelState extends ConsumerState<_CollapsibleFilterPanel
                     runSpacing: 8,
                     children: [
                       OutlinedButton.icon(
-                        icon: const Icon(Icons.bolt),
-                        label: const Text('サンプルを読み込む'),
-                        onPressed: isLoading ? null : () => _loadSampleCsv(context),
+                        icon: const Icon(Icons.upload_file),
+                        label: const Text('CSVを読み込む'),
+                        onPressed: isLoading
+                            ? null
+                            : () => _importCsvAndSave(context),
                       ),
                     ],
                   ),
@@ -1178,15 +1419,27 @@ class _CollapsibleFilterPanelState extends ConsumerState<_CollapsibleFilterPanel
               sectionController: _sectionController,
               productCodeController: _productCodeController,
               incompleteOnly: incompleteOnly,
-              onEditKouku: () =>
-                  _showKoukuSheet(context, koukuOptions, filterNotifier, filter.selectedKoukus),
+              onEditKouku: () => _showKoukuSheet(
+                context,
+                koukuOptions,
+                filterNotifier,
+                filter.selectedKoukus,
+              ),
               onEditSetsuOrFloor: () {
                 if (filter.selectedKind == '柱') {
                   _showSetsuSheet(
-                      context, setsuOptions, filterNotifier, filter.selectedSetsu);
+                    context,
+                    setsuOptions,
+                    filterNotifier,
+                    filter.selectedSetsu,
+                  );
                 } else {
                   _showFloorSheet(
-                      context, floorOptions, filterNotifier, filter.selectedFloor);
+                    context,
+                    floorOptions,
+                    filterNotifier,
+                    filter.selectedFloor,
+                  );
                 }
               },
             ),
@@ -1230,7 +1483,8 @@ class _InspectionFilterPanel extends StatelessWidget {
     final useKoukuSheet = koukuOptions.length >= 10;
     final useSetsuSheet = setsuOptions.length >= 10;
     final useFloorSheet = floorOptions.length >= 10;
-    final isBeam = filter.selectedKind == '大梁' ||
+    final isBeam =
+        filter.selectedKind == '大梁' ||
         filter.selectedKind == '小梁' ||
         filter.selectedKind == '間柱';
     final isColumn = filter.selectedKind == '柱';
@@ -1248,10 +1502,9 @@ class _InspectionFilterPanel extends StatelessWidget {
           else ...[
             Text(
               '工区',
-              style: Theme.of(context)
-                  .textTheme
-                  .labelMedium
-                  ?.copyWith(fontWeight: FontWeight.bold),
+              style: Theme.of(
+                context,
+              ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 4),
             _MultiChoiceChips(
@@ -1269,10 +1522,9 @@ class _InspectionFilterPanel extends StatelessWidget {
             children: [
               Text(
                 '種別',
-                style: Theme.of(context)
-                    .textTheme
-                    .labelMedium
-                    ?.copyWith(fontWeight: FontWeight.bold),
+                style: Theme.of(
+                  context,
+                ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 4),
               _KindSelector(
@@ -1294,10 +1546,9 @@ class _InspectionFilterPanel extends StatelessWidget {
             else ...[
               Text(
                 '節',
-                style: Theme.of(context)
-                    .textTheme
-                    .labelMedium
-                    ?.copyWith(fontWeight: FontWeight.bold),
+                style: Theme.of(
+                  context,
+                ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 4),
               _ChoiceChips(
@@ -1328,17 +1579,17 @@ class _InspectionFilterPanel extends StatelessWidget {
             else ...[
               Text(
                 '階',
-                style: Theme.of(context)
-                    .textTheme
-                    .labelMedium
-                    ?.copyWith(fontWeight: FontWeight.bold),
+                style: Theme.of(
+                  context,
+                ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 4),
               _ChoiceChips(
                 options: floorOptions.map((e) => e.toString()).toList(),
                 selected: filter.selectedFloor?.toString(),
-                onSelected: (value) => filterNotifier
-                    .setFloor(value == null ? null : int.tryParse(value)),
+                onSelected: (value) => filterNotifier.setFloor(
+                  value == null ? null : int.tryParse(value),
+                ),
                 dense: true,
               ),
             ],
@@ -1410,7 +1661,8 @@ class _InspectionFilterPanel extends StatelessWidget {
               label: const Text('クリア'),
               onPressed: () {
                 filterNotifier.clearAll();
-                ref.read(inspectionIncompleteOnlyProvider.notifier).state = false;
+                ref.read(inspectionIncompleteOnlyProvider.notifier).state =
+                    false;
                 _setSelectedProcessStep(ref, null);
               },
             ),
@@ -1450,19 +1702,18 @@ class _SummaryRow extends StatelessWidget {
         children: [
           Text(
             '$label: ',
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.copyWith(fontWeight: FontWeight.bold),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
           ),
           Expanded(
             child: Text(
               value.isEmpty ? 'すべて' : value,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: enabled
-                        ? Theme.of(context).colorScheme.onSurface
-                        : Theme.of(context).colorScheme.outline,
-                  ),
+                color: enabled
+                    ? Theme.of(context).colorScheme.onSurface
+                    : Theme.of(context).colorScheme.outline,
+              ),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -1527,8 +1778,9 @@ class _FilterSection extends StatelessWidget {
       children: [
         Text(
           label,
-          style:
-              Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold),
+          style: Theme.of(
+            context,
+          ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 4),
         child,
@@ -1536,10 +1788,9 @@ class _FilterSection extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             helperText!,
-            style: Theme.of(context)
-                .textTheme
-                .bodySmall
-                ?.copyWith(color: Theme.of(context).colorScheme.outline),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.outline,
+            ),
           ),
         ],
       ],
@@ -1565,10 +1816,9 @@ class _ChoiceChips extends StatelessWidget {
     if (options.isEmpty) {
       return Text(
         '候補なし',
-        style: Theme.of(context)
-            .textTheme
-            .bodySmall
-            ?.copyWith(color: Theme.of(context).colorScheme.outline),
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: Theme.of(context).colorScheme.outline,
+        ),
       );
     }
     return Padding(
@@ -1622,10 +1872,9 @@ class _MultiChoiceChips extends StatelessWidget {
     if (options.isEmpty) {
       return Text(
         '候補なし',
-        style: Theme.of(context)
-            .textTheme
-            .bodySmall
-            ?.copyWith(color: Theme.of(context).colorScheme.outline),
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: Theme.of(context).colorScheme.outline,
+        ),
       );
     }
     return Padding(
@@ -1661,11 +1910,14 @@ class ProductListPane extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedProductId = ref.watch(inspectionSelectedProductIdProvider);
-    final filteredEntries = ref.watch(inspectionFilteredEntriesProvider(project.id));
+    final filteredEntries = ref.watch(
+      inspectionFilteredEntriesProvider(project.id),
+    );
     final ganttProductsAsync = ref.watch(ganttProductsProvider(project));
     final barsAsync = ref.watch(productGanttBarsProvider(project));
-    final latestProgressMapAsync =
-        ref.watch(latestProgressMapByProjectProvider(project.id));
+    final latestProgressMapAsync = ref.watch(
+      latestProgressMapByProjectProvider(project.id),
+    );
     final hasShipping = ref.watch(shippingRowsProvider).isNotEmpty;
     final selectedStepId = ref.watch(inspectionSelectedStepIdProvider);
     final processStepsAsync = ref.watch(inspectionProcessStepsProvider);
@@ -1690,20 +1942,16 @@ class ProductListPane extends ConsumerWidget {
     );
 
     final productProgressMap = ganttProductsAsync.maybeWhen(
-      data: (products) => {
-        for (final p in products) p.id: p,
-      },
+      data: (products) => {for (final p in products) p.id: p},
       orElse: () => <String, GanttProduct>{},
     );
 
-    final displayEntries = filteredEntries
-        .where((entry) {
-          if (!incompleteOnly) return true;
-          final id = entry.product?.id;
-          if (id == null) return false;
-          return incompleteIds?.contains(id) == true;
-        })
-        .toList();
+    final displayEntries = filteredEntries.where((entry) {
+      if (!incompleteOnly) return true;
+      final id = entry.product?.id;
+      if (id == null) return false;
+      return incompleteIds?.contains(id) == true;
+    }).toList();
 
     return _ProductListView(
       project: project,
@@ -1720,7 +1968,8 @@ class ProductListPane extends ConsumerWidget {
       incompleteOnly: incompleteOnly,
       onSelectProduct: (product) {
         ref.read(inspectionSelectedProductIdsProvider.notifier).add(product.id);
-        ref.read(inspectionSelectedProductIdProvider.notifier).state = product.id;
+        ref.read(inspectionSelectedProductIdProvider.notifier).state =
+            product.id;
         if (kDebugMode) {
           final ids = ref.read(inspectionSelectedProductIdsProvider);
           debugPrint(
@@ -1752,7 +2001,8 @@ class _ProductListView extends StatelessWidget {
   final Project project;
   final AsyncValue<List<ProcessStep>> processStepsAsync;
   final AsyncValue<List<ProductGanttBar>> barsAsync;
-  final AsyncValue<Map<String, Map<String, ProcessProgressDaily>>> latestProgressMapAsync;
+  final AsyncValue<Map<String, Map<String, ProcessProgressDaily>>>
+  latestProgressMapAsync;
   final AsyncValue<List<ProcessGroup>> processGroupsAsync;
   final List<InspectionProductEntry> entries;
   final String? selectedProductId;
@@ -1765,22 +2015,7 @@ class _ProductListView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!hasShipping) {
-      return Center(
-        child: Text(
-          'CSV未読込（出荷表を読み込んでください）',
-          style: Theme.of(context)
-              .textTheme
-              .bodyMedium
-              ?.copyWith(color: Theme.of(context).colorScheme.error),
-        ),
-      );
-    }
-
     if (entries.isEmpty) {
-      if (selectedStepId == null) {
-        return const Center(child: Text('条件を選択してください'));
-      }
       if (incompleteOnly) {
         return const Center(child: Text('すべて完了しています'));
       }
@@ -1808,8 +2043,10 @@ class _ProductListView extends StatelessWidget {
       orElse: () => const <String, String>{},
     );
 
-    final productStatusMap =
-        barsAsync.maybeWhen(data: (bars) => _buildStatusMapFromBars(bars), orElse: () => <String, Map<String, ProcessCellStatus>>{});
+    final productStatusMap = barsAsync.maybeWhen(
+      data: (bars) => _buildStatusMapFromBars(bars),
+      orElse: () => <String, Map<String, ProcessCellStatus>>{},
+    );
     final latestMap = latestProgressMapAsync.maybeWhen(
       data: (m) => m,
       orElse: () => const <String, Map<String, ProcessProgressDaily>>{},
@@ -1824,22 +2061,22 @@ class _ProductListView extends StatelessWidget {
             children: [
               Text(
                 '製品（フィルタ結果）',
-                style: Theme.of(context)
-                    .textTheme
-                    .labelMedium
-                    ?.copyWith(fontWeight: FontWeight.bold),
+                style: Theme.of(
+                  context,
+                ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
               if (selectedStepLabel != null) ...[
                 const SizedBox(width: 8),
                 Chip(
                   label: Text('工程: $selectedStepLabel'),
                   visualDensity: VisualDensity.compact,
-                  backgroundColor:
-                      Theme.of(context).colorScheme.primary.withOpacity(0.12),
+                  backgroundColor: Theme.of(
+                    context,
+                  ).colorScheme.primary.withOpacity(0.12),
                   labelStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.primary,
-                        fontWeight: FontWeight.w600,
-                      ),
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ],
@@ -1853,10 +2090,14 @@ class _ProductListView extends StatelessWidget {
               final entry = entries[index];
               final product = entry.product;
               final shippingRow = entry.shippingRow;
-              final isSelected = product != null && selectedProductId == product.id;
-              final gantt = product != null ? productProgressMap[product.id] : null;
-              final remainingCount =
-                  gantt?.tasks.where((t) => t.progress < 1).length;
+              final isSelected =
+                  product != null && selectedProductId == product.id;
+              final gantt = product != null
+                  ? productProgressMap[product.id]
+                  : null;
+              final remainingCount = gantt?.tasks
+                  .where((t) => t.progress < 1)
+                  .length;
               final progressValue = gantt?.progress ?? 0.0;
               final status = _statusFromProgress(progressValue);
               final statusColor = _statusColor(context, status);
@@ -1875,7 +2116,8 @@ class _ProductListView extends StatelessWidget {
                 // drawingUrl ??= index == 0 ? kTestDrawingPdfUrl : null;
               }
               final hasDrawing = drawingUrl != null && drawingUrl.isNotEmpty;
-              final isPriority = product != null &&
+              final isPriority =
+                  product != null &&
                   product.overallEndDate != null &&
                   product.overallStatus != 'completed' &&
                   product.overallEndDate!.isBefore(DateTime.now());
@@ -1884,13 +2126,14 @@ class _ProductListView extends StatelessWidget {
                       label: const Text('優先'),
                       visualDensity: VisualDensity.compact,
                       labelStyle: TextStyle(
-                        color: Theme.of(context).colorScheme.onSecondaryContainer,
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSecondaryContainer,
                         fontWeight: FontWeight.bold,
                       ),
-                      backgroundColor: Theme.of(context)
-                          .colorScheme
-                          .secondaryContainer
-                          .withOpacity(0.9),
+                      backgroundColor: Theme.of(
+                        context,
+                      ).colorScheme.secondaryContainer.withOpacity(0.9),
                     )
                   : null;
 
@@ -1909,9 +2152,14 @@ class _ProductListView extends StatelessWidget {
                       : null,
                 ),
                 child: ListTile(
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  visualDensity: const VisualDensity(horizontal: 0, vertical: -2),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  visualDensity: const VisualDensity(
+                    horizontal: 0,
+                    vertical: -2,
+                  ),
                   leading: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -1923,8 +2171,7 @@ class _ProductListView extends StatelessWidget {
                           borderRadius: 6,
                           borderColor: Colors.grey[300],
                         ),
-                      if (product != null)
-                        const SizedBox(width: 8),
+                      if (product != null) const SizedBox(width: 8),
                       // Status Circle
                       Container(
                         width: 24,
@@ -1937,7 +2184,8 @@ class _ProductListView extends StatelessWidget {
                         alignment: Alignment.center,
                         child: Text(
                           _statusLabel(status),
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
                                 fontWeight: FontWeight.bold,
                                 color: statusColor,
                               ),
@@ -1959,11 +2207,9 @@ class _ProductListView extends StatelessWidget {
                                 shippingRow.productCode.isNotEmpty
                                     ? shippingRow.productCode
                                     : (product?.productCode.isNotEmpty == true
-                                        ? product!.productCode
-                                        : (product?.name ?? '-')),
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodyMedium
+                                          ? product!.productCode
+                                          : (product?.name ?? '-')),
+                                style: Theme.of(context).textTheme.bodyMedium
                                     ?.copyWith(fontWeight: FontWeight.bold),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -1976,14 +2222,26 @@ class _ProductListView extends StatelessWidget {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Text(
-                                    _productLocationLine(shippingRow, product, remainingCount),
-                                    style: Theme.of(context).textTheme.bodySmall,
+                                    _productLocationLine(
+                                      shippingRow,
+                                      product,
+                                      remainingCount,
+                                    ),
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodySmall,
                                     maxLines: 2,
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                   Text(
-                                    _productDetailLine(shippingRow, product, remainingCount),
-                                    style: Theme.of(context).textTheme.bodySmall,
+                                    _productDetailLine(
+                                      shippingRow,
+                                      product,
+                                      remainingCount,
+                                    ),
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodySmall,
                                     maxLines: 2,
                                     overflow: TextOverflow.ellipsis,
                                   ),
@@ -1998,21 +2256,30 @@ class _ProductListView extends StatelessWidget {
                         flex: 3,
                         child: LayoutBuilder(
                           builder: (context, constraints) {
-                            final isNarrow = constraints.maxWidth < _kNarrowInlineProcessWidth;
+                            final isNarrow =
+                                constraints.maxWidth <
+                                _kNarrowInlineProcessWidth;
                             if (isNarrow) {
                               return _ProcessSummaryText(
                                 steps: steps,
-                                statusByStep:
-                                    product != null ? productStatusMap[product.id] : null,
-                                latestByStep: product != null ? latestMap[product.id] : null,
+                                statusByStep: product != null
+                                    ? productStatusMap[product.id]
+                                    : null,
+                                latestByStep: product != null
+                                    ? latestMap[product.id]
+                                    : null,
                                 groupLabels: groupLabels,
                               );
                             }
                             return _InlineStatusStrip2(
                               steps: steps,
                               groups: processGroups,
-                              statusByStep: product != null ? productStatusMap[product.id] : null,
-                              latestByStep: product != null ? latestMap[product.id] : null,
+                              statusByStep: product != null
+                                  ? productStatusMap[product.id]
+                                  : null,
+                              latestByStep: product != null
+                                  ? latestMap[product.id]
+                                  : null,
                               groupLabels: groupLabels,
                             );
                           },
@@ -2025,19 +2292,21 @@ class _ProductListView extends StatelessWidget {
                     children: [
                       IconButton(
                         icon: const Icon(Icons.picture_as_pdf),
-                        tooltip: hasDrawing
-                            ? '図面を開く（Safari／マークアップ可）'
-                            : '図面未登録',
-                        onPressed:
-                            !hasDrawing ? null : () => _openDrawingPdf(context, drawingUrl!),
+                        tooltip: hasDrawing ? '図面を開く（Safari／マークアップ可）' : '図面未登録',
+                        onPressed: !hasDrawing
+                            ? null
+                            : () => _openDrawingPdf(context, drawingUrl!),
                       ),
                       if (badge != null) badge,
                     ],
                   ),
                   selected: isSelected,
-                  selectedTileColor:
-                      Theme.of(context).colorScheme.primary.withOpacity(0.08),
-                  onTap: product == null ? null : () => onSelectProduct(product),
+                  selectedTileColor: Theme.of(
+                    context,
+                  ).colorScheme.primary.withOpacity(0.08),
+                  onTap: product == null
+                      ? null
+                      : () => onSelectProduct(product),
                 ),
               );
             },
@@ -2076,8 +2345,12 @@ class _ProcessListPaneState extends ConsumerState<ProcessListPane> {
   Widget build(BuildContext context) {
     final selectedProductId = ref.watch(inspectionSelectedProductIdProvider);
     final selectedStepId = ref.watch(inspectionSelectedStepIdProvider);
-    final productsAsync = ref.watch(productsByProjectProvider(widget.project.id));
-    final filteredProducts = ref.watch(filteredProductsProvider(widget.project.id));
+    final productsAsync = ref.watch(
+      productsByProjectProvider(widget.project.id),
+    );
+    final filteredProducts = ref.watch(
+      filteredProductsProvider(widget.project.id),
+    );
     final ganttProductsAsync = ref.watch(ganttProductsProvider(widget.project));
 
     Product? _findSelected(List<Product> products) {
@@ -2161,9 +2434,9 @@ class _ProcessListPaneState extends ConsumerState<ProcessListPane> {
 Future<void> _openDrawingPdf(BuildContext context, String urlString) async {
   final uri = Uri.tryParse(urlString);
   if (uri == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('図面のURLが不正です')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('図面のURLが不正です')));
     return;
   }
 
@@ -2178,21 +2451,18 @@ Future<void> _openDrawingPdf(BuildContext context, String urlString) async {
 
   if (!await canLaunchUrl(uri)) {
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('図面を開けませんでした')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('図面を開けませんでした')));
     return;
   }
 
-  final launched = await launchUrl(
-    uri,
-    mode: LaunchMode.externalApplication,
-  );
+  final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
 
   if (!launched && context.mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('図面を開けませんでした')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('図面を開けませんでした')));
   }
 }
 
@@ -2307,10 +2577,10 @@ class _ProcessStepRow extends StatelessWidget {
                   Text(
                     task.stepLabel ?? task.name,
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          color: isSelected
-                              ? Theme.of(context).colorScheme.onPrimaryContainer
-                              : null,
-                        ),
+                      color: isSelected
+                          ? Theme.of(context).colorScheme.onPrimaryContainer
+                          : null,
+                    ),
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -2355,10 +2625,9 @@ class _ProcessGuardMessage extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 '左ペインの工程チップを選択すると入力できます。',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: Theme.of(context).colorScheme.outline),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.outline,
+                ),
                 textAlign: TextAlign.center,
               ),
               if (onDebugSeed != null) ...[
@@ -2400,8 +2669,8 @@ class _RightPaneContent extends StatelessWidget {
   final AsyncValue<List<Product>> productsAsync;
   final AsyncValue<List<GanttProduct>> ganttProductsAsync;
   final List<String> selectedIds;
-   final InspectionStatus status;
-   final ValueChanged<InspectionStatus> onStatusChange;
+  final InspectionStatus status;
+  final ValueChanged<InspectionStatus> onStatusChange;
   final String? selectedStepLabel;
   final DateTime inspectionDate;
   final String guardMessage;
@@ -2430,10 +2699,9 @@ class _RightPaneContent extends StatelessWidget {
           children: [
             Text(
               '選択 ${selectedIds.length} 件',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(fontWeight: FontWeight.bold),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             Chip(
               label: Text('工程: $selectedStepLabelText'),
@@ -2469,29 +2737,35 @@ class _RightPaneContent extends StatelessWidget {
                   ? null
                   : () async {
                       // 選択された製品の最初のIDを使用
-                      final selectedDocId = selectedIds.isNotEmpty ? selectedIds.first : null;
+                      final selectedDocId = selectedIds.isNotEmpty
+                          ? selectedIds.first
+                          : null;
                       if (selectedDocId == null) return;
-                      
+
                       // 製品情報から製品符号を取得
                       String? productCodeForStorage;
                       productsAsync.whenData((products) {
-                        final product = products.where((p) => p.id == selectedDocId).firstOrNull;
+                        final product = products
+                            .where((p) => p.id == selectedDocId)
+                            .firstOrNull;
                         if (product != null) {
                           // productCode を優先、なければ name を使用
-                          productCodeForStorage = product.productCode.isNotEmpty 
-                              ? product.productCode 
+                          productCodeForStorage = product.productCode.isNotEmpty
+                              ? product.productCode
                               : (product.name.isNotEmpty ? product.name : null);
                         }
                       });
-                      
+
                       // 製品符号が取得できなかった場合はドキュメントIDを使用（フォールバック）
                       final storageKey = productCodeForStorage ?? selectedDocId;
-                      
+
                       // 製品の図面URLを取得（製品符号で取得）
                       String? drawingUrl;
                       final storageService = AnnotationStorageService();
-                      drawingUrl = await storageService.getDrawingUrl(storageKey);
-                      
+                      drawingUrl = await storageService.getDrawingUrl(
+                        storageKey,
+                      );
+
                       if (!context.mounted) return;
                       await showAnnotationSheet(
                         context: context,
@@ -2518,9 +2792,12 @@ class _RightPaneContent extends StatelessWidget {
     } else {
       if (kDebugMode) {
         productsAsync.whenData((products) {
-          final resolved = products.where((p) => selectedIds.contains(p.id)).length;
+          final resolved = products
+              .where((p) => selectedIds.contains(p.id))
+              .length;
           debugPrint(
-              '[basket] ids=${selectedIds.length} products=${products.length} resolved=$resolved');
+            '[basket] ids=${selectedIds.length} products=${products.length} resolved=$resolved',
+          );
         });
       }
       body = Expanded(
@@ -2538,7 +2815,8 @@ class _RightPaneContent extends StatelessWidget {
             final displayCount = display.length;
             if (kDebugMode) {
               debugPrint(
-                  '[basket] display=$displayCount (ids=${ids.length}, products=${products.length})');
+                '[basket] display=$displayCount (ids=${ids.length}, products=${products.length})',
+              );
             }
             if (display.isEmpty) {
               return const Center(child: SizedBox.shrink());
@@ -2553,11 +2831,12 @@ class _RightPaneContent extends StatelessWidget {
                   dense: true,
                   visualDensity: VisualDensity.compact,
                   title: Text(
-                    product.productCode.isNotEmpty ? product.productCode : product.name,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(fontWeight: FontWeight.bold),
+                    product.productCode.isNotEmpty
+                        ? product.productCode
+                        : product.name,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   subtitle: Wrap(
                     spacing: 8,
@@ -2604,7 +2883,10 @@ class _RightPaneContent extends StatelessWidget {
                     status == InspectionStatus.done,
                   ],
                   borderRadius: BorderRadius.circular(8),
-                  constraints: const BoxConstraints(minHeight: 36, minWidth: 64),
+                  constraints: const BoxConstraints(
+                    minHeight: 36,
+                    minWidth: 64,
+                  ),
                   onPressed: (idx) {
                     final st = switch (idx) {
                       0 => InspectionStatus.pending,
@@ -2642,14 +2924,23 @@ class _RightPaneContent extends StatelessWidget {
                 const Spacer(),
                 TextButton(
                   onPressed:
-                      isSaving || shouldGuard || selectedIds.isEmpty || !canSaveQty ? null : onSave,
+                      isSaving ||
+                          shouldGuard ||
+                          selectedIds.isEmpty ||
+                          !canSaveQty
+                      ? null
+                      : onSave,
                   child: Text('保存（${selectedIds.length}件）'),
                 ),
                 const SizedBox(width: 12),
                 ElevatedButton.icon(
                   icon: const Icon(Icons.arrow_forward),
                   label: const Text('保存して次へ'),
-                  onPressed: isSaving || shouldGuard || selectedIds.isEmpty || !canSaveQty
+                  onPressed:
+                      isSaving ||
+                          shouldGuard ||
+                          selectedIds.isEmpty ||
+                          !canSaveQty
                       ? null
                       : onSaveAndNext,
                 ),
@@ -2662,14 +2953,11 @@ class _RightPaneContent extends StatelessWidget {
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        header,
-        body,
-        footer,
-      ],
+      children: [header, body, footer],
     );
   }
 }
+
 class ProcessInputPane extends ConsumerStatefulWidget {
   final Project project;
 
@@ -2694,10 +2982,15 @@ class _ProcessInputPaneState extends ConsumerState<ProcessInputPane> {
   Future<void> _moveToNextStepSameProduct() async {
     final productId = ref.read(inspectionSelectedProductIdProvider);
     final currentStepId = ref.read(inspectionSelectedStepIdProvider);
-    final ganttProducts = ref.read(ganttProductsProvider(widget.project)).asData?.value;
+    final ganttProducts = ref
+        .read(ganttProductsProvider(widget.project))
+        .asData
+        ?.value;
     final messenger = ScaffoldMessenger.of(context);
     if (productId == null || currentStepId == null || ganttProducts == null) {
-      messenger.showSnackBar(const SnackBar(content: Text('製品または工程が選択されていません')));
+      messenger.showSnackBar(
+        const SnackBar(content: Text('製品または工程が選択されていません')),
+      );
       return;
     }
     GanttProduct? product;
@@ -2714,7 +3007,9 @@ class _ProcessInputPaneState extends ConsumerState<ProcessInputPane> {
     final steps = product.tasks;
     final index = steps.indexWhere((t) => t.stepId == currentStepId);
     if (index == -1 || index + 1 >= steps.length) {
-      messenger.showSnackBar(const SnackBar(content: Text('この製品の工程はすべて処理済みです')));
+      messenger.showSnackBar(
+        const SnackBar(content: Text('この製品の工程はすべて処理済みです')),
+      );
       return;
     }
     final next = steps[index + 1];
@@ -2725,15 +3020,22 @@ class _ProcessInputPaneState extends ConsumerState<ProcessInputPane> {
     final currentStepId = ref.read(inspectionSelectedStepIdProvider);
     final currentProductId = ref.read(inspectionSelectedProductIdProvider);
     final products = ref.read(filteredProductsProvider(widget.project.id));
-    final ganttProducts = ref.read(ganttProductsProvider(widget.project)).asData?.value;
+    final ganttProducts = ref
+        .read(ganttProductsProvider(widget.project))
+        .asData
+        ?.value;
     final messenger = ScaffoldMessenger.of(context);
 
     if (currentStepId == null || currentProductId == null) {
-      messenger.showSnackBar(const SnackBar(content: Text('製品または工程が選択されていません')));
+      messenger.showSnackBar(
+        const SnackBar(content: Text('製品または工程が選択されていません')),
+      );
       return;
     }
     if (products.isEmpty || ganttProducts == null) {
-      messenger.showSnackBar(const SnackBar(content: Text('対象製品のリストが取得できませんでした')));
+      messenger.showSnackBar(
+        const SnackBar(content: Text('対象製品のリストが取得できませんでした')),
+      );
       return;
     }
     final index = products.indexWhere((p) => p.id == currentProductId);
@@ -2742,7 +3044,8 @@ class _ProcessInputPaneState extends ConsumerState<ProcessInputPane> {
       return;
     }
     final nextProduct = products[index + 1];
-    ref.read(inspectionSelectedProductIdProvider.notifier).state = nextProduct.id;
+    ref.read(inspectionSelectedProductIdProvider.notifier).state =
+        nextProduct.id;
 
     GanttProduct? nextGanttProduct;
     for (final p in ganttProducts) {
@@ -2752,7 +3055,9 @@ class _ProcessInputPaneState extends ConsumerState<ProcessInputPane> {
       }
     }
     if (nextGanttProduct == null) {
-      messenger.showSnackBar(const SnackBar(content: Text('この製品の工程が取得できませんでした')));
+      messenger.showSnackBar(
+        const SnackBar(content: Text('この製品の工程が取得できませんでした')),
+      );
       return;
     }
     GanttTask? sameStep;
@@ -2766,7 +3071,9 @@ class _ProcessInputPaneState extends ConsumerState<ProcessInputPane> {
       _setSelectedProcessStep(ref, sameStep.stepId);
     } else if (nextGanttProduct.tasks.isNotEmpty) {
       _setSelectedProcessStep(ref, nextGanttProduct.tasks.first.stepId);
-      messenger.showSnackBar(const SnackBar(content: Text('同じ工程がないため最初の工程を選択しました')));
+      messenger.showSnackBar(
+        const SnackBar(content: Text('同じ工程がないため最初の工程を選択しました')),
+      );
     } else {
       messenger.showSnackBar(const SnackBar(content: Text('この製品には工程がありません')));
     }
@@ -2797,9 +3104,11 @@ class _ProcessInputPaneState extends ConsumerState<ProcessInputPane> {
     final messenger = ScaffoldMessenger.of(context);
     final projectId = widget.project.id;
     final currentProducts =
-        ref.read(productsByProjectProvider(projectId)).asData?.value ?? const <Product>[];
-    final existingCodes =
-        currentProducts.map((p) => p.productCode.trim().toUpperCase()).toSet();
+        ref.read(productsByProjectProvider(projectId)).asData?.value ??
+        const <Product>[];
+    final existingCodes = currentProducts
+        .map((p) => p.productCode.trim().toUpperCase())
+        .toSet();
     final shippingRows = ref.read(shippingRowsProvider);
     final candidates = <String>[];
     for (final row in shippingRows) {
@@ -2817,7 +3126,8 @@ class _ProcessInputPaneState extends ConsumerState<ProcessInputPane> {
 
     try {
       for (final code in candidates) {
-        final id = 'debug-${DateTime.now().microsecondsSinceEpoch}-${code.hashCode.abs()}';
+        final id =
+            'debug-${DateTime.now().microsecondsSinceEpoch}-${code.hashCode.abs()}';
         final product = Product(
           id: id,
           projectId: projectId,
@@ -2876,9 +3186,7 @@ class _ProcessInputPaneState extends ConsumerState<ProcessInputPane> {
       _l2Ctrl.clear();
       _h1Ctrl.clear();
     } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(content: Text('既存実績の読み込みに失敗しました: $e')),
-      );
+      messenger.showSnackBar(SnackBar(content: Text('既存実績の読み込みに失敗しました: $e')));
     }
   }
 
@@ -2903,7 +3211,9 @@ class _ProcessInputPaneState extends ConsumerState<ProcessInputPane> {
 
   Product? _selectedProductFrom(WidgetRef ref, String? productId) {
     if (productId == null) return null;
-    final productsAsync = ref.read(productsByProjectProvider(widget.project.id));
+    final productsAsync = ref.read(
+      productsByProjectProvider(widget.project.id),
+    );
     final products = productsAsync.asData?.value ?? const <Product>[];
     for (final p in products) {
       if (p.id == productId) return p;
@@ -2952,7 +3262,8 @@ class _ProcessInputPaneState extends ConsumerState<ProcessInputPane> {
     final status = ref.read(inspectionStatusProvider);
     if (kDebugMode) {
       debugPrint(
-          '[basket] save start: ids=${selectedIds.length} step=$stepId status=$status date=$inspectionDate');
+        '[basket] save start: ids=${selectedIds.length} step=$stepId status=$status date=$inspectionDate',
+      );
     }
 
     if (selectedIds.isEmpty) {
@@ -3000,7 +3311,8 @@ class _ProcessInputPaneState extends ConsumerState<ProcessInputPane> {
         );
         if (kDebugMode) {
           debugPrint(
-              '[save] ok project=${widget.project.id} product=$productId step=$stepId date=$inspectionDate');
+            '[save] ok project=${widget.project.id} product=$productId step=$stepId date=$inspectionDate',
+          );
         }
       }
       // 進捗集計を即時反映させる
@@ -3010,12 +3322,16 @@ class _ProcessInputPaneState extends ConsumerState<ProcessInputPane> {
       // 保存成功時のみ、選択状態をクリアして次の入力へ備える。
       if (kDebugMode) {
         final idsBefore = ref.read(inspectionSelectedProductIdsProvider);
-        debugPrint('[inspect] save success: clear before count=${idsBefore.length}');
+        debugPrint(
+          '[inspect] save success: clear before count=${idsBefore.length}',
+        );
       }
       ref.read(inspectionSelectedProductIdsProvider.notifier).clear();
       if (kDebugMode) {
         final idsAfter = ref.read(inspectionSelectedProductIdsProvider);
-        debugPrint('[inspect] save success: clear after count=${idsAfter.length}');
+        debugPrint(
+          '[inspect] save success: clear after count=${idsAfter.length}',
+        );
       }
       ref.read(inspectionSelectedProductIdProvider.notifier).state = null;
       _l1Ctrl.clear();
@@ -3048,12 +3364,16 @@ class _ProcessInputPaneState extends ConsumerState<ProcessInputPane> {
       debugPrint('[inspect] build tab: step=$stepId selected=${ids.length}');
     }
     final selectedProductId = ref.watch(inspectionSelectedProductIdProvider);
-    final selectedIds = ref.watch(inspectionSelectedProductIdsProvider).toList();
+    final selectedIds = ref
+        .watch(inspectionSelectedProductIdsProvider)
+        .toList();
     final selectedStepId = ref.watch(inspectionSelectedStepIdProvider);
     final status = ref.watch(inspectionStatusProvider);
     final nextMode = ref.watch(inspectionNextModeProvider);
     final inspectionDate = ref.watch(inspectionDateProvider);
-    final productsAsync = ref.watch(productsByProjectProvider(widget.project.id));
+    final productsAsync = ref.watch(
+      productsByProjectProvider(widget.project.id),
+    );
     final ganttProductsAsync = ref.watch(ganttProductsProvider(widget.project));
     final processStepsAsync = ref.watch(inspectionProcessStepsProvider);
     final selectedStepLabel = processStepsAsync.maybeWhen(
@@ -3123,9 +3443,12 @@ class _ProcessInputPaneState extends ConsumerState<ProcessInputPane> {
             onSaveAndNext: () async => await _onSaveAndMoveNext(),
             onDebugSeed: kDebugMode ? _seedDummyProducts : null,
             onRemoveRow: (id) {
-              ref.read(inspectionSelectedProductIdsProvider.notifier).remove(id);
+              ref
+                  .read(inspectionSelectedProductIdsProvider.notifier)
+                  .remove(id);
               if (ref.read(inspectionSelectedProductIdProvider) == id) {
-                ref.read(inspectionSelectedProductIdProvider.notifier).state = null;
+                ref.read(inspectionSelectedProductIdProvider.notifier).state =
+                    null;
               }
               setState(() {});
             },
@@ -3163,4 +3486,3 @@ class _NumericField extends StatelessWidget {
     );
   }
 }
-
