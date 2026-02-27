@@ -6,6 +6,7 @@ import '../../gantt/presentation/gantt_screen.dart';
 import '../../site_photo/screens/site_photo_home_screen.dart';
 import '../../gantt/presentation/mock_legacy_gantt_screen.dart';
 import '../../../models/project.dart';
+import 'project_create_screen.dart';
 
 /// プロジェクト一覧画面
 class ProjectListScreen extends ConsumerStatefulWidget {
@@ -46,10 +47,7 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
     ];
 
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: pages,
-      ),
+      body: IndexedStack(index: _currentIndex, children: pages),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         type: BottomNavigationBarType.fixed, // 4つ以上の場合はfixedにすると見やすい
@@ -61,18 +59,12 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
           });
         },
         items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.bar_chart),
-            label: '新ガント',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: '新ガント'),
           BottomNavigationBarItem(
             icon: Icon(Icons.photo_camera),
             label: '工程写真',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.fact_check),
-            label: '検査入力',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.fact_check), label: '検査入力'),
           BottomNavigationBarItem(
             icon: Icon(Icons.settings), // または Icons.history
             label: '旧UI',
@@ -96,7 +88,8 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
               if (projects != null && projects.isNotEmpty) {
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (context) => MockLegacyGanttScreen(projectId: projects.first.id),
+                    builder: (context) =>
+                        MockLegacyGanttScreen(projectId: projects.first.id),
                   ),
                 );
               } else {
@@ -141,6 +134,17 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('エラー: $e')),
       ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => const ProjectCreateScreen(),
+            ),
+          );
+        },
+        tooltip: '新規物件登録',
+        child: const Icon(Icons.add),
+      ),
     );
   }
 }
@@ -161,11 +165,7 @@ class _ProjectTile extends StatelessWidget {
           // ガントチャート画面へ
           Navigator.push(
             context,
-            MaterialPageRoute(
-              builder: (_) => GanttScreen(
-                project: project,
-              ),
-            ),
+            MaterialPageRoute(builder: (_) => GanttScreen(project: project)),
           );
         },
       ),
