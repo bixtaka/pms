@@ -12,6 +12,7 @@ import 'package:intl/intl.dart';
 import 'dart:ui' as ui;
 
 import '../../projects/presentation/project_create_screen.dart';
+import '../../projects/presentation/project_settings_screen.dart';
 import '../../../providers/project_providers.dart';
 
 // ─── 共通定数 ─────────────────────────────────────────────────────────────────
@@ -420,93 +421,18 @@ class _MockLegacyGanttScreenState extends ConsumerState<MockLegacyGanttScreen> {
         appBar: AppBar(
           title: const Text('マスター工程表・物件詳細'),
           actions: [
-            // プロジェクト切り替えプルダウン
-            projectsAsync.when(
-              data: (projects) {
-                if (projects.isEmpty) return const SizedBox();
-
-                if (!projects.any((p) => p.id == selectedProjectId)) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (mounted) {
-                      ref.read(selectedProjectIdProvider.notifier).state =
-                          projects.first.id;
-                    }
-                  });
-                }
-
-                return Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8.0,
-                    vertical: 8.0,
-                  ),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: projects.any((p) => p.id == selectedProjectId)
-                            ? selectedProjectId
-                            : projects.first.id,
-                        dropdownColor: Theme.of(context).colorScheme.surface,
-                        icon: const Icon(
-                          Icons.arrow_drop_down,
-                          color: Colors.white,
-                        ),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                        ),
-                        items: projects.map((p) {
-                          return DropdownMenuItem(
-                            value: p.id,
-                            child: Text(
-                              '🏢 ${p.name}',
-                              style: const TextStyle(color: Colors.black87),
-                            ),
-                          );
-                        }).toList(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            ref.read(selectedProjectIdProvider.notifier).state =
-                                val;
-                          }
-                        },
-                      ),
-                    ),
-                  ),
-                );
-              },
-              loading: () => const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
-                child: Center(
-                  child: SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      color: Colors.white,
-                      strokeWidth: 2,
-                    ),
-                  ),
-                ),
-              ),
-              error: (_, __) => const SizedBox(),
-            ),
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8.0),
-              child: FilledButton.icon(
+              padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+              child: IconButton(
                 onPressed: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (context) => const ProjectCreateScreen(),
+                      builder: (context) => ProjectSettingsScreen(projectId: selectedProjectId),
                     ),
                   );
                 },
-                icon: const Icon(Icons.add),
-                label: const Text('新規物件'),
+                tooltip: '物件設定',
+                icon: const Icon(Icons.settings),
               ),
             ),
             Padding(
@@ -601,7 +527,7 @@ class ProjectGanttTab extends ConsumerWidget {
 
 // ─── ラッパー ─────────────────────────────────────────────────────────────────
 
-class _ProjectGanttWrapper extends StatefulWidget {
+class _ProjectGanttWrapper extends ConsumerStatefulWidget {
   final GanttChartData data;
   final String projectId;
   final GanttViewScale currentScale;
@@ -612,10 +538,10 @@ class _ProjectGanttWrapper extends StatefulWidget {
   });
 
   @override
-  State<_ProjectGanttWrapper> createState() => _ProjectGanttWrapperState();
+  ConsumerState<_ProjectGanttWrapper> createState() => _ProjectGanttWrapperState();
 }
 
-class _ProjectGanttWrapperState extends State<_ProjectGanttWrapper> {
+class _ProjectGanttWrapperState extends ConsumerState<_ProjectGanttWrapper> {
   late LegacyGanttController _ganttController;
   List<LegacyGanttTask> _tasks = [];
 
@@ -1295,10 +1221,79 @@ class _ProjectGanttWrapperState extends State<_ProjectGanttWrapper> {
           ),
           child: isMobile
               ? const Icon(Icons.list, color: Colors.grey)
-              : const Text(
-                  '工程 / 大分類',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                ),
+              : ref.watch(projectsProvider).when(
+                    data: (projects) {
+                      if (projects.isEmpty) {
+                        return const Text(
+                          '工程 / 大分類',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        );
+                      }
+
+                      final selectedProjectId =
+                          ref.watch(selectedProjectIdProvider) ?? widget.projectId;
+
+                      if (!projects.any((p) => p.id == selectedProjectId)) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (mounted) {
+                            ref.read(selectedProjectIdProvider.notifier).state =
+                                projects.first.id;
+                          }
+                        });
+                      }
+
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: projects.any((p) => p.id == selectedProjectId)
+                                ? selectedProjectId
+                                : projects.first.id,
+                            isExpanded: true,
+                            dropdownColor: Theme.of(context).colorScheme.surface,
+                            icon: const Icon(Icons.arrow_drop_down),
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onSurface,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                            items: projects.map((p) {
+                              return DropdownMenuItem(
+                                value: p.id,
+                                child: Text(
+                                  '🏢 ${p.name}',
+                                  style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (val) {
+                              if (val != null) {
+                                ref.read(selectedProjectIdProvider.notifier).state =
+                                    val;
+                              }
+                            },
+                          ),
+                        ),
+                      );
+                    },
+                    loading: () => const Center(
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                    error: (_, __) => const Text(
+                      'エラー',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                  ),
         ),
         // 行リスト: 常に _sharedScroll で縦スクロール同期
         Expanded(

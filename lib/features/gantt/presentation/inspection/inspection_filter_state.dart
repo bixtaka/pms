@@ -201,25 +201,60 @@ final floorCandidatesProvider = Provider<List<int>>((ref) {
   final kind = filter.selectedKind;
   final isBeam = kind == '大梁' || kind == '小梁' || kind == '間柱';
   if (!isBeam) return const <int>[];
-  final floors = rows.map((r) => r.floor).whereType<int>().toSet().toList()
+
+  if (rows.isNotEmpty) {
+    return rows.map((r) => r.floor).whereType<int>().toSet().toList()..sort();
+  }
+
+  final projectId = ref.watch(selectedProjectIdProvider) ?? '';
+  if (projectId.isEmpty) return const [];
+  final products = ref.watch(productsByProjectProvider(projectId)).asData?.value ?? const [];
+  
+  return products
+      .map((p) => int.tryParse(p.floor))
+      .whereType<int>()
+      .toSet()
+      .toList()
     ..sort();
-  return floors;
 });
 
 final setsuCandidatesProvider = Provider<List<String>>((ref) {
   final rows = ref.watch(shippingRowsProvider);
   final filter = ref.watch(inspectionFilterProvider);
   if (filter.selectedKind != '柱') return const <String>[];
-  return _sortedList(rows.map((r) => r.setsu ?? '').where((v) => v.isNotEmpty));
+
+  if (rows.isNotEmpty) {
+    return _sortedList(rows.map((r) => r.setsu ?? '').where((v) => v.isNotEmpty));
+  }
+
+  final projectId = ref.watch(selectedProjectIdProvider) ?? '';
+  if (projectId.isEmpty) return const [];
+  final products = ref.watch(productsByProjectProvider(projectId)).asData?.value ?? const [];
+
+  return _sortedList(
+    products.map((p) => p.storyOrSet.isNotEmpty ? p.storyOrSet : p.grid).where((v) => v.isNotEmpty)
+  );
 });
 
 final sectionCandidatesProvider = Provider<List<String>>((ref) {
   final rows = ref.watch(shippingRowsProvider);
   final filter = ref.watch(inspectionFilterProvider);
   final query = filter.sectionQuery.trim().toLowerCase();
-  final all = _sortedList(
-    rows.map((r) => r.sectionSize.trim()).where((v) => v.isNotEmpty),
-  );
+  
+  List<String> all;
+  if (rows.isNotEmpty) {
+    all = _sortedList(
+      rows.map((r) => r.sectionSize.trim()).where((v) => v.isNotEmpty),
+    );
+  } else {
+    final projectId = ref.watch(selectedProjectIdProvider) ?? '';
+    if (projectId.isEmpty) return const [];
+    final products = ref.watch(productsByProjectProvider(projectId)).asData?.value ?? const [];
+    all = _sortedList(
+      products.map((p) => p.section.trim()).where((v) => v.isNotEmpty),
+    );
+  }
+
   if (query.isEmpty) {
     const limit = 50;
     return all.take(limit).toList();
@@ -332,7 +367,7 @@ final inspectionFilteredEntriesProvider =
 
 bool _productMatchesFilter(Product p, InspectionFilterState filter) {
   if (filter.selectedKoukus.isNotEmpty) {
-    final area = p.area.trim();
+    final area = p.area.isNotEmpty ? p.area.trim() : p.storyOrSet.trim();
     if (!filter.selectedKoukus.contains(area)) return false;
   }
   if (filter.selectedKind != null && filter.selectedKind!.isNotEmpty) {
@@ -340,6 +375,14 @@ bool _productMatchesFilter(Product p, InspectionFilterState filter) {
         filter.selectedKind!.trim().toLowerCase()) {
       return false;
     }
+  }
+  if (filter.selectedFloor != null) {
+    final f = int.tryParse(p.floor);
+    if (f == null || f != filter.selectedFloor) return false;
+  }
+  if (filter.selectedSetsu != null && filter.selectedSetsu!.isNotEmpty) {
+    final setsu = p.storyOrSet.isNotEmpty ? p.storyOrSet : p.grid;
+    if (setsu.toLowerCase() != filter.selectedSetsu!.toLowerCase()) return false;
   }
   if (filter.sectionQuery.trim().isNotEmpty &&
       !p.section.toLowerCase().contains(
@@ -351,6 +394,12 @@ bool _productMatchesFilter(Product p, InspectionFilterState filter) {
       !p.productCode.toLowerCase().contains(
         filter.productCodeQuery.trim().toLowerCase(),
       )) {
+    return false;
+  }
+  if (filter.lengthMin != null && p.lengthMm < filter.lengthMin!) {
+    return false;
+  }
+  if (filter.lengthMax != null && p.lengthMm > filter.lengthMax!) {
     return false;
   }
   return true;
