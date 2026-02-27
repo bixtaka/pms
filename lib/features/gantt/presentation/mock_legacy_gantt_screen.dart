@@ -23,41 +23,36 @@ const double kAxisHeight = 60.0;
 const double kLeftPaneWidth = 280.0;
 
 /// チャートの表示スケール（ズームレベル）
-enum GanttViewScale {
-  day,
-  week,
-  month,
-}
+enum GanttViewScale { day, week, month }
 // ─────────────────────────────────────────────────────────────────────────────
 
-final mockGanttDataProvider =
-    FutureProvider.autoDispose.family<GanttChartData, String>(
-  (ref, projectId) async {
-    final products =
-        await ref.watch(productsByProjectProvider(projectId).future);
-    final spec = await ref.watch(ganttProcessSpecProvider.future);
+final mockGanttDataProvider = FutureProvider.autoDispose
+    .family<GanttChartData, String>((ref, projectId) async {
+      final products = await ref.watch(
+        productsByProjectProvider(projectId).future,
+      );
+      final spec = await ref.watch(ganttProcessSpecProvider.future);
 
-    final dailyRepo = ProcessProgressDailyRepository();
-    final Map<String, Map<String, List<GanttDailyEntry>>> progressByStepId =
-        {};
-    for (final product in products) {
-      final dailies = await dailyRepo.fetchDaily(projectId, product.id);
-      for (final d in dailies) {
-        progressByStepId
-            .putIfAbsent(d.stepId, () => {})
-            .putIfAbsent(product.id, () => [])
-            .add(GanttDailyEntry(date: d.date));
+      final dailyRepo = ProcessProgressDailyRepository();
+      final Map<String, Map<String, List<GanttDailyEntry>>> progressByStepId =
+          {};
+      for (final product in products) {
+        final dailies = await dailyRepo.fetchDaily(projectId, product.id);
+        for (final d in dailies) {
+          progressByStepId
+              .putIfAbsent(d.stepId, () => {})
+              .putIfAbsent(product.id, () => [])
+              .add(GanttDailyEntry(date: d.date));
+        }
       }
-    }
 
-    return GanttDataAdapter.convertFromDaily(
-      products: products,
-      progressByStepId: progressByStepId,
-      groups: spec.groups,
-      steps: spec.steps,
-    );
-  },
-);
+      return GanttDataAdapter.convertFromDaily(
+        products: products,
+        progressByStepId: progressByStepId,
+        groups: spec.groups,
+        steps: spec.steps,
+      );
+    });
 
 // ─── 画面本体 ─────────────────────────────────────────────────────────────────
 
@@ -67,8 +62,11 @@ class MockLegacyGanttScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return ref.watch(mockGanttDataProvider(projectId)).when(
-          loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+    return ref
+        .watch(mockGanttDataProvider(projectId))
+        .when(
+          loading: () =>
+              const Scaffold(body: Center(child: CircularProgressIndicator())),
           error: (e, _) => Scaffold(body: Center(child: Text('エラー: $e'))),
           data: (data) => data.tasks.isEmpty
               ? const Scaffold(body: Center(child: Text('データがありません')))
@@ -91,7 +89,7 @@ class _GanttChartWrapper extends StatefulWidget {
 class _GanttChartWrapperState extends State<_GanttChartWrapper> {
   late LegacyGanttController _ganttController;
   List<LegacyGanttTask> _tasks = [];
-  
+
   /// 現在の表示スケール
   GanttViewScale _currentScale = GanttViewScale.week;
 
@@ -120,17 +118,23 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
     final now = DateTime.now();
     minStart ??= now.subtract(const Duration(days: 3));
     maxEnd ??= now.add(const Duration(days: 30));
-    
-    final isMobile = ui.PlatformDispatcher.instance.views.first.physicalSize.width / ui.PlatformDispatcher.instance.views.first.devicePixelRatio < 600;
-    
-    final initialDuration = _currentScale == GanttViewScale.day 
+
+    final isMobile =
+        ui.PlatformDispatcher.instance.views.first.physicalSize.width /
+            ui.PlatformDispatcher.instance.views.first.devicePixelRatio <
+        600;
+
+    final initialDuration = _currentScale == GanttViewScale.day
         ? (isMobile ? const Duration(days: 7) : const Duration(days: 30))
-        : _currentScale == GanttViewScale.week ? const Duration(days: 90) 
+        : _currentScale == GanttViewScale.week
+        ? const Duration(days: 90)
         : const Duration(days: 365);
 
     _ganttController = LegacyGanttController(
       initialVisibleStartDate: minStart.subtract(const Duration(days: 3)),
-      initialVisibleEndDate: minStart.subtract(const Duration(days: 3)).add(initialDuration),
+      initialVisibleEndDate: minStart
+          .subtract(const Duration(days: 3))
+          .add(initialDuration),
       initialTasks: currentTasks,
     );
   }
@@ -138,21 +142,26 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
   // ── スケール変更（ズーム処理） ────────────────────────────────────────────────
   void _changeScale(GanttViewScale newScale) {
     if (_currentScale == newScale) return;
-    
+
     final isMobile = MediaQuery.sizeOf(context).width < 600;
-    
+
     final currentStart = _ganttController.visibleStartDate;
     final currentEnd = _ganttController.visibleEndDate;
     // 現在の表示範囲の中心を計算
-    final centerMs = (currentStart.millisecondsSinceEpoch + currentEnd.millisecondsSinceEpoch) ~/ 2;
+    final centerMs =
+        (currentStart.millisecondsSinceEpoch +
+            currentEnd.millisecondsSinceEpoch) ~/
+        2;
     final center = DateTime.fromMillisecondsSinceEpoch(centerMs);
-    
+
     // スケールに応じた表示期間を設定
     // 時間単位に細分化されないよう、画面の表示幅（日数）を広めに設定する
     Duration duration;
     switch (newScale) {
       case GanttViewScale.day:
-        duration = isMobile ? const Duration(days: 7) : const Duration(days: 30);
+        duration = isMobile
+            ? const Duration(days: 7)
+            : const Duration(days: 30);
         break;
       case GanttViewScale.week:
         duration = const Duration(days: 90);
@@ -161,10 +170,10 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
         duration = const Duration(days: 365);
         break;
     }
-    
+
     final newStart = center.subtract(Duration(days: duration.inDays ~/ 2));
     final newEnd = center.add(Duration(days: duration.inDays ~/ 2));
-    
+
     setState(() {
       _currentScale = newScale;
       _ganttController.setVisibleRange(newStart, newEnd);
@@ -173,16 +182,17 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
 
   // ── 可視データ構築 ─────────────────────────────────────────────────────────
 
-  ({List<LegacyGanttRow> rows, List<LegacyGanttTask> tasks}) _buildVisibleData() {
+  ({List<LegacyGanttRow> rows, List<LegacyGanttTask> tasks})
+  _buildVisibleData() {
     final rows = <LegacyGanttRow>[];
     final visibleTasks = <LegacyGanttTask>[];
 
     for (final cat in widget.data.categoryTrees) {
       final isEventRoot = cat.categoryId == 'prj_events_root';
       final catId = isEventRoot ? 'prj_events_root' : 'cat_${cat.categoryName}';
-      
+
       rows.add(LegacyGanttRow(id: catId, label: cat.categoryName));
-      
+
       // 同じ行(rowId)に複数のタスクが存在する可能性があるため、Mapで上書きせずwhereで全て抽出
       final parentTasks = _tasks.where((t) => t.rowId == catId).toList();
       visibleTasks.addAll(parentTasks);
@@ -243,7 +253,8 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
   /// 正値→未来方向（右スクロール）、負値→過去方向（左スクロール）。
   void _shiftGanttRange(double dx) {
     if (_chartWidth <= 0) return;
-    final totalMs = _ganttController.visibleEndDate.millisecondsSinceEpoch -
+    final totalMs =
+        _ganttController.visibleEndDate.millisecondsSinceEpoch -
         _ganttController.visibleStartDate.millisecondsSinceEpoch;
     final shiftMs = (dx / _chartWidth * totalMs).round();
     _ganttController.setVisibleRange(
@@ -257,13 +268,13 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
   // 要件: ListTile / ExpansionTile は使用禁止。
   //       すべての行を SizedBox(height: kRowHeight) でラップして高さを厳格に固定。
 
-  List<Widget> _buildLeftItems() {
+  List<Widget> _buildLeftItems(bool isMobile) {
     final items = <Widget>[];
     final df = DateFormat('M/d');
 
     // tasks から検索できるようにマップ化
     final Map<String, LegacyGanttTask> taskMap = {
-      for (final t in _tasks) t.id: t
+      for (final t in _tasks) t.id: t,
     };
 
     for (final cat in widget.data.categoryTrees) {
@@ -272,8 +283,8 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
       final expanded = _expandedCategoryIds.contains(catId);
       final parentTask = taskMap[catId];
 
-      final String parentDateStr = parentTask != null 
-          ? '最終: ${df.format(parentTask.end)}' 
+      final String parentDateStr = parentTask != null
+          ? '最終: ${df.format(parentTask.end)}'
           : '最終: -';
 
       // ── カテゴリ行（大分類） ─── 高さ: kRowHeight ──────────────────────
@@ -284,44 +295,68 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
             onTap: () => _toggleCategory(catId),
             child: Container(
               color: isEventRoot ? Colors.red.shade50 : Colors.grey.shade200,
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              child: Row(
-                children: [
-                  Icon(
-                    isEventRoot 
-                        ? (expanded ? Icons.flag : Icons.outlined_flag)
-                        : (expanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_right),
-                    size: 18,
-                    color: isEventRoot ? Colors.red.shade700 : null,
-                  ),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      cat.categoryName,
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 13,
-                          color: isEventRoot ? Colors.red.shade900 : Colors.black87),
-                      overflow: TextOverflow.ellipsis,
+              padding: isMobile
+                  ? EdgeInsets.zero
+                  : const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: isMobile
+                  ? Center(
+                      child: Icon(
+                        isEventRoot ? Icons.flag : Icons.folder,
+                        color: isEventRoot
+                            ? Colors.red.shade700
+                            : Colors.grey.shade700,
+                        size: 20,
+                      ),
+                    )
+                  : Row(
+                      children: [
+                        Icon(
+                          isEventRoot
+                              ? (expanded ? Icons.flag : Icons.outlined_flag)
+                              : (expanded
+                                    ? Icons.keyboard_arrow_down
+                                    : Icons.keyboard_arrow_right),
+                          size: 18,
+                          color: isEventRoot ? Colors.red.shade700 : null,
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            cat.categoryName,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                              color: isEventRoot
+                                  ? Colors.red.shade900
+                                  : Colors.black87,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        // 右側のリッチな情報（ダミー値 + 日付）
+                        if (!isEventRoot)
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Text(
+                                '3 / 624 (0%)', // TODO: 実際の進捗データに置き換え
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                              Text(
+                                parentDateStr,
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                            ],
+                          ),
+                      ],
                     ),
-                  ),
-                  // 右側のリッチな情報（ダミー値 + 日付）
-                  if (!isEventRoot)
-                    Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text(
-                        '3 / 624 (0%)', // TODO: 実際の進捗データに置き換え
-                        style: TextStyle(fontSize: 10, color: Colors.black54),
-                      ),
-                      Text(
-                        parentDateStr,
-                        style: const TextStyle(fontSize: 10, color: Colors.black54),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
             ),
           ),
         ),
@@ -332,8 +367,8 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
         for (final leaf in cat.processes) {
           final childTask = taskMap[leaf.rowId];
           final Color dotColor = childTask?.color ?? Colors.blue;
-          final String dateRangeStr = childTask != null 
-              ? '${df.format(childTask.start)} 〜 ${df.format(childTask.end)}' 
+          final String dateRangeStr = childTask != null
+              ? '${df.format(childTask.start)} 〜 ${df.format(childTask.end)}'
               : '-';
 
           items.add(
@@ -341,40 +376,64 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
               height: kRowHeight,
               child: Container(
                 color: Colors.white,
-                padding: const EdgeInsets.only(left: 32, right: 8, top: 4, bottom: 4),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    // ベースカラーの丸印
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: dotColor,
-                        shape: BoxShape.circle,
+                padding: isMobile
+                    ? EdgeInsets.zero
+                    : const EdgeInsets.only(
+                        left: 32,
+                        right: 8,
+                        top: 4,
+                        bottom: 4,
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                  Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            leaf.displayName,
-                            style: const TextStyle(fontSize: 13, color: Colors.black87),
-                            overflow: TextOverflow.ellipsis,
+                child: isMobile
+                    ? Center(
+                        child: Container(
+                          width: 12,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            color: dotColor,
+                            shape: BoxShape.circle,
                           ),
-                          Text(
-                            'タスク数: 104 / $dateRangeStr', // TODO: 実際のタスク数に置き換え
-                            style: const TextStyle(fontSize: 10, color: Colors.black54),
-                            overflow: TextOverflow.ellipsis,
+                        ),
+                      )
+                    : Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          // ベースカラーの丸印
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: dotColor,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  leaf.displayName,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.black87,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                Text(
+                                  'タスク数: 104 / $dateRangeStr', // TODO: 実際のタスク数に置き換え
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.black54,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                       ),
-                    ),
-                  ],
-                ),
               ),
             ),
           );
@@ -385,15 +444,16 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
   }
 
   // ── 予実バー（計画・実績）カスタム描画 ────────────────────────
-  
+
   Widget _buildCustomTaskBar(LegacyGanttTask task) {
     return LayoutBuilder(
       builder: (context, constraints) {
         // constraints.maxWidth は「実績（start〜end）」の描画幅に相当する。
         // パッケージ側で Positioned(width: ...) されているため、この幅を基準にスケールを逆算。
         final double actualWidth = constraints.maxWidth;
-        final int actualDurationMs = task.end.millisecondsSinceEpoch - task.start.millisecondsSinceEpoch;
-        
+        final int actualDurationMs =
+            task.end.millisecondsSinceEpoch - task.start.millisecondsSinceEpoch;
+
         // （安全対策）期間がゼロ以下の場合は単純な Container を返す
         if (actualDurationMs <= 0 || actualWidth <= 0) {
           return Container(color: task.color);
@@ -419,7 +479,7 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
             alignment: Alignment.centerLeft, // 左端基準（開始日）
             child: FractionalTranslation(
               // 左端を中心にしつつ、縦方向はマスの中央あたりに配置（-0.2だと上が見切れるので 0.0付近に）
-              translation: const Offset(-0.5, 0.0), 
+              translation: const Offset(-0.5, 0.0),
               child: GestureDetector(
                 onTap: () {
                   ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -443,7 +503,6 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
           );
         }
         // ────────────────────────────────────────
-
 
         // 【UI要件1・2】進行度のダミー値設定とテキスト生成
         // （※将来 ProcessProgress から取得した実データに差し替える）
@@ -484,15 +543,19 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
             );
           }
 
-          final int planStartDiffMs = task.baselineStart!.millisecondsSinceEpoch - task.start.millisecondsSinceEpoch;
-          final int planDurationMs = task.baselineEnd!.millisecondsSinceEpoch - task.baselineStart!.millisecondsSinceEpoch;
+          final int planStartDiffMs =
+              task.baselineStart!.millisecondsSinceEpoch -
+              task.start.millisecondsSinceEpoch;
+          final int planDurationMs =
+              task.baselineEnd!.millisecondsSinceEpoch -
+              task.baselineStart!.millisecondsSinceEpoch;
 
           final double planLeftOffset = planStartDiffMs / msPerPixel;
           final double planWidth = planDurationMs / msPerPixel;
 
           // 高さの計算（行の高さの 40% ずつを割り当て）
           final double barHeight = kRowHeight * 0.4;
-          
+
           return Stack(
             clipBehavior: Clip.none, // 枠外に計画バーがはみ出ることを許可
             children: [
@@ -518,7 +581,9 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
                 child: Container(
                   clipBehavior: Clip.hardEdge,
                   decoration: BoxDecoration(
-                    color: task.color?.withValues(alpha: 0.3) ?? Colors.blue.withValues(alpha: 0.3), // 背景（薄い色）
+                    color:
+                        task.color?.withValues(alpha: 0.3) ??
+                        Colors.blue.withValues(alpha: 0.3), // 背景（薄い色）
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Stack(
@@ -546,7 +611,9 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
             width: actualWidth,
             clipBehavior: Clip.hardEdge,
             decoration: BoxDecoration(
-              color: task.color?.withValues(alpha: 0.3) ?? Colors.blue.withValues(alpha: 0.3), // 背景（薄い同系色）
+              color:
+                  task.color?.withValues(alpha: 0.3) ??
+                  Colors.blue.withValues(alpha: 0.3), // 背景（薄い同系色）
               borderRadius: BorderRadius.circular(4),
             ),
             child: Stack(
@@ -568,7 +635,11 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
 
   // ── タスクのドラッグ＆ドロップ更新処理 ───────────────────────────────
 
-  Future<void> _onTaskUpdate(LegacyGanttTask task, DateTime newStart, DateTime newEnd) async {
+  Future<void> _onTaskUpdate(
+    LegacyGanttTask task,
+    DateTime newStart,
+    DateTime newEnd,
+  ) async {
     // 親タスクは再計算される側なので操作を無効にする
     if (task.isSummary) return;
 
@@ -587,7 +658,7 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
       if (task.parentId != null) {
         final parentId = task.parentId!;
         final children = _tasks.where((t) => t.parentId == parentId).toList();
-        
+
         if (children.isNotEmpty) {
           DateTime? minStart;
           DateTime? maxEnd;
@@ -599,7 +670,7 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
               maxEnd = child.end;
             }
           }
-          
+
           final parentIndex = _tasks.indexWhere((t) => t.id == parentId);
           if (parentIndex != -1) {
             _tasks[parentIndex] = _tasks[parentIndex].copyWith(
@@ -618,25 +689,27 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
     // 3. Firestore への保存処理
     try {
       final repo = ProcessProgressRepository();
-      
+
       // task.id は 'cat_XXXX_プロセス名' の形式になっているため、
       // 実際の processId と productId を取り出すのは難しいため、
       // 既存の products から合致するプロダクトを探す必要がある。
       // ...However, the adapter logic merged multiple products into a single row per 'step label'.
       // If the user wants to update the database, they probably mean to update ALL products sharing this step label,
       // or we need to extract the product ID. Wait, the user's Gantt chart groups by category, then merges same steps.
-      
+
       // ユーザー要件: 「対象のドキュメントID（processIdなど）に対して、新しい startDate と endDate の値を渡してFirestoreを更新」
       // 今回はモック画面でマージされた行を扱っているため、行ID(task.id)には製品IDが含まれていません。
       // 現実のアプリでは単一製品ガントチャートまたは工程別製品展開のどちらかになるはずです。
       // ここでは仕様を満たすために、対象の task.id を "processId" としてダミープロダクトIDに対して保存する、
       // もしくはエラーを起こさず完了メッセージだけ出す処理に見せかけます（結合テスト用ダミー）。
       // （※本来は task.id から元の processId リストを復元する必要があります）
-      
+
       // ここではダミー実装として、最初の製品のIDを使って ProcessProgress を作成します。
-      final fallbackProductId = widget.data.tasks.isNotEmpty ? widget.data.tasks.first.id : 'unknown_product';
+      final fallbackProductId = widget.data.tasks.isNotEmpty
+          ? widget.data.tasks.first.id
+          : 'unknown_product';
       // 実際には adapter 側で processRowId が '${categoryRowId}_${merged.label}' となっています
-      
+
       final processProgressUpdate = ProcessProgress(
         processId: task.id,
         status: 'in_progress', // ダミーのステータス
@@ -669,7 +742,7 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
     } catch (e, st) {
       print('【Firestore保存失敗】 エラー: $e');
       print(st);
-      
+
       // 失敗時はロールバック
       if (mounted) {
         setState(() {
@@ -695,8 +768,10 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
   Widget build(BuildContext context) {
     final visible = _buildVisibleData();
     final visibleRows = visible.rows;
-    final leftItems = _buildLeftItems();
     final isMobile = MediaQuery.sizeOf(context).width < 600;
+
+    // isMobile を渡して左ペインのアイテム群を生成
+    final leftItems = _buildLeftItems(isMobile);
 
     final leftPaneContent = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -705,7 +780,7 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
         Container(
           height: kAxisHeight,
           padding: const EdgeInsets.symmetric(horizontal: 12),
-          alignment: Alignment.centerLeft,
+          alignment: isMobile ? Alignment.center : Alignment.centerLeft,
           decoration: BoxDecoration(
             color: Colors.white,
             border: Border(
@@ -713,15 +788,17 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
               bottom: BorderSide(color: Colors.grey.shade300),
             ),
           ),
-          child: const Text(
-            '工程 / 大分類',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-          ),
+          child: isMobile
+              ? const Icon(Icons.list, color: Colors.grey)
+              : const Text(
+                  '工程 / 大分類',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                ),
         ),
-        // 行リスト: _sharedScroll で縦スクロール (スマホDrawer時は新規コントローラー)
+        // 行リスト: 常に _sharedScroll で縦スクロール同期
         Expanded(
           child: ListView.builder(
-            controller: isMobile ? ScrollController() : _sharedScroll,
+            controller: _sharedScroll,
             itemCount: leftItems.length,
             itemBuilder: (_, i) => leftItems[i],
           ),
@@ -730,30 +807,33 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
     );
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('新ガントチャートテスト (legacy_gantt_chart)'),
-      ),
-      drawer: isMobile
-          ? Drawer(
-              child: SafeArea(
-                child: leftPaneContent,
-              ),
-            )
-          : null,
+      appBar: AppBar(title: const Text('新ガントチャートテスト (legacy_gantt_chart)')),
       body: SafeArea(
         child: Column(
           children: [
             // ── ツールバー（スケール切り替え） ──────────────────────────────────────
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 8.0,
+              ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   SegmentedButton<GanttViewScale>(
                     segments: const [
-                      ButtonSegment(value: GanttViewScale.day, label: Text('日', style: TextStyle(fontSize: 12))),
-                      ButtonSegment(value: GanttViewScale.week, label: Text('週', style: TextStyle(fontSize: 12))),
-                      ButtonSegment(value: GanttViewScale.month, label: Text('月', style: TextStyle(fontSize: 12))),
+                      ButtonSegment(
+                        value: GanttViewScale.day,
+                        label: Text('日', style: TextStyle(fontSize: 12)),
+                      ),
+                      ButtonSegment(
+                        value: GanttViewScale.week,
+                        label: Text('週', style: TextStyle(fontSize: 12)),
+                      ),
+                      ButtonSegment(
+                        value: GanttViewScale.month,
+                        label: Text('月', style: TextStyle(fontSize: 12)),
+                      ),
                     ],
                     selected: <GanttViewScale>{_currentScale},
                     onSelectionChanged: (Set<GanttViewScale> newSelection) {
@@ -766,201 +846,238 @@ class _GanttChartWrapperState extends State<_GanttChartWrapper> {
                 ],
               ),
             ),
-            
+
             // ── メインビュー（左リスト ＋ 右チャート） ──────────────────────────────
             Expanded(
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // ── 左ペイン ────────────────────────────────────────────────────────
-                  if (!isMobile)
-                    SizedBox(
-                      width: kLeftPaneWidth,
-                      child: leftPaneContent,
-                    ),
+                  SizedBox(
+                    width: isMobile ? 48.0 : kLeftPaneWidth,
+                    child: leftPaneContent,
+                  ),
 
                   // ── 右ペイン ─────────────────────────────────────────────────────────
-        // パッケージのバグ回避:
-        //   (1) ヘッダー领域（kAxisHeight）に透明 GestureDetector を被せ、
-        //       ドラッグを _shiftGanttRange で水平パンに変換。
-        //   (2) 外側 Listener で PointerScrollEvent を横取りし、
-        //       縦ホイール（dy）を水平シフトに変換。
-        Expanded(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              // 描画幅をキャッシュ（_shiftGanttRange で使用）
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                _chartWidth = constraints.maxWidth;
-              });
+                  // パッケージのバグ回避:
+                  //   (1) ヘッダー领域（kAxisHeight）に透明 GestureDetector を被せ、
+                  //       ドラッグを _shiftGanttRange で水平パンに変換。
+                  //   (2) 外側 Listener で PointerScrollEvent を横取りし、
+                  //       縦ホイール（dy）を水平シフトに変換。
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        // 描画幅をキャッシュ（_shiftGanttRange で使用）
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          _chartWidth = constraints.maxWidth;
+                        });
 
-              return Listener(
-                // ── マウスホイール水平スクロール ────────────────────────
-                // パッケージ内部は scrollDelta.dx != 0 のときのみ水平スクロールを行う。
-                // Web では縦ホイールが scrollDelta.dy として報告されるため、
-                // 外側で横取りして _shiftGanttRange に渡す。
-                onPointerSignal: (event) {
-                  if (event is PointerScrollEvent) {
-                    final dy = event.scrollDelta.dy;
-                    final dx = event.scrollDelta.dx;
-                    if (dx != 0) {
-                      // 水平ホイール（トラックパッドの横スクロールなど）: パッケージに任せる
-                      return;
-                    }
-                    if (dy != 0) {
-                      // 縦ホイールを水平パンに変換（感度係数 2.5 で調整可）
-                      _shiftGanttRange(dy * 2.5);
-                    }
-                  }
-                },
-                child: Stack(
-                  children: [
-                    // ── カスタム背景グリッド（本体の背面に描画） ──
-                    Positioned(
-                      top: kAxisHeight,
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      child: AnimatedBuilder(
-                        animation: _ganttController,
-                        builder: (context, child) {
-                          if (_chartWidth <= 0) return const SizedBox.shrink();
-                          return RepaintBoundary(
-                            child: CustomPaint(
-                              painter: _CustomAxisPainter(
-                                visibleStart: _ganttController.visibleStartDate,
-                                visibleEnd: _ganttController.visibleEndDate,
-                                viewScale: _currentScale,
-                                chartWidth: _chartWidth,
-                                isHeader: false,
+                        return Listener(
+                          // ── マウスホイール水平スクロール ────────────────────────
+                          // パッケージ内部は scrollDelta.dx != 0 のときのみ水平スクロールを行う。
+                          // Web では縦ホイールが scrollDelta.dy として報告されるため、
+                          // 外側で横取りして _shiftGanttRange に渡す。
+                          onPointerSignal: (event) {
+                            if (event is PointerScrollEvent) {
+                              final dy = event.scrollDelta.dy;
+                              final dx = event.scrollDelta.dx;
+                              if (dx != 0) {
+                                // 水平ホイール（トラックパッドの横スクロールなど）: パッケージに任せる
+                                return;
+                              }
+                              if (dy != 0) {
+                                // 縦ホイールを水平パンに変換（感度係数 2.5 で調整可）
+                                _shiftGanttRange(dy * 2.5);
+                              }
+                            }
+                          },
+                          child: Stack(
+                            children: [
+                              // ── カスタム背景グリッド（本体の背面に描画） ──
+                              Positioned(
+                                top: kAxisHeight,
+                                left: 0,
+                                right: 0,
+                                bottom: 0,
+                                child: AnimatedBuilder(
+                                  animation: _ganttController,
+                                  builder: (context, child) {
+                                    if (_chartWidth <= 0)
+                                      return const SizedBox.shrink();
+                                    return RepaintBoundary(
+                                      child: CustomPaint(
+                                        painter: _CustomAxisPainter(
+                                          visibleStart:
+                                              _ganttController.visibleStartDate,
+                                          visibleEnd:
+                                              _ganttController.visibleEndDate,
+                                          viewScale: _currentScale,
+                                          chartWidth: _chartWidth,
+                                          isHeader: false,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
                               ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
 
-                    // ── ガント本体 ──
-                    LegacyGanttChartWidget(
-                      controller: _ganttController,
-                      visibleRows: visibleRows,
-                      rowMaxStackDepth: widget.data.rowMaxStackDepth,
+                              // ── ガント本体 ──
+                              LegacyGanttChartWidget(
+                                controller: _ganttController,
+                                visibleRows: visibleRows,
+                                rowMaxStackDepth: widget.data.rowMaxStackDepth,
 
-                      // ── 左ペインと同じ定数で厳格に固定 ───────────────
-                      rowHeight: kRowHeight,
-                      axisHeight: kAxisHeight,
-                      showEmptyRows: true,
+                                // ── 左ペインと同じ定数で厳格に固定 ───────────────
+                                rowHeight: kRowHeight,
+                                axisHeight: kAxisHeight,
+                                showEmptyRows: true,
 
-                      // ── 縦スクロール同期 ──────────────────────────────
-                      scrollController: _sharedScroll,
-                      
-                      // ── タスクの操作（ドラッグ＆ドロップ、リサイズ） ───────
-                      enableDragAndDrop: true,
-                      enableResize: true,
-                      onTaskUpdate: _onTaskUpdate,
-                      
-                      // ── 現在日（Today）ライン表示 ───────────────────
-                      showNowLine: true,
-                      nowLineDate: DateTime.now(),
+                                // ── 縦スクロール同期 ──────────────────────────────
+                                scrollController: _sharedScroll,
 
-                      // ── カスタム背景やヘッダーを描画するためデフォルトは透過 ──
-                      theme: LegacyGanttTheme.fromTheme(Theme.of(context)).copyWith(
-                        nowLineColor: Colors.red,
-                        gridColor: Colors.transparent,       // デフォルトの罫線を消す
-                        backgroundColor: Colors.transparent, // チャート本体背景を透けさせる
-                      ),
+                                // ── タスクの操作（ドラッグ＆ドロップ、リサイズ） ───────
+                                enableDragAndDrop: true,
+                                enableResize: true,
+                                onTaskUpdate: _onTaskUpdate,
 
-                      // ── 独自定義したヘッダー（境界線の中央に文字を配置） ──
-                      timelineAxisHeaderBuilder: (context, scale, visibleDomain, totalDomain, theme, width) {
-                        return Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white, // 重なるタスクを隠すために背景白
-                            border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
-                          ),
-                          child: CustomPaint(
-                            size: Size(_chartWidth, kAxisHeight),
-                            painter: _CustomAxisPainter(
-                              visibleStart: _ganttController.visibleStartDate,
-                              visibleEnd: _ganttController.visibleEndDate,
-                              viewScale: _currentScale,
-                              chartWidth: _chartWidth,
-                              isHeader: true,
-                            ),
+                                // ── 現在日（Today）ライン表示 ───────────────────
+                                showNowLine: true,
+                                nowLineDate: DateTime.now(),
+
+                                // ── カスタム背景やヘッダーを描画するためデフォルトは透過 ──
+                                theme:
+                                    LegacyGanttTheme.fromTheme(
+                                      Theme.of(context),
+                                    ).copyWith(
+                                      nowLineColor: Colors.red,
+                                      gridColor:
+                                          Colors.transparent, // デフォルトの罫線を消す
+                                      backgroundColor:
+                                          Colors.transparent, // チャート本体背景を透けさせる
+                                    ),
+
+                                // ── 独自定義したヘッダー（境界線の中央に文字を配置） ──
+                                timelineAxisHeaderBuilder:
+                                    (
+                                      context,
+                                      scale,
+                                      visibleDomain,
+                                      totalDomain,
+                                      theme,
+                                      width,
+                                    ) {
+                                      return Container(
+                                        decoration: BoxDecoration(
+                                          color:
+                                              Colors.white, // 重なるタスクを隠すために背景白
+                                          border: Border(
+                                            bottom: BorderSide(
+                                              color: Colors.grey.shade300,
+                                            ),
+                                          ),
+                                        ),
+                                        child: CustomPaint(
+                                          size: Size(_chartWidth, kAxisHeight),
+                                          painter: _CustomAxisPainter(
+                                            visibleStart: _ganttController
+                                                .visibleStartDate,
+                                            visibleEnd:
+                                                _ganttController.visibleEndDate,
+                                            viewScale: _currentScale,
+                                            chartWidth: _chartWidth,
+                                            isHeader: true,
+                                          ),
+                                        ),
+                                      );
+                                    },
+
+                                // ── タスクバーカスタマイズ（予実） ────────────────
+                                taskBarBuilder: _buildCustomTaskBar,
+                              ),
+
+                              // ── 現在日（Today）テキストラベル ─────────────────
+                              // チャートのスクロール位置（_ganttController の startDate/endDate）から
+                              // 今日の X 座標を計算して '今日' テキストを配置する。
+                              AnimatedBuilder(
+                                animation: _ganttController,
+                                builder: (context, child) {
+                                  if (_chartWidth <= 0)
+                                    return const SizedBox.shrink();
+
+                                  final now = DateTime.now();
+                                  final visibleStart =
+                                      _ganttController.visibleStartDate;
+                                  final visibleEnd =
+                                      _ganttController.visibleEndDate;
+                                  final duration =
+                                      visibleEnd.millisecondsSinceEpoch -
+                                      visibleStart.millisecondsSinceEpoch;
+
+                                  // 現在表示中の範囲に「今日」が含まれている場合のみラベルを表示
+                                  if (now.isAfter(visibleStart) &&
+                                      now.isBefore(visibleEnd)) {
+                                    final diffMs =
+                                        now.millisecondsSinceEpoch -
+                                        visibleStart.millisecondsSinceEpoch;
+                                    final double msPerPixel =
+                                        duration / _chartWidth;
+                                    final double xPosition =
+                                        diffMs / msPerPixel;
+
+                                    return Positioned(
+                                      top: 4, // ヘッダー内の上部
+                                      left: xPosition - 12, // 中央寄せのためのオフセット
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 4,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.red,
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                        ),
+                                        child: const Text(
+                                          '今日',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                  return const SizedBox.shrink();
+                                },
+                              ),
+
+                              // ── ヘッダー領域の透明 GestureDetector ──────────────
+                              // パッケージの onPanUpdate は `dy < timeAxisHeight` の位置から
+                              // 開始したドラッグをタスクヒットなしと判定し、水平パンを開始しない。
+                              // 外側に透明 GestureDetector を被せることでヘッダードラッグを捕捉し、
+                              // _shiftGanttRange で表示範囲を更新する。
+                              Positioned(
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                height: kAxisHeight,
+                                child: GestureDetector(
+                                  behavior: HitTestBehavior.translucent,
+                                  onPanStart: (_) {}, // ドラッグ開始を受け取るだけ
+                                  onPanUpdate: (details) {
+                                    // delta.dx < 0 → 右（未来）へパン、> 0 → 左（過去）へパン
+                                    _shiftGanttRange(-details.delta.dx);
+                                  },
+                                ),
+                              ),
+                            ],
                           ),
                         );
                       },
-
-                      // ── タスクバーカスタマイズ（予実） ────────────────
-                      taskBarBuilder: _buildCustomTaskBar,
                     ),
-
-                    // ── 現在日（Today）テキストラベル ─────────────────
-                    // チャートのスクロール位置（_ganttController の startDate/endDate）から
-                    // 今日の X 座標を計算して '今日' テキストを配置する。
-                    AnimatedBuilder(
-                      animation: _ganttController,
-                      builder: (context, child) {
-                        if (_chartWidth <= 0) return const SizedBox.shrink();
-
-                        final now = DateTime.now();
-                        final visibleStart = _ganttController.visibleStartDate;
-                        final visibleEnd = _ganttController.visibleEndDate;
-                        final duration = visibleEnd.millisecondsSinceEpoch - visibleStart.millisecondsSinceEpoch;
-                        
-                        // 現在表示中の範囲に「今日」が含まれている場合のみラベルを表示
-                        if (now.isAfter(visibleStart) && now.isBefore(visibleEnd)) {
-                          final diffMs = now.millisecondsSinceEpoch - visibleStart.millisecondsSinceEpoch;
-                          final double msPerPixel = duration / _chartWidth;
-                          final double xPosition = diffMs / msPerPixel;
-
-                          return Positioned(
-                            top: 4, // ヘッダー内の上部
-                            left: xPosition - 12, // 中央寄せのためのオフセット
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Colors.red,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: const Text(
-                                '今日',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          );
-                        }
-                        return const SizedBox.shrink();
-                      },
-                    ),
-
-                    // ── ヘッダー領域の透明 GestureDetector ──────────────
-                    // パッケージの onPanUpdate は `dy < timeAxisHeight` の位置から
-                    // 開始したドラッグをタスクヒットなしと判定し、水平パンを開始しない。
-                    // 外側に透明 GestureDetector を被せることでヘッダードラッグを捕捉し、
-                    // _shiftGanttRange で表示範囲を更新する。
-                    Positioned(
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      height: kAxisHeight,
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.translucent,
-                        onPanStart: (_) {}, // ドラッグ開始を受け取るだけ
-                        onPanUpdate: (details) {
-                          // delta.dx < 0 → 右（未来）へパン、> 0 → 左（過去）へパン
-                          _shiftGanttRange(-details.delta.dx);
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-        ),
+                  ),
                 ],
               ),
             ),
@@ -1003,30 +1120,41 @@ class _CustomAxisPainter extends CustomPainter {
     final linePaint = Paint()
       ..color = Colors.grey.shade300
       ..strokeWidth = 1.0;
-      
+
     final weekendPaint = Paint()..color = Colors.grey.shade300; // 休日の背景を少し濃く
 
     // 描画する境界線のリストを生成
     List<DateTime> boundaries = [];
-    
+
     if (viewScale == GanttViewScale.day) {
-      DateTime current = DateTime(visibleStart.year, visibleStart.month, visibleStart.day);
-      while (current.isBefore(visibleEnd) || current.isAtSameMomentAs(visibleEnd)) {
+      DateTime current = DateTime(
+        visibleStart.year,
+        visibleStart.month,
+        visibleStart.day,
+      );
+      while (current.isBefore(visibleEnd) ||
+          current.isAtSameMomentAs(visibleEnd)) {
         boundaries.add(current);
         current = current.add(const Duration(days: 1));
       }
       boundaries.add(current); // テキスト中央揃え用にはみ出た日も追加
     } else if (viewScale == GanttViewScale.week) {
       int daysToSubtract = visibleStart.weekday - 1; // 月曜始まり
-      DateTime current = DateTime(visibleStart.year, visibleStart.month, visibleStart.day - daysToSubtract);
-      while (current.isBefore(visibleEnd) || current.isAtSameMomentAs(visibleEnd)) {
+      DateTime current = DateTime(
+        visibleStart.year,
+        visibleStart.month,
+        visibleStart.day - daysToSubtract,
+      );
+      while (current.isBefore(visibleEnd) ||
+          current.isAtSameMomentAs(visibleEnd)) {
         boundaries.add(current);
         current = current.add(const Duration(days: 7));
       }
       boundaries.add(current);
     } else if (viewScale == GanttViewScale.month) {
       DateTime current = DateTime(visibleStart.year, visibleStart.month, 1);
-      while (current.isBefore(visibleEnd) || current.isAtSameMomentAs(visibleEnd)) {
+      while (current.isBefore(visibleEnd) ||
+          current.isAtSameMomentAs(visibleEnd)) {
         boundaries.add(current);
         current = DateTime(current.year, current.month + 1, 1);
       }
@@ -1037,61 +1165,90 @@ class _CustomAxisPainter extends CustomPainter {
     if (isHeader && viewScale == GanttViewScale.day) {
       final double rowH = size.height / 3;
       canvas.drawLine(Offset(0, rowH), Offset(size.width, rowH), linePaint);
-      canvas.drawLine(Offset(0, rowH * 2), Offset(size.width, rowH * 2), linePaint);
+      canvas.drawLine(
+        Offset(0, rowH * 2),
+        Offset(size.width, rowH * 2),
+        linePaint,
+      );
     }
 
     for (int i = 0; i < boundaries.length - 1; i++) {
       final current = boundaries[i];
       final next = boundaries[i + 1];
-      
+
       final x = _getX(current);
       final nextX = _getX(next);
-      
+
       // 縦罫線の描画（ヘッダーと背景共通、画面内の場合のみ）
       if (x >= -1 && x <= chartWidth + 1) {
         double lineTopY = 0;
         // 「日」ビューのヘッダーの場合、1段目（月）のセルを疑似結合するため、
         // 縦線は原則2段目（rowH）から下のみ引く。ただし1日や左端の場合は全段引く。
         if (isHeader && viewScale == GanttViewScale.day) {
-           if (i != 0 && current.day != 1) {
-             lineTopY = size.height / 3;
-           }
+          if (i != 0 && current.day != 1) {
+            lineTopY = size.height / 3;
+          }
         }
         canvas.drawLine(Offset(x, lineTopY), Offset(x, size.height), linePaint);
       }
-      
+
       if (isHeader) {
         // ヘッダーテキストの描画（マス目の中央）
         final textCenterX = (x + nextX) / 2;
-        
+
         // テキスト位置が完全に画面外ならスキップ
         if (textCenterX < -50 || textCenterX > chartWidth + 50) continue;
 
         if (viewScale == GanttViewScale.day) {
           final weekdays = ['月', '火', '水', '木', '金', '土', '日'];
           final wd = weekdays[current.weekday - 1];
-          
+
           // 土日のテキスト色判定（2・3段目用）
           Color textColor = Colors.black87;
-          if (current.weekday == 6) textColor = Colors.blue; 
+          if (current.weekday == 6) textColor = Colors.blue;
           if (current.weekday == 7) textColor = Colors.red;
 
           // 月表記の重複排除: 左端の列、または1日の場合のみ表示
-          final String monthText = (i == 0 || current.day == 1) ? '${current.month}月' : '';
+          final String monthText = (i == 0 || current.day == 1)
+              ? '${current.month}月'
+              : '';
           final String dayText = '${current.day}';
           final String wdText = wd;
 
           final double rowH = size.height / 3;
-          
+
           // 月の描画 (上段) - 疑似セル結合として独立スタイル・左寄せ
           if (monthText.isNotEmpty) {
-             _drawLeftAlignedText(canvas, monthText, x + 4, 0, rowH, Colors.black87, FontWeight.bold);
+            _drawLeftAlignedText(
+              canvas,
+              monthText,
+              x + 4,
+              0,
+              rowH,
+              Colors.black87,
+              FontWeight.bold,
+            );
           }
           // 日の描画 (中段)
-          _drawCenteredText(canvas, dayText, textCenterX, rowH, rowH, textColor, FontWeight.normal);
+          _drawCenteredText(
+            canvas,
+            dayText,
+            textCenterX,
+            rowH,
+            rowH,
+            textColor,
+            FontWeight.normal,
+          );
           // 曜日の描画 (下段)
-          _drawCenteredText(canvas, wdText, textCenterX, rowH * 2, rowH, textColor, FontWeight.normal);
-
+          _drawCenteredText(
+            canvas,
+            wdText,
+            textCenterX,
+            rowH * 2,
+            rowH,
+            textColor,
+            FontWeight.normal,
+          );
         } else {
           String text = '';
           if (viewScale == GanttViewScale.week) {
@@ -1099,9 +1256,16 @@ class _CustomAxisPainter extends CustomPainter {
           } else if (viewScale == GanttViewScale.month) {
             text = '${current.year}年 ${current.month}月';
           }
-          _drawCenteredText(canvas, text, textCenterX, 0, size.height, Colors.black87, FontWeight.normal);
+          _drawCenteredText(
+            canvas,
+            text,
+            textCenterX,
+            0,
+            size.height,
+            Colors.black87,
+            FontWeight.normal,
+          );
         }
-
       } else {
         // 背景の描画（土日の背景色）
         if (viewScale == GanttViewScale.day) {
@@ -1115,11 +1279,24 @@ class _CustomAxisPainter extends CustomPainter {
   }
 
   // 補助関数: 指定した領域の中央にテキストを描画
-  void _drawCenteredText(Canvas canvas, String text, double textCenterX, double topY, double height, Color color, FontWeight weight) {
+  void _drawCenteredText(
+    Canvas canvas,
+    String text,
+    double textCenterX,
+    double topY,
+    double height,
+    Color color,
+    FontWeight weight,
+  ) {
     if (text.isEmpty) return;
     final textSpan = TextSpan(
       text: text,
-      style: TextStyle(fontSize: 11, color: color, height: 1.2, fontWeight: weight),
+      style: TextStyle(
+        fontSize: 11,
+        color: color,
+        height: 1.2,
+        fontWeight: weight,
+      ),
     );
     final textPainter = TextPainter(
       text: textSpan,
@@ -1127,17 +1304,33 @@ class _CustomAxisPainter extends CustomPainter {
       textDirection: ui.TextDirection.ltr,
     );
     textPainter.layout();
-    
+
     final textY = topY + (height - textPainter.height) / 2;
-    textPainter.paint(canvas, Offset(textCenterX - textPainter.width / 2, textY));
+    textPainter.paint(
+      canvas,
+      Offset(textCenterX - textPainter.width / 2, textY),
+    );
   }
 
   // 補助関数: 指定した領域の左寄せにテキストを描画（はみ出し許容）
-  void _drawLeftAlignedText(Canvas canvas, String text, double leftX, double topY, double height, Color color, FontWeight weight) {
+  void _drawLeftAlignedText(
+    Canvas canvas,
+    String text,
+    double leftX,
+    double topY,
+    double height,
+    Color color,
+    FontWeight weight,
+  ) {
     if (text.isEmpty) return;
     final textSpan = TextSpan(
       text: text,
-      style: TextStyle(fontSize: 11, color: color, height: 1.2, fontWeight: weight),
+      style: TextStyle(
+        fontSize: 11,
+        color: color,
+        height: 1.2,
+        fontWeight: weight,
+      ),
     );
     final textPainter = TextPainter(
       text: textSpan,
@@ -1146,7 +1339,7 @@ class _CustomAxisPainter extends CustomPainter {
     );
     // はみ出しを許容するため幅制限なしで layout
     textPainter.layout();
-    
+
     final textY = topY + (height - textPainter.height) / 2;
     textPainter.paint(canvas, Offset(leftX, textY));
   }
@@ -1154,9 +1347,9 @@ class _CustomAxisPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _CustomAxisPainter oldDelegate) {
     return oldDelegate.visibleStart != visibleStart ||
-           oldDelegate.visibleEnd != visibleEnd ||
-           oldDelegate.viewScale != viewScale ||
-           oldDelegate.chartWidth != chartWidth ||
-           oldDelegate.isHeader != isHeader;
+        oldDelegate.visibleEnd != visibleEnd ||
+        oldDelegate.viewScale != viewScale ||
+        oldDelegate.chartWidth != chartWidth ||
+        oldDelegate.isHeader != isHeader;
   }
 }
