@@ -9,6 +9,8 @@ import '../../process_spec/data/process_steps_repository.dart';
 import '../../process_spec/domain/process_group.dart';
 import '../../process_spec/domain/process_step.dart';
 import 'product_gantt_progress_service.dart';
+import '../presentation/mock_legacy_gantt_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ProcessSpecData {
   final List<ProcessGroup> groups;
@@ -33,11 +35,39 @@ final ganttProductsProvider =
     });
 
 /// ガント画面で使用する process_groups / process_steps 一覧
-final ganttProcessSpecProvider = FutureProvider<ProcessSpecData>((ref) async {
-  final groupsRepo = ProcessGroupsRepository();
-  final stepsRepo = ProcessStepsRepository();
-  final groups = await groupsRepo.fetchAll();
-  final steps = await stepsRepo.fetchAll();
+final ganttProcessSpecProvider = FutureProvider.family<ProcessSpecData, Project>((ref, project) async {
+  final docs = await ref.watch(firestoreTasksProvider(project.id).future);
+  
+  final groups = <ProcessGroup>[];
+  final steps = <ProcessStep>[];
+
+  for (final doc in docs) {
+    final data = doc.data();
+    final parentId = data['parentId'] as String?;
+    final isSummary = data['isSummary'] == true || parentId == null;
+
+    if (isSummary) {
+      groups.add(
+        ProcessGroup(
+          id: doc.id,
+          key: doc.id,
+          label: data['name'] as String? ?? '未定',
+          sortOrder: data['sortOrder'] as int? ?? 0,
+        ),
+      );
+    } else {
+      steps.add(
+        ProcessStep(
+          id: doc.id,
+          groupId: parentId,
+          key: doc.id,
+          label: data['name'] as String? ?? '未定',
+          sortOrder: data['sortOrder'] as int? ?? 0,
+        ),
+      );
+    }
+  }
+
   return ProcessSpecData(groups: groups, steps: steps);
 });
 

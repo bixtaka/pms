@@ -725,7 +725,7 @@ class _GanttScreenState extends ConsumerState<GanttScreen> {
   @override
   Widget build(BuildContext context) {
     final asyncProducts = ref.watch(ganttProductsProvider(widget.project));
-    final asyncProcessSpec = ref.watch(ganttProcessSpecProvider);
+    final asyncProcessSpec = ref.watch(ganttProcessSpecProvider(widget.project));
     final asyncProductBars = ref.watch(
       productGanttBarsProvider(widget.project),
     );
@@ -3075,10 +3075,6 @@ class _ProductProcessStatusMatrixViewState
         ),
         Row(
           children: [
-            SizedBox(
-              width: widget.productColWidth,
-              height: widget.childHeaderHeight,
-            ),
             for (final step in widget.steps)
               Container(
                 width: widget.cellWidth,
@@ -3324,7 +3320,7 @@ class ProductStatusTabContent extends ConsumerWidget {
     final selectedIds = ref.watch(inspectionSelectedProductIdsProvider);
     final filter = ref.watch(productFilterProvider);
     final asyncProducts = ref.watch(ganttProductsProvider(project));
-    final asyncProcessSpec = ref.watch(ganttProcessSpecProvider);
+    final asyncProcessSpec = ref.watch(ganttProcessSpecProvider(project));
     final asyncProductBars = ref.watch(productGanttBarsProvider(project));
     final asyncLatestProgress = ref.watch(
       latestProgressMapByProjectProvider(project.id),

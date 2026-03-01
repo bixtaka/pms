@@ -3146,6 +3146,11 @@ class _ProcessInputPaneState extends ConsumerState<ProcessInputPane> {
       // 進捗集計を即時反映させる
       ref.invalidate(productGanttBarsProvider(widget.project));
       ref.invalidate(productsByProjectProvider(widget.project.id));
+      
+      // 製品別ステータス側のキャッシュもクリアする
+      ref.invalidate(ganttProductsProvider(widget.project));
+      ref.invalidate(latestProgressMapByProjectProvider(widget.project.id));
+      
       messenger.showSnackBar(const SnackBar(content: Text('検査実績を保存しました')));
       // 保存成功時のみ、選択状態をクリアして次の入力へ備える。
       if (kDebugMode) {

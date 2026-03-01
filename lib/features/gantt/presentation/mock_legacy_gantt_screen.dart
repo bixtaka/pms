@@ -14,6 +14,7 @@ import 'dart:ui' as ui;
 import '../../projects/presentation/project_create_screen.dart';
 import '../../projects/presentation/project_settings_screen.dart';
 import '../../../providers/project_providers.dart';
+import '../../../models/project.dart';
 
 // ─── 共通定数 ─────────────────────────────────────────────────────────────────
 /// 左ペインと右チャートで使う 1行の高さ（両側で完全一致）
@@ -166,7 +167,9 @@ final mockGanttDataProvider = FutureProvider.autoDispose
       final products = await ref.watch(
         productsByProjectProvider(projectId).future,
       );
-      final spec = await ref.watch(ganttProcessSpecProvider.future);
+      // Dummy project since we only need ID for firestoreTasksProvider
+      final dummyProject = Project(id: projectId, name: '', createdAt: DateTime.now(), updatedAt: DateTime.now());
+      final spec = await ref.watch(ganttProcessSpecProvider(dummyProject).future);
 
       final dailyRepo = ProcessProgressDailyRepository();
       final Map<String, Map<String, List<GanttDailyEntry>>> progressByStepId =

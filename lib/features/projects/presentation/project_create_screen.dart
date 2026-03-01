@@ -22,9 +22,9 @@ class _ProjectCreateScreenState extends State<ProjectCreateScreen> {
   // 初期状態（標準テンプレート）
   final List<ProjectPhase> _phases = [
     ProjectPhase(name: '一次加工', tasks: ['ケガキ', '切断', '孔あけ', '開先加工', 'ショットブラスト']),
-    ProjectPhase(name: 'コア部', tasks: ['野書', '組立', '溶接', '仕上']),
-    ProjectPhase(name: '仕口部', tasks: ['野書', '組立', '溶接', '仕上']),
-    ProjectPhase(name: '大組部', tasks: ['野書', '組立', '組立検査', '溶接', 'UT']),
+    ProjectPhase(name: 'コア部', tasks: ['ケガキ', '組立', '溶接', '仕上']),
+    ProjectPhase(name: '仕口部', tasks: ['ケガキ', '組立', '溶接', '仕上']),
+    ProjectPhase(name: '大組部', tasks: ['ケガキ', '組立', '組立検査', '溶接', 'UT']),
   ];
 
   @override
