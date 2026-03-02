@@ -69,9 +69,12 @@ class TapeInspectionPdfService {
     required String temperature,
     required String humidity,
   }) {
-    final measurementItems = inspection.items
-        .where((i) => i.isMeasurement)
-        .toList();
+    final measurementItems = inspection.items.where((i) {
+      if (!i.isMeasurement) return false;
+      final clean = i.name.replaceAll(RegExp(r'[^0-9.]'), '');
+      final length = double.tryParse(clean) ?? 0;
+      return length <= 30;
+    }).toList();
 
     // 合否判定
     bool isAllPassed = true;
@@ -87,8 +90,8 @@ class TapeInspectionPdfService {
       theme: theme,
       pageFormat: PdfPageFormat.a4,
       margin: pw.EdgeInsets.fromLTRB(
-        2.85 * PdfPageFormat.cm,
-        1.8 * PdfPageFormat.cm,
+        2.8 * PdfPageFormat.cm,
+        2.8 * PdfPageFormat.cm,
         1.8 * PdfPageFormat.cm,
         0.8 * PdfPageFormat.cm,
       ),
@@ -98,7 +101,7 @@ class TapeInspectionPdfService {
           // タイトル
           pw.Center(
             child: pw.Text(
-              '鉱　製　巻　尺　検　査　報　告　書',
+              '鋼　製　巻　尺　検　査　報　告　書',
               style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
             ),
           ),
@@ -108,8 +111,8 @@ class TapeInspectionPdfService {
           pw.Table(
             border: pw.TableBorder.all(),
             columnWidths: {
-              0: const pw.FlexColumnWidth(1.5),
-              1: const pw.FlexColumnWidth(5),
+              0: const pw.FlexColumnWidth(1),
+              1: const pw.FlexColumnWidth(3),
             },
             children: [
               _row2Cols(
@@ -127,7 +130,7 @@ class TapeInspectionPdfService {
               _row2Cols('張力（工場）', '50N'),
             ],
           ),
-          pw.SizedBox(height: 16),
+          pw.SizedBox(height: 30),
 
           // 計測結果テーブル（4列）
           pw.Table(
@@ -160,7 +163,18 @@ class TapeInspectionPdfService {
                 return pw.TableRow(
                   children: [
                     _cellC(label),
-                    _cellC(item.errorValue),
+                    _cellC(
+                      item.errorValue.isNotEmpty
+                          ? (() {
+                              final d = double.tryParse(
+                                item.errorValue.replaceAll('+', ''),
+                              );
+                              if (d == null) return item.errorValue;
+                              final s = d.toStringAsFixed(1);
+                              return d > 0 ? '+$s' : (d == 0 ? '±0.0' : s);
+                            })()
+                          : '',
+                    ),
                     _cellC(allowedStr),
                     _cellC(judgement),
                   ],
@@ -168,12 +182,12 @@ class TapeInspectionPdfService {
               }),
             ],
           ),
-          pw.SizedBox(height: 12),
+          pw.SizedBox(height: 30),
 
           // JIS B 7512 許容差説明
           pw.Center(
             child: pw.Text(
-              '鉱製巻尺の長さの許容差(JIS B 7512抜粋)',
+              '鋼製巻尺の長さの許容差(JIS B 7512抜粋)',
               style: const pw.TextStyle(fontSize: 9),
             ),
           ),
@@ -182,9 +196,9 @@ class TapeInspectionPdfService {
             border: pw.TableBorder.all(),
             columnWidths: {
               0: const pw.FlexColumnWidth(1),
-              1: const pw.FlexColumnWidth(1.5),
+              1: const pw.FlexColumnWidth(1),
               2: const pw.FlexColumnWidth(1),
-              3: const pw.FlexColumnWidth(1.5),
+              3: const pw.FlexColumnWidth(1),
             },
             children: [
               pw.TableRow(
@@ -205,20 +219,20 @@ class TapeInspectionPdfService {
               ),
             ],
           ),
-          pw.SizedBox(height: 12),
+          pw.SizedBox(height: 30),
 
           // 合否判定
           pw.Table(
             border: pw.TableBorder.all(),
             columnWidths: {
-              0: const pw.FlexColumnWidth(1.5),
-              1: const pw.FlexColumnWidth(5),
+              0: const pw.FlexColumnWidth(1),
+              1: const pw.FlexColumnWidth(3),
             },
             children: [
               pw.TableRow(
                 children: [
                   _cellC('合否判定'),
-                  _cellC(finalJudgement, fontSize: 13, bold: true),
+                  _cellC(finalJudgement, fontSize: 10),
                 ],
               ),
             ],
@@ -255,7 +269,7 @@ class TapeInspectionPdfService {
       children: [
         _cellC(label),
         pw.Padding(
-          padding: const pw.EdgeInsets.symmetric(vertical: 5, horizontal: 6),
+          padding: const pw.EdgeInsets.symmetric(vertical: 7, horizontal: 6),
           child: pw.Text(value, style: const pw.TextStyle(fontSize: 10)),
         ),
       ],
@@ -265,7 +279,7 @@ class TapeInspectionPdfService {
   /// センタリングセル
   pw.Widget _cellC(String text, {double fontSize = 10, bool bold = false}) =>
       pw.Padding(
-        padding: const pw.EdgeInsets.symmetric(vertical: 5, horizontal: 4),
+        padding: const pw.EdgeInsets.symmetric(vertical: 7, horizontal: 4),
         child: pw.Center(
           child: pw.Text(
             text,
