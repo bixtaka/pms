@@ -40,13 +40,21 @@ class PdfPreviewScreen extends StatelessWidget {
         allowPrinting: true,
         canChangePageFormat: false,
         initialPageFormat: PdfPageFormat.a4,
+        maxPageWidth: 700, // 画面いっぱいに拡大されるのを防ぐ
         pdfPreviewPageDecoration: BoxDecoration(
           color: Colors.white,
           boxShadow: const [
-            BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 4)),
+            BoxShadow(
+              color: Colors.black26,
+              blurRadius: 8,
+              offset: Offset(0, 4),
+            ),
           ],
         ),
-        previewPageMargin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        previewPageMargin: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 8,
+        ),
         loadingWidget: const Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,

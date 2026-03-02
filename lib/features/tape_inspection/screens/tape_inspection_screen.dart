@@ -1,4 +1,3 @@
-
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -7,19 +6,21 @@ import 'package:image_picker/image_picker.dart';
 import '../models/tape_inspection_model.dart';
 import 'manual_measurement_overlay.dart';
 import 'pdf_preview_screen.dart';
+import '../../../../core/excel/excel_export_service.dart';
 
 class TapeInspectionScreen extends ConsumerStatefulWidget {
   const TapeInspectionScreen({super.key});
 
   @override
-  ConsumerState<TapeInspectionScreen> createState() => _TapeInspectionScreenState();
+  ConsumerState<TapeInspectionScreen> createState() =>
+      _TapeInspectionScreenState();
 }
 
 class _TapeInspectionScreenState extends ConsumerState<TapeInspectionScreen> {
-
   int _selectedCheckpointIndex = 0;
   late TapeInspection _inspection;
   final _errorController = TextEditingController();
+  final _excelExportService = ExcelExportService();
 
   @override
   void initState() {
@@ -34,13 +35,37 @@ class _TapeInspectionScreenState extends ConsumerState<TapeInspectionScreen> {
       items: [
         // 写真のみの項目
         TapeInspectionItem(id: 'item_01', name: '集合写真', isMeasurement: false),
-        TapeInspectionItem(id: 'item_02', name: 'テープ合わせ（全景）', isMeasurement: false),
+        TapeInspectionItem(
+          id: 'item_02',
+          name: 'テープ合わせ（全景）',
+          isMeasurement: false,
+        ),
         TapeInspectionItem(id: 'item_03', name: '気温・湿度', isMeasurement: false),
-        TapeInspectionItem(id: 'item_04', name: '張力確認（テープ）（全景）', isMeasurement: false),
-        TapeInspectionItem(id: 'item_05', name: '張力確認（テープ）（現場）（近景）', isMeasurement: false),
-        TapeInspectionItem(id: 'item_06', name: '張力確認（テープ）（工場）（近景）', isMeasurement: false),
-        TapeInspectionItem(id: 'item_07', name: '張力確認（バネ）（全景）', isMeasurement: false),
-        TapeInspectionItem(id: 'item_08', name: '張力確認（バネ）（近景）', isMeasurement: false),
+        TapeInspectionItem(
+          id: 'item_04',
+          name: '張力確認（テープ）（全景）',
+          isMeasurement: false,
+        ),
+        TapeInspectionItem(
+          id: 'item_05',
+          name: '張力確認（テープ）（現場）（近景）',
+          isMeasurement: false,
+        ),
+        TapeInspectionItem(
+          id: 'item_06',
+          name: '張力確認（テープ）（工場）（近景）',
+          isMeasurement: false,
+        ),
+        TapeInspectionItem(
+          id: 'item_07',
+          name: '張力確認（バネ）（全景）',
+          isMeasurement: false,
+        ),
+        TapeInspectionItem(
+          id: 'item_08',
+          name: '張力確認（バネ）（近景）',
+          isMeasurement: false,
+        ),
         // 計測ありの項目
         TapeInspectionItem(id: 'item_09', name: '0m', isMeasurement: true),
         TapeInspectionItem(id: 'item_10', name: '5m', isMeasurement: true),
@@ -60,11 +85,12 @@ class _TapeInspectionScreenState extends ConsumerState<TapeInspectionScreen> {
   }
 
   void _updateErrorController() {
-    if (_inspection.items.isNotEmpty && _selectedCheckpointIndex < _inspection.items.length) {
-      _errorController.text = _inspection.items[_selectedCheckpointIndex].errorValue;
+    if (_inspection.items.isNotEmpty &&
+        _selectedCheckpointIndex < _inspection.items.length) {
+      _errorController.text =
+          _inspection.items[_selectedCheckpointIndex].errorValue;
     }
   }
-
 
   Future<void> _pickImage(bool isCloseup) async {
     try {
@@ -84,7 +110,7 @@ class _TapeInspectionScreenState extends ConsumerState<TapeInspectionScreen> {
       debugPrint('Image picked: ${photo.path}');
 
       final item = _inspection.items[_selectedCheckpointIndex];
-      
+
       setState(() {
         var newItems = List<TapeInspectionItem>.from(_inspection.items);
         newItems[_selectedCheckpointIndex] = isCloseup
@@ -92,10 +118,7 @@ class _TapeInspectionScreenState extends ConsumerState<TapeInspectionScreen> {
                 closeupPhotoUrl: photo.path,
                 isCloseupPhotoTaken: true,
               )
-            : item.copyWith(
-                widePhotoUrl: photo.path,
-                isWidePhotoTaken: true,
-              );
+            : item.copyWith(widePhotoUrl: photo.path, isWidePhotoTaken: true);
         _inspection = _inspection.copyWith(items: newItems);
       });
 
@@ -104,7 +127,8 @@ class _TapeInspectionScreenState extends ConsumerState<TapeInspectionScreen> {
         if (!mounted) return;
         final result = await Navigator.of(context).push<String>(
           MaterialPageRoute(
-            builder: (context) => ManualMeasurementOverlay(imagePath: photo.path),
+            builder: (context) =>
+                ManualMeasurementOverlay(imagePath: photo.path),
             fullscreenDialog: true,
           ),
         );
@@ -113,22 +137,21 @@ class _TapeInspectionScreenState extends ConsumerState<TapeInspectionScreen> {
           setState(() {
             _errorController.text = result;
             var newItems = List<TapeInspectionItem>.from(_inspection.items);
-            newItems[_selectedCheckpointIndex] = newItems[_selectedCheckpointIndex].copyWith(
-              errorValue: result,
-            );
+            newItems[_selectedCheckpointIndex] =
+                newItems[_selectedCheckpointIndex].copyWith(errorValue: result);
             _inspection = _inspection.copyWith(items: newItems);
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('手動計測完了: 誤差 $result mm')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('手動計測完了: 誤差 $result mm')));
         }
       }
     } catch (e) {
       debugPrint('Error picking image: $e');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('カメラの起動に失敗しました: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('カメラの起動に失敗しました: $e')));
     }
   }
 
@@ -181,16 +204,80 @@ class _TapeInspectionScreenState extends ConsumerState<TapeInspectionScreen> {
     }
   }
 
+  /// Excel出力処理（ダイアログ経由で生成・共有）
+  Future<void> _exportExcel(BuildContext context) async {
+    final projectNameCtrl = TextEditingController(text: '〇〇工事');
+    final companyNameCtrl = TextEditingController(text: '〇〇株式会社');
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Excel出力'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: projectNameCtrl,
+              decoration: const InputDecoration(labelText: '工事名称'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: companyNameCtrl,
+              decoration: const InputDecoration(labelText: '会社名'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('キャンセル'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('生成する'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && context.mounted) {
+      try {
+        await _excelExportService.exportTapeInspectionReport(
+          inspection: _inspection,
+          projectName: projectNameCtrl.text,
+          companyName: companyNameCtrl.text,
+        );
+      } catch (e) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Excel出力に失敗しました: $e')));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('テープ合わせ（鋼製巻尺検査）'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.picture_as_pdf),
-            tooltip: 'PDFプレビュー',
-            onPressed: () => _openPdfPreview(context),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            child: OutlinedButton.icon(
+              icon: const Text('📄'),
+              label: const Text('PDF出力'),
+              onPressed: () => _openPdfPreview(context),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            child: FilledButton.icon(
+              icon: const Text('📊'),
+              label: const Text('Excel出力'),
+              style: FilledButton.styleFrom(backgroundColor: Colors.green),
+              onPressed: () => _exportExcel(context),
+            ),
           ),
         ],
       ),
@@ -208,9 +295,11 @@ class _TapeInspectionScreenState extends ConsumerState<TapeInspectionScreen> {
                       final item = _inspection.items[index];
                       final isSelected = index == _selectedCheckpointIndex;
                       // 写真ありかどうかの判定。計測項目の場合は両方、写真項目の場合は全景のみでOKとするなど柔軟に
-                      final isCompleted = item.isMeasurement 
-                        ? (item.isWidePhotoTaken && item.isCloseupPhotoTaken && item.errorValue.isNotEmpty)
-                        : (item.isWidePhotoTaken || item.isCloseupPhotoTaken);
+                      final isCompleted = item.isMeasurement
+                          ? (item.isWidePhotoTaken &&
+                                item.isCloseupPhotoTaken &&
+                                item.errorValue.isNotEmpty)
+                          : (item.isWidePhotoTaken || item.isCloseupPhotoTaken);
 
                       return ListTile(
                         title: Text(item.name),
@@ -230,8 +319,17 @@ class _TapeInspectionScreenState extends ConsumerState<TapeInspectionScreen> {
                             }
                           },
                           itemBuilder: (context) => [
-                            const PopupMenuItem(value: 'edit', child: Text('名前を変更')),
-                            const PopupMenuItem(value: 'delete', child: Text('削除', style: TextStyle(color: Colors.red))),
+                            const PopupMenuItem(
+                              value: 'edit',
+                              child: Text('名前を変更'),
+                            ),
+                            const PopupMenuItem(
+                              value: 'delete',
+                              child: Text(
+                                '削除',
+                                style: TextStyle(color: Colors.red),
+                              ),
+                            ),
                           ],
                         ),
                         onTap: () {
@@ -268,10 +366,7 @@ class _TapeInspectionScreenState extends ConsumerState<TapeInspectionScreen> {
           ),
           const VerticalDivider(width: 1),
           // 右ペイン: 詳細・撮影
-          Expanded(
-            flex: 3,
-            child: _buildDetailPane(),
-          ),
+          Expanded(flex: 3, child: _buildDetailPane()),
         ],
       ),
     );
@@ -289,16 +384,25 @@ class _TapeInspectionScreenState extends ConsumerState<TapeInspectionScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              item.name,
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
+            Text(item.name, style: Theme.of(context).textTheme.headlineSmall),
             const SizedBox(height: 20),
             Row(
               children: [
-                Expanded(child: _buildPhotoCard('全体・全景', item.widePhotoUrl, () => _pickImage(false))),
+                Expanded(
+                  child: _buildPhotoCard(
+                    '全体・全景',
+                    item.widePhotoUrl,
+                    () => _pickImage(false),
+                  ),
+                ),
                 const SizedBox(width: 16),
-                Expanded(child: _buildPhotoCard('近景', item.closeupPhotoUrl, () => _pickImage(true))),
+                Expanded(
+                  child: _buildPhotoCard(
+                    '近景',
+                    item.closeupPhotoUrl,
+                    () => _pickImage(true),
+                  ),
+                ),
               ],
             ),
             // isMeasurement が true の時だけ誤差UIを表示
@@ -306,7 +410,10 @@ class _TapeInspectionScreenState extends ConsumerState<TapeInspectionScreen> {
               const SizedBox(height: 30),
               Row(
                 children: [
-                  const Text('誤差 (mm)', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text(
+                    '誤差 (mm)',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 ],
               ),
               const SizedBox(height: 8),
@@ -319,7 +426,9 @@ class _TapeInspectionScreenState extends ConsumerState<TapeInspectionScreen> {
                 ),
                 onChanged: (value) {
                   setState(() {
-                    var newItems = List<TapeInspectionItem>.from(_inspection.items);
+                    var newItems = List<TapeInspectionItem>.from(
+                      _inspection.items,
+                    );
                     newItems[_selectedCheckpointIndex] = item.copyWith(
                       errorValue: value,
                     );
@@ -382,10 +491,7 @@ class _TapeInspectionScreenState extends ConsumerState<TapeInspectionScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('名前を変更'),
-        content: TextField(
-          controller: textController,
-          autofocus: true,
-        ),
+        content: TextField(controller: textController, autofocus: true),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -395,7 +501,9 @@ class _TapeInspectionScreenState extends ConsumerState<TapeInspectionScreen> {
             onPressed: () {
               if (textController.text.isNotEmpty) {
                 setState(() {
-                  var newItems = List<TapeInspectionItem>.from(_inspection.items);
+                  var newItems = List<TapeInspectionItem>.from(
+                    _inspection.items,
+                  );
                   newItems[index] = item.copyWith(name: textController.text);
                   _inspection = _inspection.copyWith(items: newItems);
                 });
@@ -455,13 +563,21 @@ class _TapeInspectionScreenState extends ConsumerState<TapeInspectionScreen> {
     );
   }
 
-
   Widget _buildImage(String path) {
     if (path.startsWith('http') || path.startsWith('blob:')) {
-      return Image.network(path, fit: BoxFit.cover, width: double.infinity, height: double.infinity);
+      return Image.network(
+        path,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+      );
     } else {
-      return Image.file(File(path), fit: BoxFit.cover, width: double.infinity, height: double.infinity);
+      return Image.file(
+        File(path),
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+      );
     }
   }
 }
-

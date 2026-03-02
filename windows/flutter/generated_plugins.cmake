@@ -10,6 +10,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   firebase_storage
   gal
   printing
+  share_plus
   url_launcher_windows
 )
 
