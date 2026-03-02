@@ -2,12 +2,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:legacy_gantt_chart/legacy_gantt_chart.dart';
-import '../utils/gantt_data_adapter.dart';
-import '../../../providers/product_providers.dart';
-import '../application/gantt_providers.dart';
-import '../../process_spec/data/process_progress_daily_repository.dart';
-import '../../process_progress/data/process_progress_repository.dart';
-import '../../../models/process_progress.dart';
+import '../../utils/gantt_data_adapter.dart';
+import '../../../../providers/product_providers.dart';
+import '../../application/gantt_providers.dart';
+import '../../../process_spec/data/process_progress_daily_repository.dart';
+import '../../../process_progress/data/process_progress_repository.dart';
+import '../../../../models/process_progress.dart';
 
 import 'package:intl/intl.dart';
 import 'dart:ui' as ui;
