@@ -297,6 +297,13 @@ class TapeInspectionPdfService {
     required pw.ThemeData theme,
     required TapeInspection inspection,
   }) async {
+    final margin = pw.EdgeInsets.fromLTRB(
+      2.8 * PdfPageFormat.cm, // 左
+      2.8 * PdfPageFormat.cm, // 上
+      2.6 * PdfPageFormat.cm, // 右
+      2.8 * PdfPageFormat.cm, // 下
+    );
+
     // 写真エントリ構造: (ラベル, 誤差, 画像パス or null)
     final List<_PhotoEntry> entries = [];
 
@@ -346,19 +353,36 @@ class TapeInspectionPdfService {
 
       // 各エントリの画像を事前に読み込む
       final entryWidgets = <pw.Widget>[];
-      for (final entry in chunk) {
+      for (int j = 0; j < chunk.length; j++) {
+        final entry = chunk[j];
         final imgWidget = await _loadImageWidget(entry.imagePath);
         entryWidgets.add(
-          _buildPhotoRow(theme: theme, entry: entry, imageWidget: imgWidget),
+          pw.Expanded(
+            child: _buildPhotoRow(
+              theme: theme,
+              entry: entry,
+              imageWidget: imgWidget,
+            ),
+          ),
         );
-        entryWidgets.add(pw.SizedBox(height: 8));
+        if (j < perPage - 1) {
+          entryWidgets.add(pw.SizedBox(height: 8));
+        }
+      }
+
+      // ページ内に3つエントリがない場合でも、高さのバランスを保つためにダミーの空枠を置く
+      for (int j = chunk.length; j < perPage; j++) {
+        entryWidgets.add(pw.Expanded(child: pw.Container()));
+        if (j < perPage - 1) {
+          entryWidgets.add(pw.SizedBox(height: 8));
+        }
       }
 
       pages.add(
         pw.Page(
           theme: theme,
           pageFormat: PdfPageFormat.a4,
-          margin: const pw.EdgeInsets.all(20),
+          margin: margin,
           build: (context) => pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
@@ -390,7 +414,6 @@ class TapeInspectionPdfService {
     required pw.Widget imageWidget,
   }) {
     return pw.Container(
-      height: 230,
       decoration: pw.BoxDecoration(
         border: pw.Border.all(color: PdfColors.grey400),
         borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
