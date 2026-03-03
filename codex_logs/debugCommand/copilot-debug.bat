@@ -1,2 +1,2 @@
 @echo off
-powershell -ExecutionPolicy Bypass -File "c:\Users\taka1\AppData\Roaming\Code\User\globalStorage\github.copilot-chat\debugCommand\copilot-debug.ps1" %*
+powershell -ExecutionPolicy Bypass -File "c:\Users\USER1\AppData\Roaming\Code\User\globalStorage\github.copilot-chat\debugCommand\copilot-debug.ps1" %*
