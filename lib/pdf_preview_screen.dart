@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
 import 'features/tape_inspection/models/tape_inspection_model.dart';
 import 'features/tape_inspection/services/tape_inspection_pdf_service.dart';
+import 'features/tape_inspection/screens/tape_inspection_screen.dart';
 
 class PdfPreviewScreen extends StatelessWidget {
   const PdfPreviewScreen({Key? key}) : super(key: key);
@@ -9,7 +10,22 @@ class PdfPreviewScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('PDFレイアウト調整（ホットリロード対応）')),
+      appBar: AppBar(
+        title: const Text('PDFレイアウト調整（ホットリロード対応）'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            } else {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const TapeInspectionScreen()),
+              );
+            }
+          },
+        ),
+      ),
       body: PdfPreview(
         maxPageWidth: 700,
         build: (format) async {

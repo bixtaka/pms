@@ -13,14 +13,14 @@ import '../services/firestore_service.dart';
 import '../widgets/blackboard_preview.dart';
 
 /// 撮影リスト画面
-/// 
+///
 /// 工事名と撮影項目のリストを表示し、
 /// 各項目をタップするとカメラ画面へ遷移します。
 /// 撮影完了後、リストに戻ると該当項目が「済」に更新されます。
 class SitePhotoListScreen extends StatefulWidget {
   // === 前の画面から受け取るデータ ===
   final String projectName; // 工事名
-  final String projectId;   // 工事ID (Firestore用)
+  final String projectId; // 工事ID (Firestore用)
 
   const SitePhotoListScreen({
     super.key,
@@ -35,13 +35,13 @@ class SitePhotoListScreen extends StatefulWidget {
 class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
   // === Firestore サービス ===
   final FirestoreService _firestoreService = FirestoreService();
-  
+
   // === 選択中の項目 ===
   PhotoItem? _selectedItem;
-  
+
   // === 備考欄のコントローラー ===
   final TextEditingController _notesController = TextEditingController();
-  
+
   // === 作業内容（黒板）のコントローラー ===
   final TextEditingController _contentTextController = TextEditingController();
 
@@ -57,7 +57,7 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
     return Scaffold(
       // 背景色（Apple風のライトグレー）
       backgroundColor: const Color(0xFFF2F2F7),
-      
+
       // アプリバー
       appBar: AppBar(
         title: Text(
@@ -95,14 +95,14 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
           ),
         ],
       ),
-      
+
       // === 本体部分（2分割レイアウト + StreamBuilder） ===
       body: StreamBuilder<List<SiteCategory>>(
         stream: _firestoreService.getCategories(widget.projectId),
         builder: (context, categorySnapshot) {
           // カテゴリー読み込み中
           if (categorySnapshot.connectionState == ConnectionState.waiting) {
-             return const Center(child: CircularProgressIndicator());
+            return const Center(child: CircularProgressIndicator());
           }
 
           final categories = categorySnapshot.data ?? [];
@@ -118,7 +118,10 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
               // === エラー発生 ===
               if (photoSnapshot.hasError) {
                 return Center(
-                  child: Text('エラー: ${photoSnapshot.error}', style: const TextStyle(color: Colors.red)),
+                  child: Text(
+                    'エラー: ${photoSnapshot.error}',
+                    style: const TextStyle(color: Colors.red),
+                  ),
                 );
               }
 
@@ -136,15 +139,12 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
                     flex: 2,
                     child: _buildListPane(categories, photoItems),
                   ),
-                  
+
                   // === 中央の区切り線 ===
                   Container(width: 1, color: Colors.grey[300]),
 
                   // === 右ペイン: 詳細 ===
-                  Expanded(
-                    flex: 3,
-                    child: _buildDetailPane(photoItems),
-                  ),
+                  Expanded(flex: 3, child: _buildDetailPane(photoItems)),
                 ],
               );
             },
@@ -156,17 +156,25 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
 
   /// データがない場合の表示
   Widget _buildEmptyState() {
-     return Center(
+    return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(CupertinoIcons.list_bullet, size: 80, color: Colors.grey),
+            const Icon(
+              CupertinoIcons.list_bullet,
+              size: 80,
+              color: Colors.grey,
+            ),
             const SizedBox(height: 24),
             const Text(
               '撮影項目が設定されていません',
-              style: TextStyle(fontSize: 20, color: Colors.grey, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 20,
+                color: Colors.grey,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 8),
             const Text(
@@ -191,10 +199,15 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
               icon: const Icon(CupertinoIcons.settings),
               label: const Text('撮影項目を設定する', style: TextStyle(fontSize: 18)),
               style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 20,
+                ),
                 backgroundColor: Colors.blue,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
           ],
@@ -204,7 +217,10 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
   }
 
   /// 左ペイン: リスト表示（カテゴリー別グループ化 + CRUD機能）
-  Widget _buildListPane(List<SiteCategory> categories, List<PhotoItem> photoItems) {
+  Widget _buildListPane(
+    List<SiteCategory> categories,
+    List<PhotoItem> photoItems,
+  ) {
     return Container(
       color: Colors.white,
       child: Column(
@@ -217,7 +233,10 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
                 // === 最後尾: 「新しい工程を追加」ボタン ===
                 if (index == categories.length) {
                   return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 16,
+                      horizontal: 8,
+                    ),
                     child: OutlinedButton.icon(
                       onPressed: () => _showAddCategoryDialog(),
                       icon: const Icon(Icons.add),
@@ -232,21 +251,30 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
 
                 final category = categories[index];
                 // このカテゴリーに属する項目をフィルタリング
-                final items = photoItems.where((i) => i.category == category.name).toList();
-                
+                final items = photoItems
+                    .where((i) => i.category == category.name)
+                    .toList();
+
                 return Theme(
-                  data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                  data: Theme.of(
+                    context,
+                  ).copyWith(dividerColor: Colors.transparent),
                   child: ExpansionTile(
                     initiallyExpanded: true,
                     // ヘッダー長押しのための GestureDetector
                     title: GestureDetector(
-                      onLongPress: () => _showEditCategoryMenu(category, items.isNotEmpty),
+                      onLongPress: () =>
+                          _showEditCategoryMenu(category, items.isNotEmpty),
                       child: Container(
                         // タップ領域を広げるために透明なコンテナで包む
-                        color: Colors.transparent, 
+                        color: Colors.transparent,
                         child: Row(
                           children: [
-                            Icon(CupertinoIcons.folder_fill, size: 20, color: Colors.grey[700]),
+                            Icon(
+                              CupertinoIcons.folder_fill,
+                              size: 20,
+                              color: Colors.grey[700],
+                            ),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
@@ -260,7 +288,10 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
                             ),
                             Text(
                               '${items.where((i) => i.isCompleted).length}/${items.length}',
-                              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[600],
+                              ),
                             ),
                           ],
                         ),
@@ -271,7 +302,7 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
                       ...items.map((item) {
                         final isSelected = _selectedItem?.id == item.id;
                         final displayItem = isSelected ? _selectedItem! : item;
-                        
+
                         return Slidable(
                           key: ValueKey(item.id),
                           endActionPane: ActionPane(
@@ -302,23 +333,38 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
                             selected: isSelected,
                             selectedTileColor: Colors.blue[50],
                             selectedColor: Colors.blue[900],
-                            contentPadding: const EdgeInsets.only(left: 32, right: 8),
+                            contentPadding: const EdgeInsets.only(
+                              left: 32,
+                              right: 8,
+                            ),
                             leading: Icon(
                               displayItem.isCompleted
                                   ? CupertinoIcons.checkmark_circle_fill
                                   : CupertinoIcons.circle,
-                              color: displayItem.isCompleted ? Colors.green : Colors.grey[400],
+                              color: displayItem.isCompleted
+                                  ? Colors.green
+                                  : Colors.grey[400],
                             ),
                             title: Text(
                               displayItem.name,
                               style: TextStyle(
-                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                fontWeight: isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.w500,
                               ),
                             ),
-                            subtitle: displayItem.contentText != null && displayItem.contentText!.isNotEmpty
+                            subtitle:
+                                displayItem.contentText != null &&
+                                    displayItem.contentText!.isNotEmpty
                                 ? Text(
-                                    displayItem.contentText!.replaceAll('\n', ' / '),
-                                    style: TextStyle(color: Colors.grey[500], fontSize: 12.0),
+                                    displayItem.contentText!.replaceAll(
+                                      '\n',
+                                      ' / ',
+                                    ),
+                                    style: TextStyle(
+                                      color: Colors.grey[500],
+                                      fontSize: 12.0,
+                                    ),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   )
@@ -328,10 +374,14 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
                               icon: Icon(
                                 Icons.edit,
                                 size: 18,
-                                color: isSelected ? Colors.blue[300] : Colors.grey[300],
+                                color: isSelected
+                                    ? Colors.blue[300]
+                                    : Colors.grey[300],
                               ),
                               onPressed: () {
-                                setState(() { _selectedItem = item; });
+                                setState(() {
+                                  _selectedItem = item;
+                                });
                                 _showBlackboardEditor(context, item);
                               },
                             ),
@@ -339,20 +389,32 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
                               setState(() {
                                 _selectedItem = item;
                                 _notesController.text = item.memo ?? '';
-                                _contentTextController.text = item.contentText ?? '${item.category}\n${item.name}';
+                                _contentTextController.text =
+                                    item.contentText ??
+                                    '${item.category}\n${item.name}';
                               });
                             },
                           ),
                         );
                       }),
-                      
-              // === 「項目を追加」ボタン（控えめデザイン）===
+
+                      // === 「項目を追加」ボタン（控えめデザイン）===
                       ListTile(
-                        contentPadding: const EdgeInsets.only(left: 32, right: 16),
-                        leading: Icon(Icons.add, color: Colors.grey[400], size: 18),
+                        contentPadding: const EdgeInsets.only(
+                          left: 32,
+                          right: 16,
+                        ),
+                        leading: Icon(
+                          Icons.add,
+                          color: Colors.grey[400],
+                          size: 18,
+                        ),
                         title: Text(
                           '項目を追加',
-                          style: TextStyle(color: Colors.grey[400], fontSize: 13),
+                          style: TextStyle(
+                            color: Colors.grey[400],
+                            fontSize: 13,
+                          ),
                         ),
                         onTap: () => _showAddItemDialog(category.name),
                       ),
@@ -375,18 +437,11 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              CupertinoIcons.hand_point_left,
-              size: 64,
-              color: Colors.grey,
-            ),
+            Icon(CupertinoIcons.hand_point_left, size: 64, color: Colors.grey),
             SizedBox(height: 16),
             Text(
               '左側のリストから項目を選択してください',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey,
-              ),
+              style: TextStyle(fontSize: 16, color: Colors.grey),
             ),
           ],
         ),
@@ -397,13 +452,11 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
     return Column(
       children: [
         // === 上部：撮影済み写真ギャラリー (メイン) ===
-        Expanded(
-          child: _buildPhotoGallerySection(),
-        ),
-        
+        Expanded(child: _buildPhotoGallerySection()),
+
         // === 区切り線 ===
         Divider(height: 1, color: Colors.grey[300]),
-        
+
         // === 下部：アクションエリア (カメラボタンのみ) ===
         _buildActionSection(),
       ],
@@ -415,9 +468,7 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
     final photos = _selectedItem!.photos;
     return Container(
       color: Colors.grey[100],
-      child: photos.isNotEmpty
-          ? _buildPhotoGrid()
-          : _buildNoPhotoMessage(),
+      child: photos.isNotEmpty ? _buildPhotoGrid() : _buildNoPhotoMessage(),
     );
   }
 
@@ -468,7 +519,7 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
                         child: CircularProgressIndicator(
                           value: loadingProgress.expectedTotalBytes != null
                               ? loadingProgress.cumulativeBytesLoaded /
-                                  loadingProgress.expectedTotalBytes!
+                                    loadingProgress.expectedTotalBytes!
                               : null,
                           strokeWidth: 2,
                         ),
@@ -476,7 +527,11 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
                     },
                     errorBuilder: (context, error, stackTrace) {
                       return const Center(
-                        child: Icon(Icons.error_outline, size: 48, color: Colors.red),
+                        child: Icon(
+                          Icons.error_outline,
+                          size: 48,
+                          color: Colors.red,
+                        ),
                       );
                     },
                   ),
@@ -493,7 +548,11 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
                         color: Colors.black54,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.close, color: Colors.white, size: 16),
+                      child: const Icon(
+                        Icons.close,
+                        color: Colors.white,
+                        size: 16,
+                      ),
                     ),
                   ),
                 ),
@@ -511,11 +570,7 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            CupertinoIcons.photo,
-            size: 80,
-            color: Colors.grey,
-          ),
+          Icon(CupertinoIcons.photo, size: 80, color: Colors.grey),
           SizedBox(height: 16),
           Text(
             '写真はありません',
@@ -526,10 +581,7 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
             ),
           ),
           SizedBox(height: 8),
-          Text(
-            '「カメラを起動する」から撮影を開始してください',
-            style: TextStyle(color: Colors.grey),
-          ),
+          Text('「カメラを起動する」から撮影を開始してください', style: TextStyle(color: Colors.grey)),
         ],
       ),
     );
@@ -554,10 +606,7 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
                   children: [
                     Text(
                       _selectedItem!.category,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[600],
-                      ),
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                     ),
                     Text(
                       _selectedItem!.name,
@@ -571,13 +620,14 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
                 const Spacer(),
                 // 編集ヒント
                 TextButton.icon(
-                  onPressed: () => _showBlackboardEditor(context, _selectedItem!),
+                  onPressed: () =>
+                      _showBlackboardEditor(context, _selectedItem!),
                   icon: const Icon(Icons.edit, size: 16),
                   label: const Text('黒板を編集'),
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 16),
 
             // === カメラ起動ボタン ===
@@ -605,10 +655,14 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
   }
 
   /// 黒板エディタ（ボトムシート）を表示
-  Future<void> _showBlackboardEditor(BuildContext context, PhotoItem item) async {
+  Future<void> _showBlackboardEditor(
+    BuildContext context,
+    PhotoItem item,
+  ) async {
     // 初期値をセット
-    _contentTextController.text = item.contentText ?? '${item.category}\n${item.name}';
-    
+    _contentTextController.text =
+        item.contentText ?? '${item.category}\n${item.name}';
+
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -618,7 +672,7 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
           builder: (context, setSheetState) {
             // 現在の編集対象アイテムを親の状態から取得（_selectedItemは常に最新）
             final currentItem = _selectedItem!;
-            
+
             return Container(
               height: MediaQuery.of(context).size.height * 0.85,
               decoration: const BoxDecoration(
@@ -637,10 +691,13 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
-                  
+
                   // === ヘッダー ===
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     child: Row(
                       children: [
                         const Text(
@@ -658,9 +715,9 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
                       ],
                     ),
                   ),
-                  
+
                   const Divider(),
-                  
+
                   // === コンテンツ ===
                   Expanded(
                     child: SingleChildScrollView(
@@ -668,13 +725,13 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                           // === 黒板プレビュー ===
-                           Center(
-                             child: SizedBox(
-                               width: 300, 
-                               child: AspectRatio(
-                                 aspectRatio: 4 / 3,
-                                 child: Container(
+                          // === 黒板プレビュー ===
+                          Center(
+                            child: SizedBox(
+                              width: 300,
+                              child: AspectRatio(
+                                aspectRatio: 4 / 3,
+                                child: Container(
                                   decoration: BoxDecoration(
                                     boxShadow: [
                                       BoxShadow(
@@ -684,87 +741,108 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
                                       ),
                                     ],
                                   ),
-                                   child: BlackboardPreview(
-                                     projectName: widget.projectName,
-                                     category: '鉄骨工事',
-                                     freeSpaceText: '${currentItem.contentText ?? '${currentItem.category}\n${currentItem.name}'}\n撮影者：ユーザー名',
-                                     constructionType: currentItem.name,
-                                     photographer: 'ユーザー名',
-                                     blackboardType: currentItem.blackboardType,
-                                   ),
-                                 ),
-                               ),
-                             ),
-                           ),
-                           
-                           const SizedBox(height: 24),
-                           
-                           // === 黒板タイプ選択 ===
-                           const Text(
-                             '黒板タイプ',
-                             style: TextStyle(fontWeight: FontWeight.bold),
-                           ),
-                           const SizedBox(height: 8),
-                           SizedBox(
-                             width: double.infinity,
-                             child: SegmentedButton<String>(
-                               segments: const [
-                                 ButtonSegment(value: 'type2', label: Text('2段')),
-                                 ButtonSegment(value: 'type3', label: Text('3段')),
-                                 ButtonSegment(value: 'type4', label: Text('4段')),
-                                 ButtonSegment(value: 'typeDetail', label: Text('詳細')),
-                               ],
-                               selected: {currentItem.blackboardType},
-                               onSelectionChanged: (Set<String> newSelection) {
-                                  // 親の状態と、このシートの状態の両方を更新
-                                  setState(() {
-                                    _selectedItem = currentItem.copyWith(blackboardType: newSelection.first);
-                                  });
-                                  setSheetState(() {});
-                               },
-                             ),
-                           ),
-                           
-                           const SizedBox(height: 24),
-                           
-                           // === 作業内容入力 ===
-                           TextField(
-                              controller: _contentTextController,
-                              decoration: const InputDecoration(
-                                labelText: '作業内容 (黒板に表示)',
-                                border: OutlineInputBorder(),
-                                alignLabelWithHint: true,
-                                hintText: '例：一次加工\n切断',
-                                helperText: '※入力内容はリストにも反映されます',
+                                  child: BlackboardPreview(
+                                    projectName: widget.projectName,
+                                    category: '鉄骨工事',
+                                    freeSpaceText:
+                                        '${currentItem.contentText ?? '${currentItem.category}\n${currentItem.name}'}\n撮影者：ユーザー名',
+                                    constructionType: currentItem.name,
+                                    photographer: 'ユーザー名',
+                                    blackboardType: currentItem.blackboardType,
+                                  ),
+                                ),
                               ),
-                              maxLines: 5,
-                              onChanged: (text) {
+                            ),
+                          ),
+
+                          const SizedBox(height: 24),
+
+                          // === 黒板タイプ選択 ===
+                          const Text(
+                            '黒板タイプ',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            width: double.infinity,
+                            child: SegmentedButton<String>(
+                              segments: const [
+                                ButtonSegment(
+                                  value: 'type2',
+                                  label: Text('2段'),
+                                ),
+                                ButtonSegment(
+                                  value: 'type3',
+                                  label: Text('3段'),
+                                ),
+                                ButtonSegment(
+                                  value: 'type4',
+                                  label: Text('4段'),
+                                ),
+                                ButtonSegment(
+                                  value: 'typeDetail',
+                                  label: Text('詳細'),
+                                ),
+                              ],
+                              selected: {currentItem.blackboardType},
+                              onSelectionChanged: (Set<String> newSelection) {
                                 // 親の状態と、このシートの状態の両方を更新
                                 setState(() {
-                                  _selectedItem = currentItem.copyWith(contentText: text);
+                                  _selectedItem = currentItem.copyWith(
+                                    blackboardType: newSelection.first,
+                                  );
                                 });
                                 setSheetState(() {});
                               },
-                           ),
-                           
-                           const SizedBox(height: 32),
-                           
-                           // === 閉じるボタン ===
-                           SizedBox(
-                             width: double.infinity,
-                             child: ElevatedButton(
-                               onPressed: () => Navigator.of(context).pop(),
-                               style: ElevatedButton.styleFrom(
-                                 padding: const EdgeInsets.symmetric(vertical: 16),
-                                 backgroundColor: Colors.grey[800],
-                                 foregroundColor: Colors.white,
-                               ),
-                               child: const Text('編集を完了して閉じる'),
-                             ),
-                           ),
-                           
-                           // キーボード分の余白
-                           SizedBox(height: MediaQuery.of(context).viewInsets.bottom),
+                            ),
+                          ),
+
+                          const SizedBox(height: 24),
+
+                          // === 作業内容入力 ===
+                          TextField(
+                            controller: _contentTextController,
+                            decoration: const InputDecoration(
+                              labelText: '作業内容 (黒板に表示)',
+                              border: OutlineInputBorder(),
+                              alignLabelWithHint: true,
+                              hintText: '例：一次加工\n切断',
+                              helperText: '※入力内容はリストにも反映されます',
+                            ),
+                            maxLines: 5,
+                            onChanged: (text) {
+                              // 親の状態と、このシートの状態の両方を更新
+                              setState(() {
+                                _selectedItem = currentItem.copyWith(
+                                  contentText: text,
+                                );
+                              });
+                              setSheetState(() {});
+                            },
+                          ),
+
+                          const SizedBox(height: 32),
+
+                          // === 閉じるボタン ===
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              style: ElevatedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
+                                backgroundColor: Colors.grey[800],
+                                foregroundColor: Colors.white,
+                              ),
+                              child: const Text('編集を完了して閉じる'),
+                            ),
+                          ),
+
+                          // キーボード分の余白
+                          SizedBox(
+                            height: MediaQuery.of(context).viewInsets.bottom,
+                          ),
                         ],
                       ),
                     ),
@@ -776,16 +854,15 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
         );
       },
     );
-    
+
     // シートが閉じたら保存
     if (_selectedItem != null) {
       await _savePhotoItem(_selectedItem!);
     }
   }
 
-
   /// カメラ画面へ遷移する
-  /// 
+  ///
   /// 撮影完了後、戻り値として画像パスが返ってきたら、
   /// 画像をStorageにアップロードし、URLをFirestoreに保存します。
   /// 複数枚対応: 既存のリストに追加します。
@@ -805,38 +882,41 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
         ),
       ),
     );
-    
+
     // === 撮影が完了した場合（result に画像パスが入っている）、アップロード ===
     if (result != null && result.isNotEmpty) {
       try {
         debugPrint('📤 画像アップロード開始: $result');
-        
+
         // === 画像を Firebase Storage にアップロード ===
-        final imageUrl = await _firestoreService.uploadImage(widget.projectId, result);
-        
+        final imageUrl = await _firestoreService.uploadImage(
+          widget.projectId,
+          result,
+        );
+
         debugPrint('✅ 画像アップロード完了: $imageUrl');
-        
+
         // === Firestore を更新（リストに追加） ===
-        final newPhotos = [...item.photos, imageUrl];
-        
+        final Photos = [...item.photos, imageUrl];
+
         // 最新の画像パスも更新（サムネイル等用、互換性のため）
         final updatedItem = item.copyWith(
           status: 'completed',
           imagePath: imageUrl,
-          photos: newPhotos,
+          photos: Photos,
         );
-        
+
         await _firestoreService.updatePhotoItem(widget.projectId, updatedItem);
-        
+
         // 選択中の項目を更新
         setState(() {
           _selectedItem = updatedItem;
         });
-        
-        debugPrint('✅ 撮影完了: ${item.name} (${newPhotos.length}枚目)');
+
+        debugPrint('✅ 撮影完了: ${item.name} (${Photos.length}枚目)');
       } catch (e) {
         debugPrint('❌ 画像アップロードエラー: $e');
-        
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -860,7 +940,10 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
             children: [
               ListTile(
                 leading: const Icon(Icons.delete, color: Colors.red),
-                title: const Text('この写真を削除', style: TextStyle(color: Colors.red)),
+                title: const Text(
+                  'この写真を削除',
+                  style: TextStyle(color: Colors.red),
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   _confirmDeletePhoto(index);
@@ -897,42 +980,41 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
     if (result == true) {
       // リストから削除
       final item = _selectedItem!;
-      final newPhotos = List<String>.from(item.photos);
-      newPhotos.removeAt(index);
-      
+      final Photos = List<String>.from(item.photos);
+      Photos.removeAt(index);
+
       // imagePathの更新（まだ写真があれば最後のものを、なければnull）
       String? newImagePath;
-      if (newPhotos.isNotEmpty) {
-        newImagePath = newPhotos.last;
+      if (Photos.isNotEmpty) {
+        newImagePath = Photos.last;
       }
 
       // ステータス更新
-      final newStatus = newPhotos.isNotEmpty ? 'completed' : 'pending';
+      final newStatus = Photos.isNotEmpty ? 'completed' : 'pending';
 
       final updatedItem = item.copyWith(
-        photos: newPhotos,
+        photos: Photos,
         imagePath: newImagePath,
         status: newStatus, // 写真がなくなったらpendingに戻すかは要件次第だが、一応戻す
       );
 
-
       try {
         await _firestoreService.updatePhotoItem(widget.projectId, updatedItem);
-        
+
         setState(() {
           _selectedItem = updatedItem;
         });
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('写真を削除しました')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('写真を削除しました')));
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-             SnackBar(content: Text('削除エラー: $e')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('削除エラー: $e')));
         }
       }
     }
@@ -964,8 +1046,8 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
               IconButton(
                 icon: const Icon(Icons.delete),
                 onPressed: () {
-                   // ダイアログを出して削除後、閉じる
-                   _confirmDeletePhotoInFullScreen(index);
+                  // ダイアログを出して削除後、閉じる
+                  _confirmDeletePhotoInFullScreen(index);
                 },
               ),
             ],
@@ -983,7 +1065,7 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
                     child: CircularProgressIndicator(
                       value: loadingProgress.expectedTotalBytes != null
                           ? loadingProgress.cumulativeBytesLoaded /
-                              loadingProgress.expectedTotalBytes!
+                                loadingProgress.expectedTotalBytes!
                           : null,
                       color: Colors.white,
                     ),
@@ -999,8 +1081,8 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
 
   /// 全画面表示からの削除確認
   Future<void> _confirmDeletePhotoInFullScreen(int index) async {
-     // 削除処理（共通ロジック呼び出しだとpopが足りない場合があるため個別実装または工夫）
-     // ここではシンプルにダイアログ出して削除して画面閉じる
+    // 削除処理（共通ロジック呼び出しだとpopが足りない場合があるため個別実装または工夫）
+    // ここではシンプルにダイアログ出して削除して画面閉じる
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -1008,13 +1090,13 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
         content: const Text('この写真を削除しますか？'),
         actions: [
           TextButton(
-             onPressed: () => Navigator.pop(context, false), // ダイアログ閉じる
-             child: const Text('キャンセル'),
+            onPressed: () => Navigator.pop(context, false), // ダイアログ閉じる
+            child: const Text('キャンセル'),
           ),
           TextButton(
-             onPressed: () => Navigator.pop(context, true), // ダイアログ閉じる(true)
-             style: TextButton.styleFrom(foregroundColor: Colors.red),
-             child: const Text('削除する'),
+            onPressed: () => Navigator.pop(context, true), // ダイアログ閉じる(true)
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('削除する'),
           ),
         ],
       ),
@@ -1026,12 +1108,13 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
       // ↑上のメソッドはダイアログを含んでいるので使い回しにくい。ロジックを分離すべき。
       // 今回は簡易的に、_confirmDeletePhotoのロジックを再実装せず、
       // モーダルを閉じてからリストに戻る挙動にする。
-      
+
       if (mounted) {
         Navigator.of(context).pop(); // 全画面表示を閉じる
       }
     }
   }
+
   /// アイテムを保存
   Future<void> _savePhotoItem(PhotoItem item) async {
     await _firestoreService.updatePhotoItem(widget.projectId, item);
@@ -1066,25 +1149,25 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
       try {
         // 全データを削除
         await _firestoreService.resetAllData(widget.projectId);
-        
+
         // Firestoreの反映を確実に待つ
         await Future.delayed(const Duration(milliseconds: 1000));
-        
+
         // 選択状態をリセット
         setState(() {
           _selectedItem = null;
         });
-        
+
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('データをリセットしました')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('データをリセットしました')));
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('エラーが発生しました: $e')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('エラーが発生しました: $e')));
         }
       }
     }
@@ -1103,9 +1186,9 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
         if (text.isNotEmpty) {
           await _firestoreService.addCategory(widget.projectId, text);
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('工程「$text」を追加しました')),
-            );
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text('工程「$text」を追加しました')));
           }
         }
       },
@@ -1154,7 +1237,9 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
                       context: context,
                       builder: (context) => AlertDialog(
                         title: const Text('削除できません'),
-                        content: const Text('この工程には項目が含まれているため削除できません。\n先にすべての項目を削除してください。'),
+                        content: const Text(
+                          'この工程には項目が含まれているため削除できません。\n先にすべての項目を削除してください。',
+                        ),
                         actions: [
                           TextButton(
                             onPressed: () => Navigator.pop(context),
@@ -1199,9 +1284,9 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
     if (result == true) {
       await _firestoreService.deleteCategory(widget.projectId, category.id);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('工程「${category.name}」を削除しました')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('工程「${category.name}」を削除しました')));
       }
     }
   }
@@ -1213,11 +1298,15 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
       hintText: '項目名を入力',
       onConfirm: (text) async {
         if (text.isNotEmpty) {
-          await _firestoreService.addPhotoItem(widget.projectId, categoryName, text);
+          await _firestoreService.addPhotoItem(
+            widget.projectId,
+            categoryName,
+            text,
+          );
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('項目「$text」を追加しました')),
-            );
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text('項目「$text」を追加しました')));
           }
         }
       },
@@ -1292,7 +1381,7 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
 
     if (result == true) {
       await _firestoreService.deletePhotoItem(widget.projectId, item.id);
-      
+
       // 選択中だった場合は選択解除
       if (_selectedItem?.id == item.id) {
         setState(() {
@@ -1301,9 +1390,9 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('項目「${item.name}」を削除しました')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('項目「${item.name}」を削除しました')));
       }
     }
   }
@@ -1316,7 +1405,7 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
     required Function(String) onConfirm,
   }) {
     final controller = TextEditingController(text: initialValue);
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(

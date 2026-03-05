@@ -4,13 +4,15 @@
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'site_photo_list_screen.dart';  // リスト画面をインポート
-import 'blackboard_settings_screen.dart';  // 黒板設定画面をインポート
+import 'site_photo_list_screen.dart'; // リスト画面をインポート
+import 'blackboard_settings_screen.dart'; // 黒板設定画面をインポート
+
 import '../../tape_inspection/screens/tape_inspection_screen.dart'; // テープ合わせ画面をインポート
 import '../../witness_inspection/screens/witness_inspection_screen.dart'; // 立会検査画面をインポート
+import '../../templates/screens/template_screen.dart'; // テンプレート画面をインポート
 
 /// 工程写真機能のホーム画面
-/// 
+///
 /// この画面から電子小黒板付きカメラ画面へ遷移できます。
 class SitePhotoHomeScreen extends StatelessWidget {
   const SitePhotoHomeScreen({super.key});
@@ -20,7 +22,7 @@ class SitePhotoHomeScreen extends StatelessWidget {
     return Scaffold(
       // 背景色（Apple風のライトグレー）
       backgroundColor: const Color(0xFFF2F2F7),
-      
+
       // アプリバー
       appBar: AppBar(
         backgroundColor: const Color(0xFFF2F2F7),
@@ -30,7 +32,7 @@ class SitePhotoHomeScreen extends StatelessWidget {
         ),
         centerTitle: true,
       ),
-      
+
       // 本体部分
       body: SafeArea(
         child: Padding(
@@ -83,9 +85,9 @@ class SitePhotoHomeScreen extends StatelessWidget {
                   ],
                 ),
               ),
-              
+
               const SizedBox(height: 24),
-              
+
               // === カメラ起動ボタン ===
               CupertinoButton(
                 padding: EdgeInsets.zero,
@@ -128,7 +130,7 @@ class SitePhotoHomeScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              
+
               const SizedBox(height: 16),
 
               // === テープ合わせボタン ===
@@ -169,14 +171,16 @@ class SitePhotoHomeScreen extends StatelessWidget {
                 icon: Icons.grid_view,
                 label: 'テンプレート',
                 onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('テンプレート選択（未実装）')),
+                  Navigator.of(context).push(
+                    CupertinoPageRoute(
+                      builder: (context) => const TemplateScreen(),
+                    ),
                   );
                 },
               ),
-              
+
               const SizedBox(height: 16),
-              
+
               // === 黒板設定ボタン ===
               CupertinoButton(
                 padding: EdgeInsets.zero,
@@ -186,9 +190,7 @@ class SitePhotoHomeScreen extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: const Color(0xFFE5E5EA),
-                    ),
+                    border: Border.all(color: const Color(0xFFE5E5EA)),
                   ),
                   child: const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -211,9 +213,9 @@ class SitePhotoHomeScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              
+
               const SizedBox(height: 16),
-              
+
               // === 写真一覧ボタン（将来の機能用） ===
               CupertinoButton(
                 padding: EdgeInsets.zero,
@@ -226,9 +228,7 @@ class SitePhotoHomeScreen extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: const Color(0xFFE5E5EA),
-                    ),
+                    border: Border.all(color: const Color(0xFFE5E5EA)),
                   ),
                   child: const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -251,17 +251,14 @@ class SitePhotoHomeScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              
+
               const Spacer(),
-              
+
               // === ヒントテキスト ===
               const Center(
                 child: Text(
                   'iPad の背面カメラで撮影します',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.black38,
-                  ),
+                  style: TextStyle(fontSize: 13, color: Colors.black38),
                 ),
               ),
               const SizedBox(height: 16),
@@ -278,8 +275,8 @@ class SitePhotoHomeScreen extends StatelessWidget {
       CupertinoPageRoute(
         builder: (context) => const SitePhotoListScreen(
           // === サンプルデータを渡す ===
-          projectName: 'Aマンション改修工事',  // 工事名
-          projectId: 'demo_project_001',      // 工事ID (Firestore用)
+          projectName: 'Aマンション改修工事', // 工事名
+          projectId: 'demo_project_001', // 工事ID (Firestore用)
         ),
       ),
     );
@@ -295,6 +292,7 @@ class SitePhotoHomeScreen extends StatelessWidget {
       ),
     );
   }
+
   /// 共通のデザインのアクションボタンを作成
   Widget _buildActionButton(
     BuildContext context, {
@@ -310,18 +308,12 @@ class SitePhotoHomeScreen extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: const Color(0xFFE5E5EA),
-          ),
+          border: Border.all(color: const Color(0xFFE5E5EA)),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              color: const Color(0xFF007AFF),
-              size: 28,
-            ),
+            Icon(icon, color: const Color(0xFF007AFF), size: 28),
             const SizedBox(width: 12),
             Text(
               label,

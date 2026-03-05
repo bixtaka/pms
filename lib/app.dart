@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'pdf_preview_screen.dart';
+import 'features/projects/presentation/project_list_screen.dart';
 
 /// アプリ全体の MaterialApp 定義
 class MyApp extends StatelessWidget {
@@ -10,7 +10,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'PMS',
       theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.blue),
-      home: const PdfPreviewScreen(),
+      home: const ProjectListScreen(),
     );
   }
 }

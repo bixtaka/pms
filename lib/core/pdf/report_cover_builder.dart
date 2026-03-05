@@ -1,4 +1,3 @@
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -12,17 +11,9 @@ class ReportCoverBuilder {
     DateTime? inspectionDate,
     String? inspectorName,
   }) async {
-    // 1. フォントの読み込み（HGゴシックM）
-    pw.Font fontRegular;
-    pw.Font fontBold;
-    try {
-      final fontData = await rootBundle.load('assets/fonts/HGGothicM.ttf');
-      fontRegular = pw.Font.ttf(fontData);
-      fontBold = fontRegular;
-    } catch (e) {
-      fontRegular = await PdfGoogleFonts.notoSansJPRegular();
-      fontBold = await PdfGoogleFonts.notoSansJPBold();
-    }
+    // 1. フォントの読み込み（Google Fonts Noto Sans JP）
+    final fontRegular = await PdfGoogleFonts.notoSansJPRegular();
+    final fontBold = await PdfGoogleFonts.notoSansJPBold();
 
     final theme = pw.ThemeData.withFont(base: fontRegular, bold: fontBold);
 

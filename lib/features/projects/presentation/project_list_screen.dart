@@ -4,6 +4,7 @@ import '../../../providers/project_providers.dart';
 import '../../products/presentation/product_list_screen.dart';
 import '../../gantt/presentation/gantt_screen.dart';
 import '../../site_photo/screens/site_photo_home_screen.dart';
+import '../../site_photo/screens/photo_top_screen.dart';
 import '../../gantt/presentation/mock_legacy_gantt_screen.dart';
 import '../../../models/project.dart';
 import 'project_create_screen.dart';
@@ -35,7 +36,7 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
           : const Center(child: Text('プロジェクトが未取得または0件です')),
 
       // インデックス1: 工程写真
-      const SitePhotoHomeScreen(),
+      const PhotoTopScreen(),
 
       // インデックス2: 検査入力 (製品実績入力画面)
       firstProject != null
@@ -61,7 +62,7 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> {
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: '新ガント'),
           BottomNavigationBarItem(
-            icon: Icon(Icons.photo_camera),
+            icon: Icon(Icons.photo_library_outlined),
             label: '工程写真',
           ),
           BottomNavigationBarItem(icon: Icon(Icons.fact_check), label: '検査入力'),
