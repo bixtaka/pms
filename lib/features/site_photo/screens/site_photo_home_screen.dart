@@ -10,6 +10,7 @@ import 'blackboard_settings_screen.dart'; // 黒板設定画面をインポー�
 import '../../tape_inspection/screens/tape_inspection_screen.dart'; // テープ合わせ画面をインポート
 import '../../witness_inspection/screens/witness_inspection_screen.dart'; // 立会検査画面をインポート
 import '../../templates/screens/template_screen.dart'; // テンプレート画面をインポート
+import 'template_list_screen.dart'; // テスト用のテンプレート管理画面をインポート
 
 /// 工程写真機能のホーム画面
 ///
@@ -249,6 +250,32 @@ class SitePhotoHomeScreen extends StatelessWidget {
                       ),
                     ],
                   ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // === 【テスト用】テンプレート一覧画面へ ===
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    CupertinoPageRoute(
+                      builder: (context) => const TemplateListScreen(),
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  elevation: 0,
+                ),
+                child: const Text(
+                  'テンプレート管理画面へ',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
               ),
 

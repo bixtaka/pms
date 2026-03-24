@@ -8,6 +8,7 @@ import '../../tape_inspection/screens/tape_inspection_screen.dart';
 import '../../witness_inspection/screens/witness_inspection_screen.dart';
 import 'site_photo_list_screen.dart';
 import 'blackboard_settings_screen.dart';
+import 'template_list_screen.dart';
 
 class PhotoTopScreen extends ConsumerWidget {
   const PhotoTopScreen({super.key});
@@ -171,6 +172,29 @@ class PhotoTopScreen extends ConsumerWidget {
                       minimumSize: const Size.fromHeight(50),
                       foregroundColor: Colors.grey[800],
                       side: BorderSide(color: Colors.grey[400]!),
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // 【テスト用】テンプレート作成画面へ
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const TemplateListScreen(),
+                        ),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(50),
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text(
+                      'テンプレート管理画面へ',
+                      style: TextStyle(fontWeight: FontWeight.bold),
                     ),
                   ),
                 ],

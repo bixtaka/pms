@@ -281,4 +281,3 @@ class _BlackboardSettingsScreenState extends State<BlackboardSettingsScreen> {
 }
 
 /// 黒板プレビュー用のヘルパーウィジェット
-

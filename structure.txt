@@ -1,0 +1,230 @@
+﻿Folder PATH listing for volume Windows
+Volume serial number is 329C-3505
+C:\USERS\USER1\DOCUMENTS\APP\PMS\LIB
+��   app.dart
+��   firebase_options.dart
+��   main.dart
+��   mock_original.dart
+��   pdf_preview_screen.dart
+��   
+��������core
+��   ��   firebase_initializer.dart
+��   ��   
+��   ��������constants
+��   ��       master_data.dart
+��   ��       
+��   ��������excel
+��   ��       excel_export_service.dart
+��   ��       
+��   ��������pdf
+��           report_cover_builder.dart
+��           
+��������features
+��   ��������gantt
+��   ��   ��������application
+��   ��   ��       gantt_providers.dart
+��   ��   ��       gantt_screen_state_notifier.dart
+��   ��   ��       product_gantt_progress_service.dart
+��   ��   ��       
+��   ��   ��������data
+��   ��   ��       gantt_repository.dart
+��   ��   ��       
+��   ��   ��������domain
+��   ��   ��       gantt_models.dart
+��   ��   ��       gantt_repository.dart
+��   ��   ��       
+��   ��   ��������presentation
+��   ��   ��   ��   gantt_constants.dart
+��   ��   ��   ��   gantt_screen.dart
+��   ��   ��   ��   gantt_utils.dart
+��   ��   ��   ��   group_plan_offset.dart
+��   ��   ��   ��   mock_legacy_gantt_screen.dart
+��   ��   ��   ��   
+��   ��   ��   ��������inspection
+��   ��   ��           inspection_filter_state.dart
+��   ��   ��           product_result_input_page.dart
+��   ��   ��           _inline_status_strip2.dart
+��   ��   ��           
+��   ��   ��������providers
+��   ��   ��������utils
+��   ��   ��       gantt_data_adapter.dart
+��   ��   ��       
+��   ��   ��������widgets
+��   ��           gantt_bars.dart
+��   ��           gantt_chart.dart
+��   ��           gantt_grid_painter.dart
+��   ��           gantt_header.dart
+��   ��           gantt_legend.dart
+��   ��           gantt_row.dart
+��   ��           gantt_timeline_header.dart
+��   ��           widgets.dart
+��   ��           
+��   ��������inspection
+��   ��   ��   inspection_pencil_kit.dart
+��   ��   ��   
+��   ��   ��������application
+��   ��   ��       pencil_kit_providers.dart
+��   ��   ��       
+��   ��   ��������data
+��   ��   ��       annotation_storage_service.dart
+��   ��   ��       file_loader_io.dart
+��   ��   ��       file_loader_stub.dart
+��   ��   ��       
+��   ��   ��������utils
+��   ��   ��       platform_utils.dart
+��   ��   ��       
+��   ��   ��������widgets
+��   ��           annotation_display.dart
+��   ��           annotation_image_viewer.dart
+��   ��           background_image_io.dart
+��   ��           background_image_stub.dart
+��   ��           pencil_kit_canvas.dart
+��   ��           pencil_kit_native.dart
+��   ��           pencil_kit_stub.dart
+��   ��           pencil_kit_toolbar.dart
+��   ��           platform_placeholder.dart
+��   ��           
+��   ��������process_progress
+��   ��   ��������data
+��   ��   ��       process_master_repository.dart
+��   ��   ��       process_progress_repository.dart
+��   ��   ��       production_log_repository.dart
+��   ��   ��       
+��   ��   ��������presentation
+��   ��           daily_process_progress_screen.dart
+��   ��           process_progress_screen.dart
+��   ��           
+��   ��������process_spec
+��   ��   ��������data
+��   ��   ��       process_groups_repository.dart
+��   ��   ��       process_progress_daily_repository.dart
+��   ��   ��       process_progress_save_service.dart
+��   ��   ��       process_steps_repository.dart
+��   ��   ��       
+��   ��   ��������domain
+��   ��   ��       process_group.dart
+��   ��   ��       process_progress_daily.dart
+��   ��   ��       process_step.dart
+��   ��   ��       
+��   ��   ��������presentation
+��   ��           process_colors.dart
+��   ��           
+��   ��������products
+��   ��   ��������application
+��   ��   ��       product_filter_notifier.dart
+��   ��   ��       product_filter_state.dart
+��   ��   ��       product_inspection_providers.dart
+��   ��   ��       
+��   ��   ��������data
+��   ��   ��       product_repository.dart
+��   ��   ��       
+��   ��   ��������presentation
+��   ��           product_inspection_screen.dart
+��   ��           product_list_screen.dart
+��   ��           
+��   ��������projects
+��   ��   ��������data
+��   ��   ��       project_repository.dart
+��   ��   ��       
+��   ��   ��������presentation
+��   ��           project_create_screen.dart
+��   ��           project_list_screen.dart
+��   ��           project_settings_screen.dart
+��   ��           
+��   ��������shipping
+��   ��   ��������application
+��   ��   ��       shipping_csv_parser.dart
+��   ��   ��       shipping_table_notifier.dart
+��   ��   ��       
+��   ��   ��������domain
+��   ��           shipping_row.dart
+��   ��           
+��   ��������site_photo
+��   ��   ��������models
+��   ��   ��       photo_item.dart
+��   ��   ��       
+��   ��   ��������screens
+��   ��   ��       blackboard_settings_screen.dart
+��   ��   ��       photo_top_screen.dart
+��   ��   ��       site_photo_camera_screen.dart
+��   ��   ��       site_photo_detail_screen.dart
+��   ��   ��       site_photo_home_screen.dart
+��   ��   ��       site_photo_list_screen.dart
+��   ��   ��       site_photo_selection_screen.dart
+��   ��   ��       
+��   ��   ��������services
+��   ��   ��       firestore_service.dart
+��   ��   ��       pdf_service.dart
+��   ��   ��       
+��   ��   ��������widgets
+��   ��           blackboard_frame.dart
+��   ��           blackboard_preview.dart
+��   ��           
+��   ��������tape_inspection
+��   ��   ��������models
+��   ��   ��       tape_inspection_model.dart
+��   ��   ��       tape_inspection_model.freezed.dart
+��   ��   ��       tape_inspection_model.g.dart
+��   ��   ��       
+��   ��   ��������screens
+��   ��   ��       manual_measurement_overlay.dart
+��   ��   ��       pdf_preview_screen.dart
+��   ��   ��       tape_inspection_screen.dart
+��   ��   ��       
+��   ��   ��������services
+��   ��           tape_inspection_pdf_service.dart
+��   ��           tape_inspection_vision_service.dart
+��   ��           
+��   ��������templates
+��   ��   ��������screens
+��   ��           template_screen.dart
+��   ��           
+��   ��������witness_inspection
+��       ��������models
+��       ��       witness_inspection_model.dart
+��       ��       witness_inspection_model.freezed.dart
+��       ��       witness_inspection_model.g.dart
+��       ��       
+��       ��������repositories
+��       ��       witness_inspection_repository.dart
+��       ��       
+��       ��������screens
+��               witness_inspection_screen.dart
+��               
+��������models
+��       process_master.dart
+��       process_progress.dart
+��       product.dart
+��       production_log.dart
+��       project.dart
+��       work_type_state.dart
+��       
+��������providers
+��       process_progress_providers.dart
+��       product_providers.dart
+��       project_providers.dart
+��       
+��������screens
+��       bulk_progress_input_screen.dart
+��       process_selection_advanced_screen.dart
+��       process_selection_alternative_screen.dart
+��       process_selection_screen.dart
+��       production_management_screen.dart
+��       progress_input_screen.dart
+��       
+��������services
+��       firebase_service.dart
+��       
+��������ui
+��   ��������gantt
+��           gantt_bar_builder.dart
+��           gantt_bar_models.dart
+��           gantt_bar_painter.dart
+��           gantt_bar_widget.dart
+��           
+��������widgets
+        gantt_chart_widget.dart
+        process_step_selector.dart
+        product_drawing_thumbnail.dart
+        work_type_gantt_widget.dart
+        
