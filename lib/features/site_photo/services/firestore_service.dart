@@ -7,6 +7,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import '../models/photo_item.dart';
+import '../models/photo_template.dart';
+import '../screens/template_builder_screen.dart'; // TemplateItemを使用するため追加
 import '../../../core/constants/master_data.dart';
 
 /// Firestore データベースサービス
@@ -358,5 +360,111 @@ class FirestoreService {
       // 全てのマスターデータを使用
       await initializeWithSelectedItems(projectId, masterWorkItems);
     }
+  }
+
+  /// 選択されたテンプレート（PhotoTemplate）を展開してFirestoreへバッチ保存
+  /// 
+  /// [projectId] 工事ID
+  /// [items] テンプレートのツリー構造
+  Future<void> applyTemplateToProject(String projectId, List<TemplateItem> items) async {
+    // 既存データの削除
+    await resetAllData(projectId);
+
+    final photosRef = _firestore.collection('projects').doc(projectId).collection('site_photos');
+    final categoriesRef = _firestore.collection('projects').doc(projectId).collection('categories');
+
+    WriteBatch batch = _firestore.batch();
+    int batchCount = 0;
+
+    Future<void> commitBatchIfNeeded() async {
+      if (batchCount >= 450) {
+        await batch.commit();
+        batch = _firestore.batch();
+        batchCount = 0;
+      }
+    }
+
+    int catIndex = 1;
+
+    for (var parent in items) {
+      final catName = parent.title.isEmpty ? 'カテゴリ$catIndex' : parent.title;
+      final catDocRef = categoriesRef.doc();
+      final category = SiteCategory(
+        id: catDocRef.id,
+        name: catName,
+        createdAt: DateTime.now(),
+      );
+      batch.set(catDocRef, category.toFirestore());
+      batchCount++;
+      await commitBatchIfNeeded();
+
+      List<PhotoItem> flattenedPhotos = [];
+      int photoIndex = 0;
+      
+      void extract(List<TemplateItem> children, String prefix) {
+        for (var i = 0; i < children.length; i++) {
+          final child = children[i];
+          final childTitle = child.title.isEmpty ? '項目${photoIndex + 1}' : child.title;
+          final currentName = prefix.isEmpty ? childTitle : '$prefix > $childTitle';
+          
+          if (child.children.isEmpty) {
+            final photoDocRef = photosRef.doc();
+            flattenedPhotos.add(PhotoItem(
+              id: photoDocRef.id,
+              category: catName,
+              name: currentName,
+              createdAt: DateTime.now(),
+            ));
+            photoIndex++;
+          } else {
+            extract(child.children, currentName);
+          }
+        }
+      }
+      extract(parent.children, '');
+
+      for (var photo in flattenedPhotos) {
+        batch.set(photosRef.doc(photo.id), photo.toFirestore());
+        batchCount++;
+        await commitBatchIfNeeded();
+      }
+
+      catIndex++;
+    }
+
+    if (batchCount > 0) {
+      await batch.commit();
+    }
+  }
+
+  // ==========================================
+  // テンプレート管理（全社共通）メソッド
+  // ==========================================
+
+  /// テンプレート一覧を取得
+  Stream<List<PhotoTemplate>> getPhotoTemplates() {
+    return _firestore
+        .collection('company_templates')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs
+          .map((doc) => PhotoTemplate.fromFirestore(doc.id, doc.data()))
+          .toList();
+    });
+  }
+
+  /// テンプレートを追加・更新
+  Future<void> savePhotoTemplate(PhotoTemplate template) async {
+    final ref = template.id.isEmpty
+        ? _firestore.collection('company_templates').doc()
+        : _firestore.collection('company_templates').doc(template.id);
+        
+    await ref.set(template.toFirestore(), SetOptions(merge: true));
+  }
+
+  /// テンプレートを削除
+  Future<void> deletePhotoTemplate(String templateId) async {
+    await _firestore.collection('company_templates').doc(templateId).delete();
   }
 }

@@ -9,21 +9,12 @@ import 'site_photo_camera_screen.dart';
 
 import 'site_photo_selection_screen.dart';
 import '../models/photo_item.dart';
+import '../models/photo_template.dart';
 import '../services/firestore_service.dart';
 import '../widgets/blackboard_preview.dart';
-import 'template_builder_screen.dart'; // TemplateItemを使用するため追加
 
-class PhotoTaskItem {
-  final String id;
-  final String fullTitle;
-  bool isShot;
 
-  PhotoTaskItem({
-    required this.id,
-    required this.fullTitle,
-    this.isShot = false,
-  });
-}
+
 
 /// 撮影リスト画面
 ///
@@ -58,8 +49,7 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
   // === 作業内容（黒板）のコントローラー ===
   final TextEditingController _contentTextController = TextEditingController();
 
-  // === 生成されたモックタスクリスト ===
-  List<PhotoTaskItem> _generatedTasks = [];
+
 
   @override
   void dispose() {
@@ -149,7 +139,7 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
               final photoItems = photoSnapshot.data ?? [];
 
               // === データがない場合（初期設定画面へ誘導） - カテゴリーも写真もない場合 ===
-              if (categories.isEmpty && photoItems.isEmpty && _generatedTasks.isEmpty) {
+              if (categories.isEmpty && photoItems.isEmpty) {
                 return _buildEmptyState();
               }
 
@@ -158,9 +148,7 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
                   // === 左ペイン: リスト ===
                   Expanded(
                     flex: 2,
-                    child: _generatedTasks.isNotEmpty 
-                        ? _buildGeneratedTaskPane() 
-                        : _buildListPane(categories, photoItems),
+                    child: _buildListPane(categories, photoItems),
                   ),
 
                   // === 中央の区切り線 ===
@@ -909,8 +897,6 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
     // === 撮影が完了した場合（result に画像パスが入っている）、アップロード ===
     if (result != null && result.isNotEmpty) {
       try {
-        debugPrint('📤 画像アップロード開始: $result');
-
         // === 画像を Firebase Storage にアップロード ===
         final imageUrl = await _firestoreService.uploadImage(
           widget.projectId,
@@ -930,8 +916,6 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
         );
 
         await _firestoreService.updatePhotoItem(widget.projectId, updatedItem);
-
-        // 選択中の項目を更新
         setState(() {
           _selectedItem = updatedItem;
         });
@@ -1200,235 +1184,97 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
   // モックタスクリスト（テンプレートから生成）
   // ==========================================
 
-  void _showTemplateSelectionBottomSheet() {
-    showModalBottomSheet(
+  Future<void> _showTemplateSelectionBottomSheet() async {
+    final selectedTemplate = await showModalBottomSheet<PhotoTemplate>(
       context: context,
+      isScrollControlled: true,
       builder: (context) {
         return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const ListTile(
-                title: Text('テンプレートを選択', style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-              ListTile(
-                leading: const Icon(Icons.description),
-                title: const Text('コラム (ダミーデータ)'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _generateTasksFromDummyTemplate();
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.description),
-                title: const Text('1階配筋 (ダミーデータ)'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _generateTasksFromAnotherDummyTemplate();
-                },
-              ),
-            ],
+          child: StreamBuilder<List<PhotoTemplate>>(
+            stream: _firestoreService.getPhotoTemplates(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const SizedBox(
+                  height: 200,
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+              if (snapshot.hasError) {
+                return SizedBox(
+                  height: 200,
+                  child: Center(child: Text('エラー: ${snapshot.error}')),
+                );
+              }
+              final templates = snapshot.data ?? [];
+              if (templates.isEmpty) {
+                return const SizedBox(
+                  height: 200,
+                  child: Center(child: Text('テンプレートがありません。管理画面から追加してください。')),
+                );
+              }
+
+              return ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.7,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const ListTile(
+                      title: Text('テンプレートを選択', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                    Flexible(
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: templates.length,
+                        itemBuilder: (context, index) {
+                          final template = templates[index];
+                          return ListTile(
+                            leading: const Icon(Icons.description),
+                            title: Text(template.name.isEmpty ? '(名前なし)' : template.name),
+                            subtitle: Text(template.category),
+                            onTap: () {
+                              Navigator.pop(context, template);
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
         );
       },
     );
-  }
 
-  void _generateTasksFromDummyTemplate() {
-    final dummyTree = [
-      TemplateItem(
-        id: '1',
-        title: '一次加工',
-        inputType: 'text',
-        children: [
-          TemplateItem(
-            id: '1-1',
-            title: '孔あけ',
-            inputType: 'text',
-            children: [
-              TemplateItem(
-                id: '1-1-1',
-                title: '計測',
-                inputType: 'number',
-              ),
-              TemplateItem(
-                id: '1-1-2',
-                title: '全体写真',
-                inputType: 'photo',
-              ),
-            ],
-          ),
-          TemplateItem(
-            id: '1-2',
-            title: '切断',
-            inputType: 'text',
-            children: [],
-          ),
-        ],
-      )
-    ];
+    if (selectedTemplate != null && mounted) {
+      // 展開中のローディング表示
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
 
-    List<PhotoTaskItem> flattenedTasks = [];
-    _flattenTemplate(dummyTree, '', flattenedTasks);
+      try {
+        await _firestoreService.applyTemplateToProject(widget.projectId, selectedTemplate.items);
 
-    setState(() {
-      _generatedTasks = flattenedTasks;
-      _selectedItem = null; // 右ペインをリセット
-    });
-  }
-
-  void _generateTasksFromAnotherDummyTemplate() {
-    final dummyTree = [
-      TemplateItem(
-        id: '2',
-        title: '配筋検査',
-        inputType: 'text',
-        children: [
-          TemplateItem(
-            id: '2-1',
-            title: '柱',
-            inputType: 'photo',
-          ),
-          TemplateItem(
-            id: '2-2',
-            title: '梁',
-            inputType: 'photo',
-          ),
-        ],
-      )
-    ];
-    List<PhotoTaskItem> flattenedTasks = [];
-    _flattenTemplate(dummyTree, '', flattenedTasks);
-    setState(() {
-      _generatedTasks = flattenedTasks;
-      _selectedItem = null;
-    });
-  }
-
-  void _flattenTemplate(List<TemplateItem> items, String currentPath, List<PhotoTaskItem> result) {
-    for (var item in items) {
-      final title = item.title.isEmpty ? '(名称未設定)' : item.title;
-      // 階層を結合
-      final newPath = currentPath.isEmpty ? title : '$currentPath > $title';
-
-      if (item.children.isEmpty) {
-        // 葉ノード（最下層）をタスクとして追加
-        result.add(
-          PhotoTaskItem(
-            id: item.id,
-            fullTitle: newPath,
-          ),
-        );
-      } else {
-        // 子要素がある場合は再帰的に走査
-        _flattenTemplate(item.children, newPath, result);
+        if (mounted) {
+          Navigator.pop(context); // ローディングダイアログを閉じる
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('テンプレートを展開しました')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          Navigator.pop(context); // ローディングダイアログを閉じる
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('テンプレートの展開中にエラーが発生しました: $e')),
+          );
+        }
       }
     }
-  }
-
-  Widget _buildGeneratedTaskPane() {
-    return Container(
-      color: Colors.white,
-      child: Column(
-        children: [
-          // ヘッダー
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            color: Colors.blue.shade50,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Expanded(
-                  child: Text(
-                    'テンプレートから生成したリスト',
-                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
-                  ),
-                ),
-                TextButton(
-                  onPressed: () {
-                    setState(() {
-                      _generatedTasks.clear();
-                    });
-                  },
-                  style: TextButton.styleFrom(
-                    padding: EdgeInsets.zero,
-                    minimumSize: const Size(0, 0),
-                  ),
-                  child: const Text('クリア', style: TextStyle(color: Colors.red)),
-                ),
-              ],
-            ),
-          ),
-          // リスト本体
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(8),
-              itemCount: _generatedTasks.length,
-              itemBuilder: (context, index) {
-                final task = _generatedTasks[index];
-                return Card(
-                  margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    side: BorderSide(color: Colors.grey.shade300),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: ListTile(
-                    leading: Icon(
-                      task.isShot ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.circle,
-                      color: task.isShot ? Colors.green : Colors.grey,
-                    ),
-                    title: Text(
-                      task.fullTitle,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    trailing: IconButton(
-                      icon: const Icon(CupertinoIcons.camera, color: Colors.blue),
-                      onPressed: () {
-                        // モックカメラ起動
-                        _mockNavigateToCamera(task);
-                      },
-                    ),
-                    onTap: () {
-                      // タップ時もカメラ起動モックにする、あるいは状態変更
-                      _mockNavigateToCamera(task);
-                    },
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _mockNavigateToCamera(PhotoTaskItem task) async {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('カメラ起動 (モック)'),
-        content: Text('「${task.fullTitle}」の写真を撮影します。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('キャンセル'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              setState(() {
-                task.isShot = true;
-              });
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('撮影を完了しました（状態を更新しました）')),
-              );
-            },
-            child: const Text('撮影完了とする'),
-          ),
-        ],
-      )
-    );
   }
 
   // ==========================================

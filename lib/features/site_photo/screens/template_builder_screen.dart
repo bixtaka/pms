@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../models/photo_template.dart';
+import '../services/firestore_service.dart';
 
 /// テンプレート項目のデータモデル（再帰的構造）
 class TemplateItem {
@@ -23,16 +25,39 @@ class TemplateItem {
       children: this.children.map((c) => c.clone()).toList(),
     );
   }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'title': title,
+      'inputType': inputType,
+      'children': children.map((e) => e.toMap()).toList(),
+    };
+  }
+
+  factory TemplateItem.fromMap(Map<String, dynamic> map) {
+    return TemplateItem(
+      id: map['id'] as String,
+      title: map['title'] as String,
+      inputType: map['inputType'] as String,
+      children: (map['children'] as List<dynamic>?)
+              ?.map((e) => TemplateItem.fromMap(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+    );
+  }
 }
 
 /// テンプレート作成画面
 class TemplateBuilderScreen extends StatefulWidget {
+  final String? initialTemplateId;
   final String? initialTemplateName;
   final String? initialCategory;
   final List<TemplateItem>? initialTreeData;
 
   const TemplateBuilderScreen({
     Key? key,
+    this.initialTemplateId,
     this.initialTemplateName,
     this.initialCategory,
     this.initialTreeData,
@@ -64,6 +89,9 @@ class _TemplateBuilderScreenState extends State<TemplateBuilderScreen> {
     }
   }
 
+  final FirestoreService _firestoreService = FirestoreService();
+  bool _isLoading = false;
+
   void _addRootItem() {
     setState(() {
       _items.add(
@@ -72,32 +100,48 @@ class _TemplateBuilderScreenState extends State<TemplateBuilderScreen> {
     });
   }
 
-  void _saveTemplate() {
-    // コンソールに出力
-    debugPrint('=== テンプレート保存 ===');
-    debugPrint('テンプレート名: ${_templateNameController.text}');
-    debugPrint('カテゴリ: $_selectedCategory');
-    debugPrint('項目ツリー:');
-    _printTree(_items, 0);
+  Future<void> _saveTemplate() async {
+    if (_templateNameController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('テンプレート名を入力してください')));
+      return;
+    }
 
-    // 呼び出し元（一覧画面）へデータを返す
-    final result = {
-      'templateName': _templateNameController.text,
-      'category': _selectedCategory,
-      'treeData': _items,
-    };
-    Navigator.of(context).pop(result);
-  }
+    setState(() {
+      _isLoading = true;
+    });
 
-  void _printTree(List<TemplateItem> items, int depth) {
-    for (var item in items) {
-      final indent = '  ' * depth;
-      debugPrint(
-        '$indent- ${item.title.isEmpty ? '(未入力)' : item.title} [${item.inputType}]',
+    try {
+      final template = PhotoTemplate(
+        id: widget.initialTemplateId ?? '',
+        name: _templateNameController.text,
+        category: _selectedCategory,
+        items: _items,
       );
-      _printTree(item.children, depth + 1);
+
+      await _firestoreService.savePhotoTemplate(template);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('テンプレートを保存しました')),
+        );
+        Navigator.of(context).pop(true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('エラーが発生しました: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
+
+
 
   @override
   void dispose() {
@@ -200,14 +244,14 @@ class _TemplateBuilderScreenState extends State<TemplateBuilderScreen> {
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(16.0),
-              child: ElevatedButton(
-                onPressed: _saveTemplate,
+              child: ElevatedButton.icon(
+                onPressed: _isLoading ? null : _saveTemplate,
+                icon: _isLoading 
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.save),
+                label: Text(_isLoading ? '保存中...' : 'テンプレートを保存'),
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size.fromHeight(56),
-                ),
-                child: const Text(
-                  'テンプレートを保存',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ),
             ),
