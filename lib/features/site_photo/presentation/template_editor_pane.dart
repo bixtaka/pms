@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/photo_template.dart';
+import '../domain/photo_template.dart';
 import '../services/firestore_service.dart';
 
 /// テンプレート編集用ペイン

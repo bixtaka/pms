@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'template_editor_pane.dart';
-import '../models/photo_template.dart';
+import '../domain/photo_template.dart';
 import '../services/firestore_service.dart';
 
 /// 工程写真テンプレート管理画面（一覧画面）

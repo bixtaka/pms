@@ -5,7 +5,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../../../core/pdf/report_cover_builder.dart';
-import '../models/tape_inspection_model.dart';
+import '../domain/tape_inspection_model.dart';
 
 class TapeInspectionPdfService {
   /// PDF ドキュメントを生成して Uint8List で返す

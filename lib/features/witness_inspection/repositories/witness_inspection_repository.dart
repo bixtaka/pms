@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../models/witness_inspection_model.dart';
+import '../domain/witness_inspection_model.dart';
 // ignore="import_of_legacy_library_into_null_safe"
 import 'package:uuid/uuid.dart';
 

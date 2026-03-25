@@ -7,9 +7,9 @@ import 'package:flutter/material.dart';
 import 'site_photo_list_screen.dart'; // リスト画面をインポート
 import 'blackboard_settings_screen.dart'; // 黒板設定画面をインポート
 
-import '../../tape_inspection/screens/tape_inspection_screen.dart'; // テープ合わせ画面をインポート
-import '../../witness_inspection/screens/witness_inspection_screen.dart'; // 立会検査画面をインポート
-import '../../templates/screens/template_screen.dart'; // テンプレート画面をインポート
+import '../../tape_inspection/presentation/tape_inspection_screen.dart'; // テープ合わせ画面をインポート
+import '../../witness_inspection/presentation/witness_inspection_screen.dart'; // 立会検査画面をインポート
+import '../../templates/presentation/template_screen.dart'; // テンプレート画面をインポート
 import 'template_list_screen.dart'; // テスト用のテンプレート管理画面をインポート
 
 /// 工程写真機能のホーム画面

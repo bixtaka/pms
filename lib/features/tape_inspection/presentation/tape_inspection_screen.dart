@@ -3,7 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
-import '../models/tape_inspection_model.dart';
+import '../domain/tape_inspection_model.dart';
 import 'manual_measurement_overlay.dart';
 import 'pdf_preview_screen.dart';
 import '../../../../core/excel/excel_export_service.dart';

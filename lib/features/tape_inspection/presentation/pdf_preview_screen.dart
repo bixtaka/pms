@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
-import '../models/tape_inspection_model.dart';
+import '../domain/tape_inspection_model.dart';
 import '../services/tape_inspection_pdf_service.dart';
 
 /// 生成されたPDFをプレビューするための全画面ダイアログ

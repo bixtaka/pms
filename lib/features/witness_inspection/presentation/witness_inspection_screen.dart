@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../models/witness_inspection_model.dart';
+import '../domain/witness_inspection_model.dart';
 import '../repositories/witness_inspection_repository.dart';
 
 class WitnessInspectionScreen extends ConsumerStatefulWidget {

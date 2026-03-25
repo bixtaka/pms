@@ -6,7 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import '../models/photo_item.dart';
+import '../domain/photo_item.dart';
 
 
 /// PDF生成サービス

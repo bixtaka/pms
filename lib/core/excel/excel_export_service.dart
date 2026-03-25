@@ -3,7 +3,7 @@ import 'package:excel/excel.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
-import '../../../features/tape_inspection/models/tape_inspection_model.dart';
+import '../../../features/tape_inspection/domain/tape_inspection_model.dart';
 
 class ExcelExportService {
   /// 鋼製巻尺検査報告書のExcelをエクスポートする

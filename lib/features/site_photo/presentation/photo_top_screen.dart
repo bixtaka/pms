@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../projects/domain/project.dart';
 import '../../projects/application/project_providers.dart';
 
-import '../../tape_inspection/screens/tape_inspection_screen.dart';
-import '../../witness_inspection/screens/witness_inspection_screen.dart';
+import '../../tape_inspection/presentation/tape_inspection_screen.dart';
+import '../../witness_inspection/presentation/witness_inspection_screen.dart';
 import 'site_photo_list_screen.dart';
 import 'blackboard_settings_screen.dart';
 import 'template_list_screen.dart';

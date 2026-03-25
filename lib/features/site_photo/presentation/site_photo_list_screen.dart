@@ -8,8 +8,8 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 import 'site_photo_camera_screen.dart';
 
 import 'site_photo_selection_screen.dart';
-import '../models/photo_item.dart';
-import '../models/photo_template.dart';
+import '../domain/photo_item.dart';
+import '../domain/photo_template.dart';
 import '../services/firestore_service.dart';
 import '../widgets/blackboard_preview.dart';
 
