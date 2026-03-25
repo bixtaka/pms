@@ -7,7 +7,8 @@ import 'package:csv/csv.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'dart:convert'; // utf8.decode
-import 'dart:js_interop'; // flutter web: Shift-JIS 対応
+
+import 'shift_jis_decoder_stub.dart' if (dart.library.js_interop) 'shift_jis_decoder_web.dart';
 
 import 'project_create_screen.dart';
 
@@ -23,12 +24,6 @@ import '../../shipping/application/shipping_table_notifier.dart' show shippingTa
 // gantt_utils.dart などに移動させるのがベストですが、要件として csv import の移行が指示されているため、
 // ここに再定義（もしくは public 化したものを呼び出し）します。
 
-@JS('TextDecoder')
-extension type _JsTextDecoder._(JSObject _) implements JSObject {
-  external factory _JsTextDecoder(String encoding);
-  external String decode(JSUint8Array buffer);
-}
-
 /// CSV バイト列を正しい文字列にデコードする。
 String _decodeCsvBytes(Uint8List bytes) {
   try {
@@ -36,8 +31,7 @@ String _decodeCsvBytes(Uint8List bytes) {
     return s.startsWith('\uFEFF') ? s.substring(1) : s;
   } catch (_) {}
   try {
-    final decoder = _JsTextDecoder('shift-jis');
-    return decoder.decode(bytes.toJS);
+    return decodeShiftJis(bytes);
   } catch (_) {
     return String.fromCharCodes(bytes);
   }
