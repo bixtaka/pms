@@ -8,7 +8,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import '../models/photo_item.dart';
 import '../models/photo_template.dart';
-import '../screens/template_builder_screen.dart'; // TemplateItemを使用するため追加
+
 import '../../../core/constants/master_data.dart';
 
 /// Firestore データベースサービス

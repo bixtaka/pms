@@ -2,72 +2,28 @@ import 'package:flutter/material.dart';
 import '../models/photo_template.dart';
 import '../services/firestore_service.dart';
 
-/// テンプレート項目のデータモデル（再帰的構造）
-class TemplateItem {
-  String id;
-  String title; // 項目名
-  String inputType; // 'text', 'number', 'select' 等
-  List<TemplateItem> children; // 子項目のリスト
-
-  TemplateItem({
-    required this.id,
-    this.title = '',
-    this.inputType = 'text',
-    List<TemplateItem>? children,
-  }) : children = children ?? [];
-
-  /// ディープコピーを作成するメソッド（編集用）
-  TemplateItem clone() {
-    return TemplateItem(
-      id: this.id,
-      title: this.title,
-      inputType: this.inputType,
-      children: this.children.map((c) => c.clone()).toList(),
-    );
-  }
-
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'title': title,
-      'inputType': inputType,
-      'children': children.map((e) => e.toMap()).toList(),
-    };
-  }
-
-  factory TemplateItem.fromMap(Map<String, dynamic> map) {
-    return TemplateItem(
-      id: map['id'] as String,
-      title: map['title'] as String,
-      inputType: map['inputType'] as String,
-      children: (map['children'] as List<dynamic>?)
-              ?.map((e) => TemplateItem.fromMap(e as Map<String, dynamic>))
-              .toList() ??
-          [],
-    );
-  }
-}
-
-/// テンプレート作成画面
-class TemplateBuilderScreen extends StatefulWidget {
+/// テンプレート編集用ペイン
+class TemplateEditorPane extends StatefulWidget {
   final String? initialTemplateId;
   final String? initialTemplateName;
   final String? initialCategory;
   final List<TemplateItem>? initialTreeData;
+  final VoidCallback? onSaved;
 
-  const TemplateBuilderScreen({
+  const TemplateEditorPane({
     Key? key,
     this.initialTemplateId,
     this.initialTemplateName,
     this.initialCategory,
     this.initialTreeData,
+    this.onSaved,
   }) : super(key: key);
 
   @override
-  State<TemplateBuilderScreen> createState() => _TemplateBuilderScreenState();
+  State<TemplateEditorPane> createState() => _TemplateEditorPaneState();
 }
 
-class _TemplateBuilderScreenState extends State<TemplateBuilderScreen> {
+class _TemplateEditorPaneState extends State<TemplateEditorPane> {
   final TextEditingController _templateNameController = TextEditingController();
   String _selectedCategory = '工程写真';
 
@@ -124,7 +80,11 @@ class _TemplateBuilderScreenState extends State<TemplateBuilderScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('テンプレートを保存しました')),
         );
-        Navigator.of(context).pop(true);
+        if (widget.onSaved != null) {
+          widget.onSaved!();
+        } else {
+          Navigator.of(context).pop(true);
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -151,10 +111,32 @@ class _TemplateBuilderScreenState extends State<TemplateBuilderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('テンプレート作成')),
-      body: Column(
+    return Container(
+      color: Colors.white,
+      child: Column(
         children: [
+          // カスタムヘッダー
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              border: Border(bottom: BorderSide(color: Colors.blue.shade200)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  widget.initialTemplateId == null ? 'テンプレート新規作成' : 'テンプレート編集',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blue),
+                ),
+                if (widget.onSaved == null)
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(context).pop(),
+                  )
+              ],
+            ),
+          ),
           // 1. テンプレート基本情報エリア
           Container(
             padding: const EdgeInsets.all(16.0),
@@ -242,6 +224,7 @@ class _TemplateBuilderScreenState extends State<TemplateBuilderScreen> {
           ),
           // 3. 保存エリア
           SafeArea(
+            top: false,
             child: Padding(
               padding: const EdgeInsets.all(16.0),
               child: ElevatedButton.icon(

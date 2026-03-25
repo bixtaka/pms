@@ -13,9 +13,6 @@ import '../models/photo_template.dart';
 import '../services/firestore_service.dart';
 import '../widgets/blackboard_preview.dart';
 
-
-
-
 /// 撮影リスト画面
 ///
 /// 工事名と撮影項目のリストを表示し、
@@ -49,8 +46,6 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
   // === 作業内容（黒板）のコントローラー ===
   final TextEditingController _contentTextController = TextEditingController();
 
-
-
   @override
   void dispose() {
     _notesController.dispose();
@@ -78,6 +73,12 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         actions: [
+          // 開発・テスト用：データリセットボタン
+          TextButton.icon(
+            onPressed: () async => await _confirmAndResetData(),
+            icon: const Icon(Icons.refresh, color: Colors.red),
+            label: const Text('リセット', style: TextStyle(color: Colors.red)),
+          ),
           // === 設定メニュー ===
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
@@ -165,66 +166,171 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
     );
   }
 
-  /// データがない場合の表示
+  /// データがない場合の表示（テンプレート選択画面）
   Widget _buildEmptyState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(
-              CupertinoIcons.list_bullet,
-              size: 80,
-              color: Colors.grey,
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              '撮影項目が設定されていません',
-              style: TextStyle(
-                fontSize: 20,
-                color: Colors.grey,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'プロジェクト開始前に必要な項目を選択してください',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16, color: Colors.grey),
-            ),
-            const SizedBox(height: 32),
-            ElevatedButton.icon(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => SitePhotoSelectionScreen(
-                      projectName: widget.projectName,
-                      projectId: widget.projectId,
-                      onCompleted: () => Navigator.pop(context),
+    return StreamBuilder<List<PhotoTemplate>>(
+      stream: _firestoreService.getPhotoTemplates(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final templates = snapshot.data ?? [];
+
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  CupertinoIcons.photo_on_rectangle,
+                  size: 64,
+                  color: Colors.grey,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  '撮影項目が設定されていません',
+                  style: TextStyle(
+                    fontSize: 20,
+                    color: Colors.grey,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  '使用するテンプレートを選択してください',
+                  style: TextStyle(fontSize: 16, color: Colors.grey),
+                ),
+                const SizedBox(height: 32),
+
+                // テンプレートのグリッド表示
+                if (templates.isNotEmpty)
+                  Expanded(
+                    child: GridView.builder(
+                      gridDelegate:
+                          const SliverGridDelegateWithMaxCrossAxisExtent(
+                            maxCrossAxisExtent: 250,
+                            crossAxisSpacing: 16,
+                            mainAxisSpacing: 16,
+                            childAspectRatio: 1.5,
+                          ),
+                      itemCount: templates.length,
+                      itemBuilder: (context, index) {
+                        final template = templates[index];
+                        return Card(
+                          elevation: 2,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () => _applySelectedTemplate(template),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(
+                                    Icons.description,
+                                    size: 32,
+                                    color: Colors.blue,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    template.name.isEmpty
+                                        ? '(名前なし)'
+                                        : template.name,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  if (template.category.isNotEmpty) ...[
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      template.category,
+                                      style: TextStyle(
+                                        color: Colors.grey[600],
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  )
+                else
+                  const Padding(
+                    padding: EdgeInsets.all(32.0),
+                    child: Text(
+                      'テンプレートがまだ作成されていません。\nまずはテンプレート管理画面から作成してください。',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey),
                     ),
                   ),
-                );
-              },
-              icon: const Icon(CupertinoIcons.settings),
-              label: const Text('撮影項目を設定する', style: TextStyle(fontSize: 18)),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 20,
+
+                const SizedBox(height: 24),
+                // 既存の「手動で設定する」ボタンも残しておく（任意）
+                TextButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => SitePhotoSelectionScreen(
+                          projectName: widget.projectName,
+                          projectId: widget.projectId,
+                          onCompleted: () => Navigator.pop(context),
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(CupertinoIcons.settings),
+                  label: const Text('手動で項目を設定する'),
                 ),
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
+  }
+
+  Future<void> _applySelectedTemplate(PhotoTemplate template) async {
+    // 展開中のローディング表示
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      await _firestoreService.applyTemplateToProject(
+        widget.projectId,
+        template.items,
+      );
+
+      if (mounted) {
+        Navigator.pop(context); // ローディングダイアログを閉じる
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('テンプレートを展開しました')));
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // ローディングダイアログを閉じる
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('テンプレートの展開中にエラーが発生しました: $e')));
+      }
+    }
   }
 
   /// 左ペイン: リスト表示（カテゴリー別グループ化 + CRUD機能）
@@ -1221,7 +1327,10 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const ListTile(
-                      title: Text('テンプレートを選択', style: TextStyle(fontWeight: FontWeight.bold)),
+                      title: Text(
+                        'テンプレートを選択',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
                     ),
                     Flexible(
                       child: ListView.builder(
@@ -1231,7 +1340,9 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
                           final template = templates[index];
                           return ListTile(
                             leading: const Icon(Icons.description),
-                            title: Text(template.name.isEmpty ? '(名前なし)' : template.name),
+                            title: Text(
+                              template.name.isEmpty ? '(名前なし)' : template.name,
+                            ),
                             subtitle: Text(template.category),
                             onTap: () {
                               Navigator.pop(context, template);
@@ -1258,20 +1369,23 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
       );
 
       try {
-        await _firestoreService.applyTemplateToProject(widget.projectId, selectedTemplate.items);
+        await _firestoreService.applyTemplateToProject(
+          widget.projectId,
+          selectedTemplate.items,
+        );
 
         if (mounted) {
           Navigator.pop(context); // ローディングダイアログを閉じる
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('テンプレートを展開しました')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('テンプレートを展開しました')));
         }
       } catch (e) {
         if (mounted) {
           Navigator.pop(context); // ローディングダイアログを閉じる
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('テンプレートの展開中にエラーが発生しました: $e')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('テンプレートの展開中にエラーが発生しました: $e')));
         }
       }
     }
