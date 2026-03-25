@@ -2,13 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../models/project.dart';
 import '../../../providers/project_providers.dart';
-import '../../gantt/presentation/mock_legacy_gantt_screen.dart'
-    show selectedProjectIdProvider;
+
 import '../../tape_inspection/screens/tape_inspection_screen.dart';
 import '../../witness_inspection/screens/witness_inspection_screen.dart';
 import 'site_photo_list_screen.dart';
 import 'blackboard_settings_screen.dart';
 import 'template_list_screen.dart';
+
+/// 工程写真トップ画面専用の選択中のプロジェクトIDプロバイダー
+final photoSelectedProjectIdProvider = StateProvider<String?>((ref) => null);
 
 class PhotoTopScreen extends ConsumerWidget {
   const PhotoTopScreen({super.key});
@@ -25,7 +27,7 @@ class PhotoTopScreen extends ConsumerWidget {
       );
     }
 
-    final selectedId = ref.watch(selectedProjectIdProvider);
+    final selectedId = ref.watch(photoSelectedProjectIdProvider);
     final selectedProject =
         projects.where((p) => p.id == selectedId).firstOrNull ?? projects.first;
 
@@ -54,7 +56,7 @@ class PhotoTopScreen extends ConsumerWidget {
                     }).toList(),
                     onChanged: (value) {
                       if (value != null) {
-                        ref.read(selectedProjectIdProvider.notifier).state =
+                        ref.read(photoSelectedProjectIdProvider.notifier).state =
                             value;
                       }
                     },
@@ -74,39 +76,37 @@ class PhotoTopScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 32),
 
-                  // 縦並びのボタン群
-                  // 1. 工程写真 (メインアクション・サイズ大)
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => SitePhotoListScreen(
-                            projectName: selectedProject.name,
-                            projectId: selectedProject.id,
-                          ),
+                  // 縦並びのメニューリスト
+                  Expanded(
+                    child: ListView(
+                      children: [
+                        // 1. 工程写真 (メインアクション・ハイライト)
+                        _buildMenuCard(
+                          context,
+                          title: '工程写真',
+                          icon: Icons.camera_alt,
+                          iconColor: Theme.of(context).primaryColor,
+                          backgroundColor: Theme.of(context).primaryColor.withOpacity(0.05),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => SitePhotoListScreen(
+                                  projectName: selectedProject.name,
+                                  projectId: selectedProject.id,
+                                ),
+                              ),
+                            );
+                          },
                         ),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(70),
-                      backgroundColor: Theme.of(context).primaryColor,
-                      foregroundColor: Colors.white,
-                      textStyle: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    child: const Text('工程写真'),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // 2. 立会検査写真 と 3. テープ合わせ (横並び)
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () {
+                        
+                        // 2. 立会検査写真
+                        _buildMenuCard(
+                          context,
+                          title: '立会検査写真',
+                          icon: Icons.assignment_turned_in,
+                          iconColor: Colors.teal,
+                          onTap: () {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
@@ -114,16 +114,15 @@ class PhotoTopScreen extends ConsumerWidget {
                               ),
                             );
                           },
-                          style: ElevatedButton.styleFrom(
-                            minimumSize: const Size.fromHeight(50),
-                          ),
-                          child: const Text('立会検査写真'),
                         ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () {
+
+                        // 3. テープ合わせ
+                        _buildMenuCard(
+                          context,
+                          title: 'テープ合わせ',
+                          icon: Icons.straighten,
+                          iconColor: Colors.deepPurple,
+                          onTap: () {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
@@ -131,70 +130,51 @@ class PhotoTopScreen extends ConsumerWidget {
                               ),
                             );
                           },
-                          style: ElevatedButton.styleFrom(
-                            minimumSize: const Size.fromHeight(50),
-                          ),
-                          child: const Text('テープ合わせ'),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
 
-                  // 4. 是正写真 (警告色・アウトライン)
-                  OutlinedButton.icon(
-                    onPressed: () {},
-                    icon: const Icon(Icons.warning_amber_rounded),
-                    label: const Text('是正写真'),
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(50),
-                      foregroundColor: Colors.red,
-                      side: const BorderSide(color: Colors.red),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // 5. 黒板設定
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => BlackboardSettingsScreen(
-                            projectName: selectedProject.name,
-                          ),
+                        // 4. 是正写真
+                        _buildMenuCard(
+                          context,
+                          title: '是正写真',
+                          icon: Icons.warning_amber_rounded,
+                          iconColor: Colors.red,
+                          onTap: () {},
                         ),
-                      );
-                    },
-                    icon: const Icon(Icons.settings),
-                    label: const Text('黒板設定'),
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(50),
-                      foregroundColor: Colors.grey[800],
-                      side: BorderSide(color: Colors.grey[400]!),
-                    ),
-                  ),
 
-                  const SizedBox(height: 16),
-
-                  // 【テスト用】テンプレート作成画面へ
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const TemplateListScreen(),
+                        // 5. 黒板設定
+                        _buildMenuCard(
+                          context,
+                          title: '黒板設定',
+                          icon: Icons.settings,
+                          iconColor: Colors.grey[700]!,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => BlackboardSettingsScreen(
+                                  projectName: selectedProject.name,
+                                ),
+                              ),
+                            );
+                          },
                         ),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(50),
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.white,
-                    ),
-                    child: const Text(
-                      'テンプレート管理画面へ',
-                      style: TextStyle(fontWeight: FontWeight.bold),
+
+                        // 6. テンプレート管理画面へ
+                        _buildMenuCard(
+                          context,
+                          title: 'テンプレート管理画面',
+                          icon: Icons.edit_document,
+                          iconColor: Colors.orange,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const TemplateListScreen(),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -211,6 +191,44 @@ class PhotoTopScreen extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// メニュー項目用の共通カードUI
+  Widget _buildMenuCard(
+    BuildContext context, {
+    required String title,
+    required IconData icon,
+    required Color iconColor,
+    Color? backgroundColor,
+    required VoidCallback onTap,
+  }) {
+    return Card(
+      elevation: 2,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      color: backgroundColor ?? Colors.white,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundColor: iconColor.withOpacity(0.1),
+              child: Icon(icon, color: iconColor),
+            ),
+            title: Text(
+              title,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+            trailing: Icon(Icons.chevron_right, color: Colors.grey[400]),
+          ),
+        ),
       ),
     );
   }

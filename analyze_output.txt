@@ -1,0 +1,182 @@
+﻿Analyzing pms...                                                
+
+   info - 'Share' is deprecated and shouldn't be used. Use SharePlus instead - lib\core\excel\excel_export_service.dart:53:13 - deprecated_member_use
+   info - 'shareXFiles' is deprecated and shouldn't be used. Use SharePlus.instance.share() instead - lib\core\excel\excel_export_service.dart:53:19 - deprecated_member_use
+warning - Unused import: '../../process_spec/data/process_groups_repository.dart' - lib\features\gantt\application\gantt_providers.dart:6:8 - unused_import
+warning - Unused import: '../../process_spec/data/process_steps_repository.dart' - lib\features\gantt\application\gantt_providers.dart:8:8 - unused_import
+warning - Unused import: 'package:cloud_firestore/cloud_firestore.dart' - lib\features\gantt\application\gantt_providers.dart:13:8 - unused_import
+warning - The '!' will have no effect because the receiver can't be null - lib\features\gantt\application\gantt_providers.dart:105:26 - unnecessary_non_null_assertion
+warning - The '!' will have no effect because the receiver can't be null - lib\features\gantt\application\gantt_providers.dart:106:22 - unnecessary_non_null_assertion
+warning - The '!' will have no effect because the receiver can't be null - lib\features\gantt\application\product_gantt_progress_service.dart:149:28 - unnecessary_non_null_assertion
+   info - Dangling library doc comment - lib\features\gantt\domain\gantt_models.dart:4:1 - dangling_library_doc_comments
+   info - The import of 'dart:typed_data' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/services.dart' - lib\features\gantt\presentation\gantt_screen.dart:2:8 - unnecessary_import
+warning - Unused import: 'package:flutter/gestures.dart' - lib\features\gantt\presentation\gantt_screen.dart:5:8 - unused_import
+warning - Unused import: '../../products/presentation/product_inspection_screen.dart' - lib\features\gantt\presentation\gantt_screen.dart:21:8 - unused_import
+warning - Unused import: 'group_plan_offset.dart' - lib\features\gantt\presentation\gantt_screen.dart:26:8 - unused_import
+warning - Unused import: 'package:file_picker/file_picker.dart' - lib\features\gantt\presentation\gantt_screen.dart:32:8 - unused_import
+warning - Unused import: 'package:csv/csv.dart' - lib\features\gantt\presentation\gantt_screen.dart:33:8 - unused_import
+warning - Unused import: 'package:cloud_firestore/cloud_firestore.dart' - lib\features\gantt\presentation\gantt_screen.dart:34:8 - unused_import
+warning - The declaration '_DragMode' isn't referenced - lib\features\gantt\presentation\gantt_screen.dart:49:6 - unused_element
+warning - The value of the field 'move' isn't used - lib\features\gantt\presentation\gantt_screen.dart:49:18 - unused_field
+warning - The value of the field 'resizeLeft' isn't used - lib\features\gantt\presentation\gantt_screen.dart:49:24 - unused_field
+warning - The value of the field 'resizeRight' isn't used - lib\features\gantt\presentation\gantt_screen.dart:49:36 - unused_field
+warning - The declaration '_decodeCsvBytes' isn't referenced - lib\features\gantt\presentation\gantt_screen.dart:66:8 - unused_element
+warning - The declaration '_leftPaneWidth' isn't referenced - lib\features\gantt\presentation\gantt_screen.dart:85:14 - unused_element
+warning - The declaration '_processStepIndent' isn't referenced - lib\features\gantt\presentation\gantt_screen.dart:86:14 - unused_element
+warning - The declaration '_dayZoomLevels' isn't referenced - lib\features\gantt\presentation\gantt_screen.dart:87:20 - unused_element
+warning - The declaration '_dayViewPaddingAfterDays' isn't referenced - lib\features\gantt\presentation\gantt_screen.dart:88:11 - unused_element
+warning - The declaration '_timelinePaddingDaysBefore' isn't referenced - lib\features\gantt\presentation\gantt_screen.dart:89:11 - unused_element
+warning - The declaration '_timelinePaddingDaysAfter' isn't referenced - lib\features\gantt\presentation\gantt_screen.dart:90:11 - unused_element
+warning - The declaration '_timelineExtraScrollableDays' isn't referenced - lib\features\gantt\presentation\gantt_screen.dart:91:11 - unused_element
+warning - The declaration '_miniMapDayWidth' isn't referenced - lib\features\gantt\presentation\gantt_screen.dart:92:14 - unused_element
+warning - The declaration '_miniMapHeight' isn't referenced - lib\features\gantt\presentation\gantt_screen.dart:93:14 - unused_element
+warning - The declaration '_dateOnly' isn't referenced - lib\features\gantt\presentation\gantt_screen.dart:96:10 - unused_element
+warning - The declaration '_createMainScrollController' isn't referenced - lib\features\gantt\presentation\gantt_screen.dart:98:18 - unused_element
+warning - The declaration '_createHeaderScrollController' isn't referenced - lib\features\gantt\presentation\gantt_screen.dart:99:18 - unused_element
+warning - The declaration '_TaskGeometry' isn't referenced - lib\features\gantt\presentation\gantt_screen.dart:103:9 - unused_element
+warning - The declaration '_MonthSpan' isn't referenced - lib\features\gantt\presentation\gantt_screen.dart:104:9 - unused_element
+warning - The declaration '_MatrixProduct' isn't referenced - lib\features\gantt\presentation\gantt_screen.dart:105:9 - unused_element
+warning - The declaration '_MatrixStep' isn't referenced - lib\features\gantt\presentation\gantt_screen.dart:106:9 - unused_element
+warning - The declaration '_ProcessHeaderGroup' isn't referenced - lib\features\gantt\presentation\gantt_screen.dart:107:9 - unused_element
+   info - The import of 'package:flutter/foundation.dart' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/material.dart' - lib\features\gantt\presentation\gantt_utils.dart:2:8 - unnecessary_import
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\gantt\presentation\inspection\_inline_status_strip2.dart:107:30 - deprecated_member_use
+   info - Statements in an if should be enclosed in a block - lib\features\gantt\presentation\inspection\inspection_filter_state.dart:304:7 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\features\gantt\presentation\inspection\inspection_filter_state.dart:306:7 - curly_braces_in_flow_control_structures
+warning - The declaration '_RowInputState' isn't referenced - lib\features\gantt\presentation\inspection\product_result_input_page.dart:12:7 - unused_element
+warning - The '!' will have no effect because the receiver can't be null - lib\features\gantt\presentation\inspection\product_result_input_page.dart:125:64 - unnecessary_non_null_assertion
+warning - The '!' will have no effect because the receiver can't be null - lib\features\gantt\presentation\inspection\product_result_input_page.dart:133:47 - unnecessary_non_null_assertion
+warning - The '!' will have no effect because the receiver can't be null - lib\features\gantt\presentation\inspection\product_result_input_page.dart:134:46 - unnecessary_non_null_assertion
+warning - The '!' will have no effect because the receiver can't be null - lib\features\gantt\presentation\inspection\product_result_input_page.dart:137:60 - unnecessary_non_null_assertion
+warning - The declaration '_InlineStatusStrip' isn't referenced - lib\features\gantt\presentation\inspection\product_result_input_page.dart:252:7 - unused_element
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\gantt\presentation\inspection\product_result_input_page.dart:326:30 - deprecated_member_use
+warning - The declaration '_KoukuFilterBlock' isn't referenced - lib\features\gantt\presentation\inspection\product_result_input_page.dart:381:7 - unused_element
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\gantt\presentation\inspection\product_result_input_page.dart:459:47 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\gantt\presentation\inspection\product_result_input_page.dart:496:55 - deprecated_member_use
+  error - The method 'ProductStatusTabContent' isn't defined for the type '_ProductResultInputPageState' - lib\features\gantt\presentation\inspection\product_result_input_page.dart:660:23 - undefined_method
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre - lib\features\gantt\presentation\inspection\product_result_input_page.dart:783:17 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\gantt\presentation\inspection\product_result_input_page.dart:888:21 - deprecated_member_use
+warning - A value for optional parameter 'key' isn't ever given - lib\features\gantt\presentation\inspection\product_result_input_page.dart:979:40 - unused_element_parameter
+warning - A value for optional parameter 'helperText' isn't ever given - lib\features\gantt\presentation\inspection\product_result_input_page.dart:1595:10 - unused_element_parameter
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\gantt\presentation\inspection\product_result_input_page.dart:1903:41 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\gantt\presentation\inspection\product_result_input_page.dart:1964:56 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\gantt\presentation\inspection\product_result_input_page.dart:1971:63 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\gantt\presentation\inspection\product_result_input_page.dart:2008:46 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\gantt\presentation\inspection\product_result_input_page.dart:2134:41 - deprecated_member_use
+warning - The value of the local variable 'productsAsync' isn't used - lib\features\gantt\presentation\inspection\product_result_input_page.dart:2176:11 - unused_local_variable
+warning - The value of the local variable 'filteredProducts' isn't used - lib\features\gantt\presentation\inspection\product_result_input_page.dart:2179:11 - unused_local_variable
+   info - The local variable '_findSelected' starts with an underscore - lib\features\gantt\presentation\inspection\product_result_input_page.dart:2184:14 - no_leading_underscores_for_local_identifiers
+warning - The declaration '_findSelected' isn't referenced - lib\features\gantt\presentation\inspection\product_result_input_page.dart:2184:14 - unused_element
+   info - 'surfaceVariant' is deprecated and shouldn't be used. Use surfaceContainerHighest instead. This feature was deprecated after v3.18.0-0.1.pre - lib\features\gantt\presentation\inspection\product_result_input_page.dart:2326:38 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\gantt\presentation\inspection\product_result_input_page.dart:2374:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\gantt\presentation\inspection\product_result_input_page.dart:2391:44 - deprecated_member_use
+warning - The value of the field '_formKey' isn't used - lib\features\gantt\presentation\inspection\product_result_input_page.dart:2799:9 - unused_field
+warning - The value of the local variable 'statusSelection' isn't used - lib\features\gantt\presentation\inspection\product_result_input_page.dart:3237:11 - unused_local_variable
+   info - The local variable '_selectedTaskFor' starts with an underscore - lib\features\gantt\presentation\inspection\product_result_input_page.dart:3244:16 - no_leading_underscores_for_local_identifiers
+warning - The declaration '_selectedTaskFor' isn't referenced - lib\features\gantt\presentation\inspection\product_result_input_page.dart:3244:16 - unused_element
+warning - The declaration '_NumericField' isn't referenced - lib\features\gantt\presentation\inspection\product_result_input_page.dart:3295:7 - unused_element
+warning - A value for optional parameter 'hint' isn't ever given - lib\features\gantt\presentation\inspection\product_result_input_page.dart:3303:10 - unused_element_parameter
+warning - A value for optional parameter 'validator' isn't ever given - lib\features\gantt\presentation\inspection\product_result_input_page.dart:3305:10 - unused_element_parameter
+warning - Unused import: '../../projects/presentation/project_create_screen.dart' - lib\features\gantt\presentation\mock_legacy_gantt_screen.dart:14:8 - unused_import
+warning - The value of the local variable 'projectsAsync' isn't used - lib\features\gantt\presentation\mock_legacy_gantt_screen.dart:415:11 - unused_local_variable
+   info - Unnecessary use of string interpolation - lib\features\gantt\presentation\mock_legacy_gantt_screen.dart:882:30 - unnecessary_string_interpolations
+   info - Don't invoke 'print' in production code - lib\features\gantt\presentation\mock_legacy_gantt_screen.dart:1159:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\gantt\presentation\mock_legacy_gantt_screen.dart:1160:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\gantt\presentation\mock_legacy_gantt_screen.dart:1161:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\gantt\presentation\mock_legacy_gantt_screen.dart:1176:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\features\gantt\presentation\mock_legacy_gantt_screen.dart:1177:7 - avoid_print
+   info - Statements in an if should be enclosed in a block - lib\features\gantt\presentation\mock_legacy_gantt_screen.dart:1371:35 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\features\gantt\presentation\mock_legacy_gantt_screen.dart:1466:33 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\features\gantt\presentation\mock_legacy_gantt_screen.dart:2119:11 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\features\gantt\presentation\mock_legacy_gantt_screen.dart:2262:35 - curly_braces_in_flow_control_structures
+warning - Unused import: 'dart:convert' - lib\features\gantt\utils\gantt_data_adapter.dart:1:8 - unused_import
+warning - The declaration '_buildInfoRow' isn't referenced - lib\features\inspection\widgets\platform_placeholder.dart:372:10 - unused_element
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre - lib\features\process_progress\presentation\process_progress_screen.dart:238:21 - deprecated_member_use
+   info - The local variable '_toDateOnly' starts with an underscore - lib\features\products\application\product_inspection_providers.dart:109:12 - no_leading_underscores_for_local_identifiers
+warning - The value of the local variable 'messenger' isn't used - lib\features\products\presentation\product_inspection_screen.dart:244:11 - unused_local_variable
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\features\products\presentation\product_inspection_screen.dart:464:44 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps - lib\features\products\presentation\product_inspection_screen.dart:471:51 - use_build_context_synchronously
+   info - The 'child' argument should be last in widget constructor invocations - lib\features\products\presentation\product_inspection_screen.dart:513:19 - sort_child_properties_last
+   info - 'surfaceVariant' is deprecated and shouldn't be used. Use surfaceContainerHighest instead. This feature was deprecated after v3.18.0-0.1.pre - lib\features\products\presentation\product_inspection_screen.dart:541:68 - deprecated_member_use
+   info - 'surfaceVariant' is deprecated and shouldn't be used. Use surfaceContainerHighest instead. This feature was deprecated after v3.18.0-0.1.pre - lib\features\products\presentation\product_inspection_screen.dart:552:60 - deprecated_member_use
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre - lib\features\products\presentation\product_list_screen.dart:130:21 - deprecated_member_use
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre - lib\features\products\presentation\product_list_screen.dart:150:21 - deprecated_member_use
+  error - The method 'GanttScreen' isn't defined for the type '_ProjectTile' - lib\features\projects\presentation\project_list_screen.dart:138:47 - undefined_method
+   info - Unnecessary 'this.' qualifier - lib\features\site_photo\models\photo_template.dart:20:11 - unnecessary_this
+   info - Unnecessary 'this.' qualifier - lib\features\site_photo\models\photo_template.dart:21:14 - unnecessary_this
+   info - Unnecessary 'this.' qualifier - lib\features\site_photo\models\photo_template.dart:22:18 - unnecessary_this
+   info - Unnecessary 'this.' qualifier - lib\features\site_photo\models\photo_template.dart:23:17 - unnecessary_this
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\site_photo\screens\blackboard_settings_screen.dart:147:72 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\site_photo\screens\photo_top_screen.dart:89:75 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\site_photo\screens\photo_top_screen.dart:219:42 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\site_photo\screens\site_photo_list_screen.dart:617:39 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\site_photo\screens\site_photo_list_screen.dart:855:61 - deprecated_member_use
+   info - The variable name 'Photos' isn't a lowerCamelCase identifier - lib\features\site_photo\screens\site_photo_list_screen.dart:1015:15 - non_constant_identifier_names
+   info - The variable name 'Photos' isn't a lowerCamelCase identifier - lib\features\site_photo\screens\site_photo_list_screen.dart:1096:13 - non_constant_identifier_names
+   info - Unnecessary braces in a string interpolation - lib\features\site_photo\screens\site_photo_selection_screen.dart:238:29 - unnecessary_brace_in_string_interps
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\site_photo\screens\site_photo_selection_screen.dart:346:45 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\site_photo\screens\site_photo_selection_screen.dart:410:43 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\site_photo\screens\site_photo_selection_screen.dart:460:64 - deprecated_member_use
+   info - Parameter 'key' could be a super parameter - lib\features\site_photo\screens\template_editor_pane.dart:13:9 - use_super_parameters
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\site_photo\screens\template_editor_pane.dart:143:32 - deprecated_member_use
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre - lib\features\site_photo\screens\template_editor_pane.dart:162:19 - deprecated_member_use
+   info - Parameter 'key' could be a super parameter - lib\features\site_photo\screens\template_editor_pane.dart:255:9 - use_super_parameters
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre - lib\features\site_photo\screens\template_editor_pane.dart:339:19 - deprecated_member_use
+   info - Unnecessary use of 'toList' in a spread - lib\features\site_photo\screens\template_editor_pane.dart:397:14 - unnecessary_to_list_in_spreads
+   info - Parameter 'key' could be a super parameter - lib\features\site_photo\screens\template_list_screen.dart:8:9 - use_super_parameters
+  error - Target of URI doesn't exist: 'package:pdf/widgets' - lib\features\site_photo\services\pdf_service.dart:8:8 - uri_does_not_exist
+  error - The name 'PhotoItem' isn't a type, so it can't be used as a type argument - lib\features\site_photo\services\pdf_service.dart:20:10 - non_type_as_type_argument
+  error - The name 'PhotoItem' isn't a type, so it can't be used as a type argument - lib\features\site_photo\services\pdf_service.dart:38:10 - non_type_as_type_argument
+  error - The method 'notoSansJapaneseRegular' isn't defined for the type 'PdfGoogleFonts' - lib\features\site_photo\services\pdf_service.dart:46:39 - undefined_method
+  error - Undefined class 'PhotoItem' - lib\features\site_photo\services\pdf_service.dart:79:14 - undefined_class
+  error - Undefined class 'PhotoItem' - lib\features\site_photo\services\pdf_service.dart:211:37 - undefined_class
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tape_inspection\screens\manual_measurement_overlay.dart:204:34 - deprecated_member_use
+warning - Unused import: 'dart:typed_data' - lib\features\tape_inspection\screens\tape_inspection_screen.dart:2:8 - unused_import
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\tape_inspection\screens\tape_inspection_screen.dart:307:56 - deprecated_member_use
+warning - Unused import: 'dart:io' - lib\features\tape_inspection\services\tape_inspection_vision_service.dart:1:8 - unused_import
+   info - The import of 'dart:typed_data' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/foundation.dart' - lib\features\tape_inspection\services\tape_inspection_vision_service.dart:2:8 - unnecessary_import
+   info - The constant name 'PROMPT' isn't a lowerCamelCase identifier - lib\features\tape_inspection\services\tape_inspection_vision_service.dart:9:23 - constant_identifier_names
+   info - The imported package 'uuid' isn't a dependency of the importing package - lib\features\witness_inspection\repositories\witness_inspection_repository.dart:4:8 - depend_on_referenced_packages
+warning - Unused import: 'package:uuid/uuid.dart' - lib\features\witness_inspection\repositories\witness_inspection_repository.dart:4:8 - unused_import
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre - lib\features\witness_inspection\screens\witness_inspection_screen.dart:73:19 - deprecated_member_use
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre - lib\features\witness_inspection\screens\witness_inspection_screen.dart:95:19 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\witness_inspection\screens\witness_inspection_screen.dart:142:81 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\witness_inspection\screens\witness_inspection_screen.dart:165:33 - deprecated_member_use
+  error - Target of URI doesn't exist: '../../utils/gantt_data_adapter.dart' - lib\mock_original.dart:5:8 - uri_does_not_exist
+  error - Target of URI doesn't exist: '../../application/gantt_providers.dart' - lib\mock_original.dart:7:8 - uri_does_not_exist
+  error - Target of URI doesn't exist: '../../../process_spec/data/process_progress_daily_repository.dart' - lib\mock_original.dart:8:8 - uri_does_not_exist
+  error - Target of URI doesn't exist: '../../../process_progress/data/process_progress_repository.dart' - lib\mock_original.dart:9:8 - uri_does_not_exist
+  error - The name 'GanttChartData' isn't a type, so it can't be used as a type argument - lib\mock_original.dart:30:13 - non_type_as_type_argument
+  error - Undefined name 'ganttProcessSpecProvider' - lib\mock_original.dart:34:36 - undefined_identifier
+  error - The function 'ProcessProgressDailyRepository' isn't defined - lib\mock_original.dart:36:25 - undefined_function
+  error - The name 'GanttDailyEntry' isn't a type, so it can't be used as a type argument - lib\mock_original.dart:37:42 - non_type_as_type_argument
+  error - The function 'GanttDailyEntry' isn't defined - lib\mock_original.dart:45:20 - undefined_function
+  error - Undefined name 'GanttDataAdapter' - lib\mock_original.dart:49:14 - undefined_identifier
+  error - The property 'groups' can't be unconditionally accessed because the receiver can be 'null' - lib\mock_original.dart:52:22 - unchecked_use_of_nullable_value
+  error - The property 'steps' can't be unconditionally accessed because the receiver can be 'null' - lib\mock_original.dart:53:21 - unchecked_use_of_nullable_value
+  error - The property 'tasks' can't be unconditionally accessed because the receiver can be 'null' - lib\mock_original.dart:71:32 - unchecked_use_of_nullable_value
+  error - Undefined class 'GanttChartData' - lib\mock_original.dart:81:9 - undefined_class
+   info - Unnecessary use of string interpolation - lib\mock_original.dart:468:30 - unnecessary_string_interpolations
+  error - The method 'ProcessProgressRepository' isn't defined for the type '_GanttChartWrapperState' - lib\mock_original.dart:691:20 - undefined_method
+   info - Don't invoke 'print' in production code - lib\mock_original.dart:729:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\mock_original.dart:730:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\mock_original.dart:731:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\mock_original.dart:743:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\mock_original.dart:744:7 - avoid_print
+   info - Statements in an if should be enclosed in a block - lib\mock_original.dart:906:39 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\mock_original.dart:1005:37 - curly_braces_in_flow_control_structures
+   info - Parameter 'key' could be a super parameter - lib\pdf_preview_screen.dart:8:9 - use_super_parameters
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre - lib\screens\bulk_progress_input_screen.dart:120:25 - deprecated_member_use
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre - lib\screens\bulk_progress_input_screen.dart:147:25 - deprecated_member_use
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre - lib\screens\bulk_progress_input_screen.dart:177:25 - deprecated_member_use
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre - lib\screens\bulk_progress_input_screen.dart:212:25 - deprecated_member_use
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre - lib\screens\progress_input_screen.dart:37:19 - deprecated_member_use
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre - lib\screens\progress_input_screen.dart:59:15 - deprecated_member_use
+warning - The '!' will have no effect because the receiver can't be null - lib\ui\gantt\gantt_bar_builder.dart:43:49 - unnecessary_non_null_assertion
+   info - Parameters ''color', 'radius', and 'height'' could be super parameters - lib\ui\gantt\gantt_bar_models.dart:22:9 - use_super_parameters
+   info - Parameters ''color', 'radius', and 'height'' could be super parameters - lib\ui\gantt\gantt_bar_models.dart:33:9 - use_super_parameters
+   info - Parameters ''color', 'radius', and 'height'' could be super parameters - lib\ui\gantt\gantt_bar_models.dart:44:9 - use_super_parameters
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\ui\gantt\gantt_bar_painter.dart:20:27 - deprecated_member_use
+   info - Use interpolation to compose strings and values - temp_trim.dart:7:26 - prefer_interpolation_to_compose_strings
+  error - The named parameter 'progress' isn't defined - test_task.dart:10:5 - undefined_named_parameter
+   info - Don't invoke 'print' in production code - test_task.dart:14:3 - avoid_print
+

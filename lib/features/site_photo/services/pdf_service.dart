@@ -2,12 +2,12 @@
 // PDF生成サービス（Web対応版）
 // 撮影済み写真を集めてA4縦・3段の工事写真台帳を作成
 
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets' as pw;
+import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import '../screens/site_photo_list_screen.dart';
+import '../models/photo_item.dart';
+
 
 /// PDF生成サービス
 class PdfService {
@@ -43,7 +43,8 @@ class PdfService {
     // === 日本語フォントを読み込み ===
     // printing パッケージの PdfGoogleFonts を使用して、
     // Google Fonts から Noto Sans JP を取得します。
-    final font = await PdfGoogleFonts.notoSansJapaneseRegular();
+    final font = await PdfGoogleFonts.notoSansJPRegular();
+
 
     // === 各ページに3枚ずつ写真を配置 ===
     // MultiPage を使用すると、自動的にページ分割してくれます。

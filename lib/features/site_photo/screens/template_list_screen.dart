@@ -21,7 +21,9 @@ class _TemplateListScreenState extends State<TemplateListScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('テンプレートの削除'),
-        content: Text('「${template.name.isEmpty ? "(名前なし)" : template.name}」を削除しますか？\nこの操作は取り消せません。'),
+        content: Text(
+          '「${template.name.isEmpty ? "(名前なし)" : template.name}」を削除しますか？\nこの操作は取り消せません。',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -44,9 +46,9 @@ class _TemplateListScreenState extends State<TemplateListScreen> {
             _selectedTemplate = null;
           });
         }
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('テンプレートを削除しました')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('テンプレートを削除しました')));
       }
     }
   }
@@ -56,7 +58,10 @@ class _TemplateListScreenState extends State<TemplateListScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF2F2F7),
       appBar: AppBar(
-        title: const Text('工程写真テンプレート管理', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          '工程写真テンプレート管理',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0,
@@ -70,7 +75,106 @@ class _TemplateListScreenState extends State<TemplateListScreen> {
               color: Colors.white,
               child: Column(
                 children: [
-                  // 新規作成ボタン
+                  // 左ペインのヘッダーラベル
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      border: Border(bottom: BorderSide(color: Colors.blue.shade200)),
+                    ),
+                    child: const Row(
+                      children: [
+                        Text(
+                          'テンプレート一覧',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            color: Colors.blue,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // リスト
+                  Expanded(
+                    child: StreamBuilder<List<PhotoTemplate>>(
+                      stream: _firestoreService.getPhotoTemplates(),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
+                        if (snapshot.hasError) {
+                          return Center(child: Text('エラー: ${snapshot.error}'));
+                        }
+
+                        final templates = snapshot.data ?? [];
+
+                        if (templates.isEmpty) {
+                          return const Center(
+                            child: Text(
+                              'テンプレートがありません。',
+                              textAlign: TextAlign.center,
+                            ),
+                          );
+                        }
+
+                        return ListView.separated(
+                          itemCount: templates.length,
+                          separatorBuilder: (context, index) =>
+                              const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            final template = templates[index];
+                            final isSelected =
+                                _selectedTemplate?.id == template.id &&
+                                !_isCreatingNew;
+
+                            return ListTile(
+                              selected: isSelected,
+                              selectedTileColor: Colors.blue.shade50,
+                              leading: Icon(
+                                Icons.description,
+                                color: isSelected ? Colors.blue : Colors.grey,
+                              ),
+                              title: Text(
+                                template.name.isEmpty
+                                    ? '(名前なし)'
+                                    : template.name,
+                                style: TextStyle(
+                                  fontWeight: isSelected
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                  color: isSelected
+                                      ? Colors.blue
+                                      : Colors.black87,
+                                ),
+                              ),
+                              subtitle: Text(
+                                '${template.category} / 項目数: ${template.items.length}',
+                              ),
+                              onTap: () {
+                                setState(() {
+                                  _selectedTemplate = template;
+                                  _isCreatingNew = false;
+                                });
+                              },
+                              trailing: IconButton(
+                                icon: const Icon(
+                                  Icons.delete,
+                                  color: Colors.grey,
+                                ),
+                                onPressed: () =>
+                                    _confirmDeleteTemplate(template),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                  const Divider(height: 1),
                   Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: ElevatedButton.icon(
@@ -89,67 +193,11 @@ class _TemplateListScreenState extends State<TemplateListScreen> {
                       ),
                     ),
                   ),
-                  const Divider(height: 1),
-                  // リスト
-                  Expanded(
-                    child: StreamBuilder<List<PhotoTemplate>>(
-                      stream: _firestoreService.getPhotoTemplates(),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return const Center(child: CircularProgressIndicator());
-                        }
-                        if (snapshot.hasError) {
-                          return Center(child: Text('エラー: ${snapshot.error}'));
-                        }
-
-                        final templates = snapshot.data ?? [];
-
-                        if (templates.isEmpty) {
-                          return const Center(
-                            child: Text('テンプレートがありません。', textAlign: TextAlign.center),
-                          );
-                        }
-
-                        return ListView.separated(
-                          itemCount: templates.length,
-                          separatorBuilder: (context, index) => const Divider(height: 1),
-                          itemBuilder: (context, index) {
-                            final template = templates[index];
-                            final isSelected = _selectedTemplate?.id == template.id && !_isCreatingNew;
-                            
-                            return ListTile(
-                              selected: isSelected,
-                              selectedTileColor: Colors.blue.shade50,
-                              leading: Icon(Icons.description, color: isSelected ? Colors.blue : Colors.grey),
-                              title: Text(
-                                template.name.isEmpty ? '(名前なし)' : template.name,
-                                style: TextStyle(
-                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                  color: isSelected ? Colors.blue : Colors.black87,
-                                ),
-                              ),
-                              subtitle: Text('${template.category} / 項目数: ${template.items.length}'),
-                              onTap: () {
-                                setState(() {
-                                  _selectedTemplate = template;
-                                  _isCreatingNew = false;
-                                });
-                              },
-                              trailing: IconButton(
-                                icon: const Icon(Icons.delete, color: Colors.grey),
-                                onPressed: () => _confirmDeleteTemplate(template),
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    ),
-                  ),
                 ],
               ),
             ),
           ),
-          
+
           // 中央の区切り線
           Container(width: 1, color: Colors.grey.shade300),
 
@@ -159,17 +207,29 @@ class _TemplateListScreenState extends State<TemplateListScreen> {
             child: _isCreatingNew || _selectedTemplate != null
                 ? TemplateEditorPane(
                     // ValueKeyで状態をリセット
-                    key: ValueKey(_isCreatingNew ? 'new_${DateTime.now().microsecondsSinceEpoch}' : _selectedTemplate!.id),
-                    initialTemplateId: _isCreatingNew ? null : _selectedTemplate!.id,
-                    initialTemplateName: _isCreatingNew ? null : _selectedTemplate!.name,
-                    initialCategory: _isCreatingNew ? null : _selectedTemplate!.category,
-                    initialTreeData: _isCreatingNew ? null : _selectedTemplate!.items,
+                    key: ValueKey(
+                      _isCreatingNew
+                          ? 'new_${DateTime.now().microsecondsSinceEpoch}'
+                          : _selectedTemplate!.id,
+                    ),
+                    initialTemplateId: _isCreatingNew
+                        ? null
+                        : _selectedTemplate!.id,
+                    initialTemplateName: _isCreatingNew
+                        ? null
+                        : _selectedTemplate!.name,
+                    initialCategory: _isCreatingNew
+                        ? null
+                        : _selectedTemplate!.category,
+                    initialTreeData: _isCreatingNew
+                        ? null
+                        : _selectedTemplate!.items,
                     onSaved: () {
                       // 保存完了時のコールバック
                       setState(() {
                         // 保存後はリストに戻るか、選択状態を解除する
                         _isCreatingNew = false;
-                        _selectedTemplate = null; 
+                        _selectedTemplate = null;
                       });
                     },
                   )

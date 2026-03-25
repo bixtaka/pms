@@ -1,4 +1,4 @@
-﻿part of '../gantt_screen.dart';
+part of '../gantt_screen.dart';
 
 // --- 製品実績入力画面（検査入力画面） ---
 
@@ -196,9 +196,9 @@ Color _processCellStatusColor(ProcessCellStatus status) {
     case ProcessCellStatus.notStarted:
       return const Color(0xFFE0E0E0);
     case ProcessCellStatus.inProgress:
-      return kGanttActualInProgressColor.withValues(alpha: 0.85);
+      return Colors.orange.withOpacity(0.85);
     case ProcessCellStatus.done:
-      return kGanttActualDoneColor.withValues(alpha: 0.9);
+      return Colors.green.withOpacity(0.9);
   }
 }
 
@@ -619,50 +619,41 @@ class _ProductResultInputPageState
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Column(
-              children: [
-                const _HeaderBar(),
-                Expanded(
-                  child: TabBarView(
-                    children: [
-                      Row(
-                        children: [
-                          SizedBox(
-                            width: 280,
-                            child: _LeftPane(project: widget.project),
-                          ),
-                          VerticalDivider(
-                            width: 1,
-                            thickness: 0.9,
-                            color: Theme.of(context).dividerColor,
-                          ),
-                          Expanded(
-                            flex: 3,
-                            child: ProductListPane(project: widget.project),
-                          ),
-                          VerticalDivider(
-                            width: 1,
-                            thickness: 0.9,
-                            color: Theme.of(context).dividerColor,
-                          ),
-                          SizedBox(
-                            width: 380,
-                            child: ProcessInputPane(project: widget.project),
-                          ),
-                        ],
-                      ),
-                      ProductStatusTabContent(project: widget.project),
-                    ],
-                  ),
+    return Scaffold(
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Column(
+            children: [
+              Expanded(
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 280,
+                      child: _LeftPane(project: widget.project),
+                    ),
+                    VerticalDivider(
+                      width: 1,
+                      thickness: 0.9,
+                      color: Theme.of(context).dividerColor,
+                    ),
+                    Expanded(
+                      flex: 3,
+                      child: ProductListPane(project: widget.project),
+                    ),
+                    VerticalDivider(
+                      width: 1,
+                      thickness: 0.9,
+                      color: Theme.of(context).dividerColor,
+                    ),
+                    SizedBox(
+                      width: 380,
+                      child: ProcessInputPane(project: widget.project),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -670,28 +661,7 @@ class _ProductResultInputPageState
   }
 }
 
-class _HeaderBar extends StatelessWidget {
-  const _HeaderBar();
 
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Theme.of(context).colorScheme.surface,
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          TabBar(
-            tabs: [
-              Tab(text: '検査入力'),
-              Tab(text: '製品別ステータス'),
-            ],
-          ),
-          Divider(height: 1),
-        ],
-      ),
-    );
-  }
-}
 
 class _LeftPane extends StatelessWidget {
   final Project project;
