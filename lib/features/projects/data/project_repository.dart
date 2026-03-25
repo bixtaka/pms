@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../../models/project.dart';
+import '../domain/project.dart';
 
 /// プロジェクト関連の CRUD / ストリーム
 class ProjectRepository {

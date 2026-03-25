@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../services/firebase_service.dart';
+import '../../../core/firebase/firebase_service.dart';
 
 class ProgressInputScreen extends StatefulWidget {
   const ProgressInputScreen({super.key});

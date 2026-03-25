@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/product.dart';
+import '../../../products/domain/product.dart';
 
 class GanttChartWidget extends StatelessWidget {
   final List<Product> products;

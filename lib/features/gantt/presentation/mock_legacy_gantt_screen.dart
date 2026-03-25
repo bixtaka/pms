@@ -1,20 +1,20 @@
-﻿import 'package:flutter/gestures.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:legacy_gantt_chart/legacy_gantt_chart.dart';
 import '../utils/gantt_data_adapter.dart';
-import '../../../providers/product_providers.dart';
+import '../../../features/products/application/product_providers.dart';
 import '../application/gantt_providers.dart';
+import '../application/gantt_shared_providers.dart';
 import '../../process_spec/data/process_progress_daily_repository.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'dart:ui' as ui;
 
-import '../../projects/presentation/project_create_screen.dart';
 import '../../projects/presentation/project_settings_screen.dart';
-import '../../../providers/project_providers.dart';
-import '../../../models/project.dart';
+import '../../../features/projects/application/project_providers.dart';
+import '../../../features/projects/domain/project.dart';
 
 // ─── 共通定数 ─────────────────────────────────────────────────────────────────
 /// 左ペインと右チャートで使う 1行の高さ（両側で完全一致）
@@ -194,20 +194,6 @@ final mockGanttDataProvider = FutureProvider.autoDispose
 
 // ─── リアルデータ用プロバイダ ──────────────────────────────────────────────────
 
-/// Firestore の tasks コレクションから該当プロジェクトのタスク一覧を取得する
-final firestoreTasksProvider = StreamProvider.autoDispose
-    .family<List<QueryDocumentSnapshot<Map<String, dynamic>>>, String>((
-      ref,
-      projectId,
-    ) {
-      return FirebaseFirestore.instance
-          .collection('tasks')
-          .where('projectId', isEqualTo: projectId)
-          .orderBy('sortOrder')
-          .snapshots()
-          .map((snapshot) => snapshot.docs);
-    });
-
 final realProjectGanttDataProvider = Provider.autoDispose
     .family<AsyncValue<GanttChartData>, String>((ref, projectId) {
       // Real data parsing logic
@@ -382,8 +368,6 @@ final realProjectGanttDataProvider = Provider.autoDispose
 // ─── 画面本体 ─────────────────────────────────────────────────────────────────
 
 // ─── 画面本体 ─────────────────────────────────────────────────────────────────
-
-final selectedProjectIdProvider = StateProvider<String?>((ref) => null);
 
 class MockLegacyGanttScreen extends ConsumerStatefulWidget {
   final String projectId;

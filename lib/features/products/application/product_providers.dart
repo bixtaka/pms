@@ -1,10 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../features/products/data/product_repository.dart';
-import '../features/products/application/product_filter_state.dart';
-import '../features/products/application/product_filter_notifier.dart';
-import '../features/shipping/application/shipping_table_notifier.dart';
-import '../features/shipping/domain/shipping_row.dart';
-import '../models/product.dart';
+import '../data/product_repository.dart';
+import 'product_filter_state.dart';
+import 'product_filter_notifier.dart';
+import '../../shipping/application/shipping_table_notifier.dart';
+import '../../shipping/domain/shipping_row.dart';
+import '../domain/product.dart';
 
 bool _isColumnType(String memberType) {
   // TODO: COLUMN_XX などの派生コードが増えたらここに追加する

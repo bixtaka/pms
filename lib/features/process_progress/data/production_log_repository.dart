@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../../models/production_log.dart';
+import '../domain/production_log.dart';
 
 /// 日別実績ログのリポジトリ（任意機能）
 class ProductionLogRepository {

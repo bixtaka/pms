@@ -1,10 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../features/process_progress/data/process_progress_repository.dart';
-import '../features/process_progress/data/process_master_repository.dart';
-import '../features/products/data/product_repository.dart';
-import '../models/product.dart';
-import '../models/process_master.dart';
-import '../models/process_progress.dart';
+import '../data/process_progress_repository.dart';
+import '../data/process_master_repository.dart';
+import '../../products/data/product_repository.dart';
+import '../../../features/products/domain/product.dart';
+import '../domain/process_master.dart';
+import '../domain/process_progress.dart';
 
 // Repository providers
 final processProgressRepoProvider = Provider<ProcessProgressRepository>((ref) {

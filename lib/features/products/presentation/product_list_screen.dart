@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../providers/product_providers.dart';
-import '../../../models/product.dart';
-import '../../../widgets/product_drawing_thumbnail.dart';
+import '../../../features/products/application/product_providers.dart';
+import '../domain/product.dart';
+import 'widgets/product_drawing_thumbnail.dart';
 import '../../process_progress/presentation/process_progress_screen.dart';
 import '../application/product_filter_state.dart';
 import '../application/product_filter_notifier.dart';

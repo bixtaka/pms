@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../../models/process_master.dart';
+import '../domain/process_master.dart';
 
 /// 工程マスタの CRUD / ストリーム
 class ProcessMasterRepository {

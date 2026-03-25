@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
-import '../models/product.dart';
-import '../services/firebase_service.dart';
-import '../widgets/work_type_gantt_widget.dart';
+import '../../../features/products/domain/product.dart';
+import '../../../core/firebase/firebase_service.dart';
+import '../../gantt/presentation/widgets/work_type_gantt_widget.dart';
 import 'progress_input_screen.dart';
 import 'bulk_progress_input_screen.dart';
-import '../widgets/process_step_selector.dart';
+import 'widgets/process_step_selector.dart';
 import 'package:provider/provider.dart';
-import '../models/work_type_state.dart';
+import '../../../features/inspection/domain/work_type_state.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 // import 'package:file_picker/file_picker.dart';
 

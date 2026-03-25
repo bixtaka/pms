@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import '../services/firebase_service.dart';
-import '../models/product.dart';
+import '../../../core/firebase/firebase_service.dart';
+import '../../../features/products/domain/product.dart';
 import 'package:provider/provider.dart';
-import '../models/work_type_state.dart';
-import '../features/process_spec/data/process_progress_daily_repository.dart';
+import '../../../features/inspection/domain/work_type_state.dart';
+import '../../../features/process_spec/data/process_progress_daily_repository.dart';
 
 class BulkProgressInputScreen extends StatefulWidget {
   const BulkProgressInputScreen({super.key});

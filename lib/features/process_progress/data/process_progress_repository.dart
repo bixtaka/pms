@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../../models/process_progress.dart';
+import '../domain/process_progress.dart';
 
 /// 製品×工程の進捗を扱うリポジトリ
 class ProcessProgressRepository {

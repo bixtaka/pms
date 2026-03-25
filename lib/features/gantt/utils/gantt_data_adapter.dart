@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:legacy_gantt_chart/legacy_gantt_chart.dart';
-import '../../../models/product.dart';
-import '../../../models/process_progress.dart';
+import '../../products/domain/product.dart';
+import '../../process_progress/domain/process_progress.dart';
 import '../../process_spec/domain/process_group.dart';
 import '../../process_spec/domain/process_step.dart';
 

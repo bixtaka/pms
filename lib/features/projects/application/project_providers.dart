@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../features/projects/data/project_repository.dart';
-import '../models/project.dart';
+import '../data/project_repository.dart';
+import '../domain/project.dart';
 
 // リポジトリのプロバイダ
 final projectRepositoryProvider = Provider<ProjectRepository>((ref) {

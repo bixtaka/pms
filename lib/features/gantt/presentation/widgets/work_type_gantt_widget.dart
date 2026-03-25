@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/firebase_service.dart';
+import '../../../../core/firebase/firebase_service.dart';
 import 'package:syncfusion_flutter_datepicker/datepicker.dart';
 
 // ignore_for_file: unused_local_variable

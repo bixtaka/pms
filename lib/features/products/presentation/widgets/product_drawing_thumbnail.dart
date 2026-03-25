@@ -2,7 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 
-import '../features/inspection/data/annotation_storage_service.dart';
+import '../../../inspection/data/annotation_storage_service.dart';
 
 /// 製品図面のサムネイル表示ウィジェット
 /// 

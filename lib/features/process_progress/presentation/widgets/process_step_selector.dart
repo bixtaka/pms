@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../models/work_type_state.dart';
+import '../../../inspection/domain/work_type_state.dart';
 
 class ProcessStepSelector extends StatelessWidget {
   final Function(String) onProcessChanged;

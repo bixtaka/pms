@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../domain/process_step.dart';
-import '../../../models/process_master.dart';
+import '../../process_progress/domain/process_master.dart';
 
 /// SPEC の process_steps を提供するアダプタ
 /// - processSteps コレクションがあればそれを使用

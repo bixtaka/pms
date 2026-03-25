@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../models/process_master.dart';
-import '../../../models/process_progress.dart';
-import '../../../models/product.dart';
-import '../../../providers/process_progress_providers.dart';
+import '../domain/process_master.dart';
+import '../domain/process_progress.dart';
+import '../../../features/products/domain/product.dart';
+import '../../../features/process_progress/application/process_progress_providers.dart';
 import '../../process_spec/data/process_progress_save_service.dart';
 import 'daily_process_progress_screen.dart';
 

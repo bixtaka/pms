@@ -1,4 +1,4 @@
-import '../../../models/product.dart';
+import '../../products/domain/product.dart';
 import '../../process_spec/data/process_groups_repository.dart';
 import '../../process_spec/data/process_progress_daily_repository.dart';
 import '../../process_spec/data/process_steps_repository.dart';
@@ -9,7 +9,7 @@ import '../../products/data/product_repository.dart';
 import '../domain/gantt_repository.dart';
 import '../domain/gantt_models.dart'
     show GanttProduct, GanttTask, ProcessType;
-import '../../../models/process_progress.dart';
+import '../../process_progress/domain/process_progress.dart';
 
 /// 旧 UI（widgets/gantt_chart.dart など）が参照する簡易モデル（互換用）
 class GanttItem {

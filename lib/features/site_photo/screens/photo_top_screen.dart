@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../models/project.dart';
-import '../../../providers/project_providers.dart';
+import '../../projects/domain/project.dart';
+import '../../projects/application/project_providers.dart';
 
 import '../../tape_inspection/screens/tape_inspection_screen.dart';
 import '../../witness_inspection/screens/witness_inspection_screen.dart';

@@ -4,9 +4,9 @@ import '../../process_spec/data/process_progress_daily_repository.dart';
 import '../../process_spec/domain/process_progress_daily.dart';
 import '../../process_spec/domain/process_group.dart';
 import '../../process_spec/domain/process_step.dart';
-import '../../../providers/product_providers.dart';
-import '../../../models/product.dart';
-import '../../gantt/presentation/mock_legacy_gantt_screen.dart';
+import '../../../features/products/application/product_providers.dart';
+import '../domain/product.dart';
+import '../../gantt/application/gantt_shared_providers.dart';
 
 /// 日別進捗のキー（product + 日付 + step を組み合わせる前段階）
 @immutable

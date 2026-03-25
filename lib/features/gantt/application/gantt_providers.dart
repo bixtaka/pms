@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../models/project.dart';
+import '../../../features/projects/domain/project.dart';
 import '../data/gantt_repository.dart';
 import '../domain/gantt_repository.dart';
 import '../domain/gantt_models.dart' show GanttProduct;
@@ -9,7 +9,7 @@ import '../../process_spec/data/process_steps_repository.dart';
 import '../../process_spec/domain/process_group.dart';
 import '../../process_spec/domain/process_step.dart';
 import 'product_gantt_progress_service.dart';
-import '../presentation/mock_legacy_gantt_screen.dart';
+import 'gantt_shared_providers.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ProcessSpecData {

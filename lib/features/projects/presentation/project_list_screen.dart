@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../providers/project_providers.dart';
+import '../../../features/projects/application/project_providers.dart';
 import '../../products/presentation/product_list_screen.dart';
 import '../../gantt/presentation/gantt_screen.dart';
 
 import '../../site_photo/screens/photo_top_screen.dart';
 import '../../gantt/presentation/mock_legacy_gantt_screen.dart';
-import '../../../models/project.dart';
+import '../domain/project.dart';
 import 'project_create_screen.dart';
 
 /// プロジェクト一覧画面
