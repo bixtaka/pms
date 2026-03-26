@@ -6,7 +6,7 @@ import 'package:shimmer/shimmer.dart';
 import '../utils/platform_utils.dart';
 
 /// iOS 以外のプラットフォームで表示するプレースホルダーウィジェット
-/// 
+///
 /// PencilKit は iOS 専用のため、他のプラットフォームでは
 /// この代替 UI を表示する。背景画像がある場合は閲覧可能。
 class PencilKitPlatformPlaceholder extends StatelessWidget {
@@ -18,14 +18,15 @@ class PencilKitPlatformPlaceholder extends StatelessWidget {
 
   /// 閉じるボタンのコールバック
   final VoidCallback? onClose;
-  
+
   /// 背景画像URL（図面）
   final String? backgroundImageUrl;
 
   @override
   Widget build(BuildContext context) {
-    final hasImage = backgroundImageUrl != null && backgroundImageUrl!.isNotEmpty;
-    
+    final hasImage =
+        backgroundImageUrl != null && backgroundImageUrl!.isNotEmpty;
+
     return Container(
       color: const Color(0xFFF2F2F7), // iOS システムグレー背景
       child: SafeArea(
@@ -35,8 +36,8 @@ class PencilKitPlatformPlaceholder extends StatelessWidget {
             _buildHeader(context),
             // メインコンテンツ
             Expanded(
-              child: hasImage 
-                  ? _buildImageViewer() 
+              child: hasImage
+                  ? _buildImageViewer()
                   : _buildNoImagePlaceholder(),
             ),
             // フッター（iPad での編集案内）
@@ -83,7 +84,10 @@ class PencilKitPlatformPlaceholder extends StatelessWidget {
               top: 12,
               right: 12,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.black.withValues(alpha: 0.6),
                   borderRadius: BorderRadius.circular(16),
@@ -91,11 +95,7 @@ class PencilKitPlatformPlaceholder extends StatelessWidget {
                 child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      CupertinoIcons.eye,
-                      size: 16,
-                      color: Colors.white,
-                    ),
+                    Icon(CupertinoIcons.eye, size: 16, color: Colors.white),
                     SizedBox(width: 6),
                     Text(
                       '閲覧モード',
@@ -116,7 +116,10 @@ class PencilKitPlatformPlaceholder extends StatelessWidget {
               right: 0,
               child: Center(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.black.withValues(alpha: 0.5),
                     borderRadius: BorderRadius.circular(12),
@@ -132,10 +135,7 @@ class PencilKitPlatformPlaceholder extends StatelessWidget {
                       SizedBox(width: 6),
                       Text(
                         'ピンチでズーム',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.white70,
-                        ),
+                        style: TextStyle(fontSize: 12, color: Colors.white70),
                       ),
                     ],
                   ),
@@ -159,18 +159,11 @@ class PencilKitPlatformPlaceholder extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                CupertinoIcons.doc,
-                size: 48,
-                color: Colors.white,
-              ),
+              Icon(CupertinoIcons.doc, size: 48, color: Colors.white),
               SizedBox(height: 12),
               Text(
                 '図面を読み込み中...',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.white,
-                ),
+                style: TextStyle(fontSize: 14, color: Colors.white),
               ),
             ],
           ),
@@ -195,10 +188,7 @@ class PencilKitPlatformPlaceholder extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               '図面を読み込めません',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[500],
-              ),
+              style: TextStyle(fontSize: 14, color: Colors.grey[500]),
             ),
           ],
         ),
@@ -285,10 +275,7 @@ class PencilKitPlatformPlaceholder extends StatelessWidget {
                 SizedBox(width: 4),
                 Text(
                   '戻る',
-                  style: TextStyle(
-                    color: Color(0xFF007AFF),
-                    fontSize: 17,
-                  ),
+                  style: TextStyle(color: Color(0xFF007AFF), fontSize: 17),
                 ),
               ],
             ),
@@ -356,10 +343,7 @@ class PencilKitPlatformPlaceholder extends StatelessWidget {
                 ),
                 Text(
                   'iPad + Apple Pencil で操作してください',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                 ),
               ],
             ),
@@ -369,32 +353,6 @@ class PencilKitPlatformPlaceholder extends StatelessWidget {
     );
   }
 
-  Widget _buildInfoRow({
-    required IconData icon,
-    required String text,
-  }) {
-    return Row(
-      children: [
-        Icon(
-          icon,
-          size: 24,
-          color: const Color(0xFF007AFF),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(
-              fontSize: 15,
-              color: Color(0xFF1C1C1E),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
   /// 現在のプラットフォームが iOS かどうかを判定
   static bool get isIOSPlatform => PlatformUtils.isIOS;
 }
-

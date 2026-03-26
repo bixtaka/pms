@@ -463,12 +463,12 @@ class _ProductInspectionScreenState
                             if (mounted) {
                               Navigator.of(ctx).pop();
                               // Simple iOS style feedback? Or Keep Snackbar for consistency
-                              ScaffoldMessenger.of(context).showSnackBar(
+                              messenger.showSnackBar(
                                 const SnackBar(content: Text('保存しました')),
                               );
                             }
                           } catch (e) {
-                             ScaffoldMessenger.of(context).showSnackBar(
+                             messenger.showSnackBar(
                                 SnackBar(content: Text('保存に失敗しました: $e')),
                               );
                           }
