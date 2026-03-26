@@ -56,25 +56,14 @@ class PhotoTopScreen extends ConsumerWidget {
                     }).toList(),
                     onChanged: (value) {
                       if (value != null) {
-                        ref.read(photoSelectedProjectIdProvider.notifier).state =
+                        ref
+                                .read(photoSelectedProjectIdProvider.notifier)
+                                .state =
                             value;
                       }
                     },
                   ),
                   const SizedBox(height: 16),
-
-                  // 黒板テンプレートのサマリーを表示するダミーの Card
-                  Card(
-                    elevation: 2,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Text(
-                        '2026/03/05 | 晴れ | 撮影者：未定',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 32),
 
                   // 縦並びのメニューリスト
                   Expanded(
@@ -86,7 +75,7 @@ class PhotoTopScreen extends ConsumerWidget {
                           title: '工程写真',
                           icon: Icons.camera_alt,
                           iconColor: Theme.of(context).primaryColor,
-                          backgroundColor: Theme.of(context).primaryColor.withOpacity(0.05),
+
                           onTap: () {
                             Navigator.push(
                               context,
@@ -99,7 +88,7 @@ class PhotoTopScreen extends ConsumerWidget {
                             );
                           },
                         ),
-                        
+
                         // 2. 立会検査写真
                         _buildMenuCard(
                           context,
@@ -174,6 +163,19 @@ class PhotoTopScreen extends ConsumerWidget {
                             );
                           },
                         ),
+
+                        // 黒板テンプレートのサマリーを表示するダミーの Card
+                        Card(
+                          elevation: 2,
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Text(
+                              '2026/03/05 | 晴れ | 撮影者：未定',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 32),
                       ],
                     ),
                   ),
@@ -221,10 +223,7 @@ class PhotoTopScreen extends ConsumerWidget {
             ),
             title: Text(
               title,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             trailing: Icon(Icons.chevron_right, color: Colors.grey[400]),
           ),
