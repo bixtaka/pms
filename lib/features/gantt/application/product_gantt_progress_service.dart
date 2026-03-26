@@ -122,8 +122,9 @@ class ProductGanttProgressService {
       int accQty = 0;
 
       for (final d in values) {
-        final status =
-            d.doneQty > 0 ? GanttBarStatus.done : GanttBarStatus.inProgress;
+        final status = d.doneQty > 0
+            ? GanttBarStatus.done
+            : GanttBarStatus.inProgress;
 
         if (currentStart == null) {
           currentStart = d;
@@ -146,7 +147,7 @@ class ProductGanttProgressService {
             productId: productId,
             stepId: stepId,
             start: currentStart.date,
-            end: currentEnd!,
+            end: currentEnd,
             totalQty: accQty,
             isCompleted: currentStatus == GanttBarStatus.done,
           ),

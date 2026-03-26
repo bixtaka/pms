@@ -40,7 +40,7 @@ List<GanttBar> buildBarsFromDaily(List<DailyProgressEntry> items) {
     }
 
     // 連続が途切れたのでバー確定
-    bars.add(_makeBar(seqType, seqStart!, seqEnd!));
+    bars.add(_makeBar(seqType, seqStart!, seqEnd));
     seqType = type;
     seqStart = d.date;
     seqEnd = d.date;
