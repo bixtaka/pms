@@ -55,113 +55,102 @@ class _SitePhotoListScreenState extends State<SitePhotoListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      // 背景色（Apple風のライトグレー）
-      backgroundColor: const Color(0xFFF2F2F7),
-
-      // アプリバー
-      appBar: AppBar(
-        title: Text(
-          widget.projectName,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(CupertinoIcons.back),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        actions: [
-          // 開発・テスト用：データリセットボタン
-          TextButton.icon(
-            onPressed: () async => await _confirmAndResetData(),
-            icon: const Icon(Icons.refresh, color: Colors.red),
-            label: const Text('リセット', style: TextStyle(color: Colors.red)),
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF2F2F7),
+        appBar: AppBar(
+          title: Text(
+            widget.projectName,
+            style: const TextStyle(fontWeight: FontWeight.bold),
           ),
-          // === 設定メニュー ===
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert),
-            onSelected: (value) async {
-              if (value == 'reset') {
-                await _confirmAndResetData();
-              }
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'reset',
-                child: Row(
-                  children: [
-                    Icon(Icons.delete_forever, color: Colors.red),
-                    SizedBox(width: 8),
-                    Text('データをリセット', style: TextStyle(color: Colors.red)),
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(CupertinoIcons.back),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          actions: [
+            TextButton.icon(
+              onPressed: () async => await _confirmAndResetData(),
+              icon: const Icon(Icons.refresh, color: Colors.red),
+              label: const Text('リセット', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+          // ↓ 狭い画面の時だけ、アプリバーの下にタブを表示
+          bottom: MediaQuery.of(context).size.width >= 600
+              ? null
+              : const TabBar(
+                  tabs: [
+                    Tab(text: 'リスト', icon: Icon(Icons.list)),
+                    Tab(text: '詳細・写真', icon: Icon(Icons.photo)),
                   ],
                 ),
-              ),
-            ],
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showTemplateSelectionBottomSheet,
-        icon: const Icon(Icons.list_alt),
-        label: const Text('テンプレートからリスト生成'),
-      ),
+        ),
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: _showTemplateSelectionBottomSheet,
+          icon: const Icon(Icons.list_alt),
+          label: const Text('テンプレートからリスト生成'),
+        ),
+        body: StreamBuilder<List<SiteCategory>>(
+          stream: _firestoreService.getCategories(widget.projectId),
+          builder: (context, categorySnapshot) {
+            if (categorySnapshot.connectionState == ConnectionState.waiting)
+              return const Center(child: CircularProgressIndicator());
+            final categories = categorySnapshot.data ?? [];
 
-      // === 本体部分（2分割レイアウト + StreamBuilder） ===
-      body: StreamBuilder<List<SiteCategory>>(
-        stream: _firestoreService.getCategories(widget.projectId),
-        builder: (context, categorySnapshot) {
-          // カテゴリー読み込み中
-          if (categorySnapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+            return StreamBuilder<List<PhotoItem>>(
+              stream: _firestoreService.getPhotoItems(widget.projectId),
+              builder: (context, photoSnapshot) {
+                if (photoSnapshot.connectionState == ConnectionState.waiting)
+                  return const Center(child: CircularProgressIndicator());
+                if (photoSnapshot.hasError)
+                  return Center(
+                    child: Text(
+                      'エラー: ${photoSnapshot.error}',
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                  );
 
-          final categories = categorySnapshot.data ?? [];
+                final photoItems = photoSnapshot.data ?? [];
+                if (categories.isEmpty && photoItems.isEmpty)
+                  return _buildEmptyState();
 
-          return StreamBuilder<List<PhotoItem>>(
-            stream: _firestoreService.getPhotoItems(widget.projectId),
-            builder: (context, photoSnapshot) {
-              // === ローディング中 ===
-              if (photoSnapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
+                return LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isWide = constraints.maxWidth >= 600;
 
-              // === エラー発生 ===
-              if (photoSnapshot.hasError) {
-                return Center(
-                  child: Text(
-                    'エラー: ${photoSnapshot.error}',
-                    style: const TextStyle(color: Colors.red),
-                  ),
+                    if (isWide) {
+                      // --- iPad（横表示）: 2分割レイアウト ---
+                      return Row(
+                        children: [
+                          Expanded(
+                            flex: 2,
+                            child: _buildListPane(categories, photoItems),
+                          ),
+                          Container(width: 1, color: Colors.grey[300]),
+                          Expanded(
+                            flex: 3,
+                            child: _buildDetailPane(photoItems),
+                          ),
+                        ],
+                      );
+                    } else {
+                      // --- iPhone（縦表示）: タブで切り替え ---
+                      return TabBarView(
+                        children: [
+                          _buildListPane(categories, photoItems),
+                          _buildDetailPane(photoItems),
+                        ],
+                      );
+                    }
+                  },
                 );
-              }
-
-              final photoItems = photoSnapshot.data ?? [];
-
-              // === データがない場合（初期設定画面へ誘導） - カテゴリーも写真もない場合 ===
-              if (categories.isEmpty && photoItems.isEmpty) {
-                return _buildEmptyState();
-              }
-
-              return Row(
-                children: [
-                  // === 左ペイン: リスト ===
-                  Expanded(
-                    flex: 2,
-                    child: _buildListPane(categories, photoItems),
-                  ),
-
-                  // === 中央の区切り線 ===
-                  Container(width: 1, color: Colors.grey[300]),
-
-                  // === 右ペイン: 詳細 ===
-                  Expanded(flex: 3, child: _buildDetailPane(photoItems)),
-                ],
-              );
-            },
-          );
-        },
+              },
+            );
+          },
+        ),
       ),
     );
   }

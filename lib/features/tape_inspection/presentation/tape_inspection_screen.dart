@@ -257,126 +257,105 @@ class _TapeInspectionScreenState extends ConsumerState<TapeInspectionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('テープ合わせ（鋼製巻尺検査）'),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0),
-            child: OutlinedButton.icon(
-              icon: const Text('📄'),
-              label: const Text('PDF出力'),
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('テープ合わせ（鋼製巻尺検査）'),
+          actions: [
+            IconButton(
               onPressed: () => _openPdfPreview(context),
+              icon: const Text('📄'),
+              tooltip: 'PDF出力',
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: FilledButton.icon(
-              icon: const Text('📊'),
-              label: const Text('Excel出力'),
-              style: FilledButton.styleFrom(backgroundColor: Colors.green),
+            IconButton(
               onPressed: () => _exportExcel(context),
+              icon: const Text('📊'),
+              color: Colors.green,
+              tooltip: 'Excel出力',
             ),
-          ),
-        ],
-      ),
-      body: Row(
-        children: [
-          // 左ペイン: 測定点リスト
-          Expanded(
-            flex: 2,
-            child: Column(
-              children: [
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: _inspection.items.length,
-                    itemBuilder: (context, index) {
-                      final item = _inspection.items[index];
-                      final isSelected = index == _selectedCheckpointIndex;
-                      // 写真ありかどうかの判定。計測項目の場合は両方、写真項目の場合は全景のみでOKとするなど柔軟に
-                      final isCompleted = item.isMeasurement
-                          ? (item.isWidePhotoTaken &&
-                                item.isCloseupPhotoTaken &&
-                                item.errorValue.isNotEmpty)
-                          : (item.isWidePhotoTaken || item.isCloseupPhotoTaken);
+          ],
+          // ↓ 狭い画面の時だけ、アプリバーの下にタブを表示
+          bottom: MediaQuery.of(context).size.width >= 600
+              ? null
+              : const TabBar(
+                  tabs: [
+                    Tab(text: '測定点', icon: Icon(Icons.list)),
+                    Tab(text: '詳細・撮影', icon: Icon(Icons.camera_alt)),
+                  ],
+                ),
+        ),
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            final isWide = constraints.maxWidth >= 600;
 
-                      return ListTile(
-                        title: Text(item.name),
-                        selected: isSelected,
-                        selectedTileColor: Colors.blue.withOpacity(0.1),
-                        leading: Icon(
-                          Icons.check_circle,
-                          color: isCompleted ? Colors.green : Colors.grey,
-                        ),
-                        trailing: PopupMenuButton<String>(
-                          icon: const Icon(Icons.more_vert),
-                          onSelected: (value) {
-                            if (value == 'edit') {
-                              _showEditDialog(index, item);
-                            } else if (value == 'delete') {
-                              _deleteItem(index);
-                            }
-                          },
-                          itemBuilder: (context) => [
-                            const PopupMenuItem(
-                              value: 'edit',
-                              child: Text('名前を変更'),
-                            ),
-                            const PopupMenuItem(
-                              value: 'delete',
-                              child: Text(
-                                '削除',
-                                style: TextStyle(color: Colors.red),
-                              ),
-                            ),
-                          ],
-                        ),
-                        onTap: () {
-                          setState(() {
-                            _selectedCheckpointIndex = index;
-                            _updateErrorController();
-                          });
-                        },
-                      );
-                    },
-                  ),
-                ),
-                const Divider(height: 1),
-                Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      TextButton.icon(
-                        icon: const Icon(Icons.add_photo_alternate),
-                        label: const Text('写真追加'),
-                        onPressed: () => _showAddDialog(false),
-                      ),
-                      TextButton.icon(
-                        icon: const Icon(Icons.add_location_alt),
-                        label: const Text('計測追加'),
-                        onPressed: () => _showAddDialog(true),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const VerticalDivider(width: 1),
-          // 右ペイン: 詳細・撮影
-          Expanded(flex: 3, child: _buildDetailPane()),
-        ],
+            if (isWide) {
+              // --- iPad（横表示）: 2分割レイアウト ---
+              return Row(
+                children: [
+                  Expanded(flex: 2, child: _buildListPane()),
+                  const VerticalDivider(width: 1),
+                  Expanded(flex: 3, child: _buildDetailPane()),
+                ],
+              );
+            } else {
+              // --- iPhone（縦表示）: タブで切り替え ---
+              return TabBarView(
+                children: [_buildListPane(), _buildDetailPane()],
+              );
+            }
+          },
+        ),
       ),
     );
   }
 
-  Widget _buildDetailPane() {
-    if (_inspection.items.isEmpty) {
-      return const Center(child: Text('項目がありません'));
-    }
+  /// 測定点リスト（左ペイン / タブ1）
+  Widget _buildListPane() {
+    return Column(
+      children: [
+        Expanded(
+          child: ListView.builder(
+            itemCount: _inspection.items.length,
+            itemBuilder: (context, index) {
+              final item = _inspection.items[index];
+              final isSelected = index == _selectedCheckpointIndex;
+              final isCompleted = item.isMeasurement
+                  ? (item.isWidePhotoTaken &&
+                        item.isCloseupPhotoTaken &&
+                        item.errorValue.isNotEmpty)
+                  : (item.isWidePhotoTaken || item.isCloseupPhotoTaken);
 
+              return ListTile(
+                title: Text(item.name),
+                selected: isSelected,
+                selectedTileColor: Colors.blue.withOpacity(0.1),
+                leading: Icon(
+                  Icons.check_circle,
+                  color: isCompleted ? Colors.green : Colors.grey,
+                ),
+                trailing: _buildItemMenu(index, item),
+                onTap: () {
+                  setState(() {
+                    _selectedCheckpointIndex = index;
+                    _updateErrorController();
+                  });
+                },
+              );
+            },
+          ),
+        ),
+        const Divider(height: 1),
+        _buildListActions(),
+      ],
+    );
+  }
+
+  /// 撮影・詳細（右ペイン / タブ2）
+  Widget _buildDetailPane() {
+    if (_inspection.items.isEmpty) return const Center(child: Text('項目がありません'));
     final item = _inspection.items[_selectedCheckpointIndex];
+
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: SingleChildScrollView(
@@ -385,65 +364,107 @@ class _TapeInspectionScreenState extends ConsumerState<TapeInspectionScreen> {
           children: [
             Text(item.name, style: Theme.of(context).textTheme.headlineSmall),
             const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildPhotoCard(
-                    '全体・全景',
-                    item.widePhotoUrl,
-                    () => _pickImage(false),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildPhotoCard(
-                    '近景',
-                    item.closeupPhotoUrl,
-                    () => _pickImage(true),
-                  ),
-                ),
-              ],
-            ),
-            // isMeasurement が true の時だけ誤差UIを表示
-            if (item.isMeasurement) ...[
-              const SizedBox(height: 30),
-              Row(
-                children: [
-                  const Text(
-                    '誤差 (mm)',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _errorController,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  hintText: '+0.5',
-                  suffixText: 'mm',
-                ),
-                onChanged: (value) {
-                  setState(() {
-                    var newItems = List<TapeInspectionItem>.from(
-                      _inspection.items,
-                    );
-                    newItems[_selectedCheckpointIndex] = item.copyWith(
-                      errorValue: value,
-                    );
-                    _inspection = _inspection.copyWith(items: newItems);
-                  });
-                },
-              ),
-            ],
+            _buildPhotoSection(item),
+            if (item.isMeasurement) _buildMeasurementSection(item),
           ],
         ),
       ),
     );
   }
 
-  // ==== リストの操作メソッド ====
+  /// --- 補助ウィジェット（コードを読みやすく整理しました） ---
+
+  Widget _buildItemMenu(int index, TapeInspectionItem item) {
+    return PopupMenuButton<String>(
+      onSelected: (value) {
+        if (value == 'edit')
+          _showEditDialog(index, item);
+        else if (value == 'delete')
+          _deleteItem(index);
+      },
+      itemBuilder: (context) => [
+        const PopupMenuItem(value: 'edit', child: Text('名前を変更')),
+        const PopupMenuItem(
+          value: 'delete',
+          child: Text('削除', style: TextStyle(color: Colors.red)),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildListActions() {
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          TextButton.icon(
+            icon: const Icon(Icons.add_photo_alternate),
+            label: const Text('写真追加'),
+            onPressed: () => _showAddDialog(false),
+          ),
+          TextButton.icon(
+            icon: const Icon(Icons.add_location_alt),
+            label: const Text('計測追加'),
+            onPressed: () => _showAddDialog(true),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPhotoSection(TapeInspectionItem item) {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildPhotoCard(
+            '全体・全景',
+            item.widePhotoUrl,
+            () => _pickImage(false),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: _buildPhotoCard(
+            '近景',
+            item.closeupPhotoUrl,
+            () => _pickImage(true),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMeasurementSection(TapeInspectionItem item) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 30),
+        const Text('誤差 (mm)', style: TextStyle(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _errorController,
+          decoration: const InputDecoration(
+            border: OutlineInputBorder(),
+            hintText: '+0.5',
+            suffixText: 'mm',
+          ),
+          onChanged: (value) {
+            setState(() {
+              var newItems = List<TapeInspectionItem>.from(_inspection.items);
+              newItems[_selectedCheckpointIndex] = item.copyWith(
+                errorValue: value,
+              );
+              _inspection = _inspection.copyWith(items: newItems);
+            });
+          },
+        ),
+      ],
+    );
+  }
+
   void _showAddDialog(bool isMeasurement) {
+    /* 既存と同じため省略せず含めてください */
     final textController = TextEditingController();
     showDialog(
       context: context,
@@ -451,7 +472,7 @@ class _TapeInspectionScreenState extends ConsumerState<TapeInspectionScreen> {
         title: Text(isMeasurement ? '計測項目を追加' : '写真項目を追加'),
         content: TextField(
           controller: textController,
-          decoration: const InputDecoration(hintText: '項目名 (例: 30m, 現場状況)'),
+          decoration: const InputDecoration(hintText: '項目名'),
           autofocus: true,
         ),
         actions: [
