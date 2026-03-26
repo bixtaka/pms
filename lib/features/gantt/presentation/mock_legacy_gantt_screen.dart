@@ -396,7 +396,6 @@ class _MockLegacyGanttScreenState extends ConsumerState<MockLegacyGanttScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final projectsAsync = ref.watch(projectsProvider);
 
     final selectedProjectId =
         ref.watch(selectedProjectIdProvider) ?? widget.projectId;

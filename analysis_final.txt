@@ -1,0 +1,4 @@
+﻿Analyzing product_result_input_page.dart...                     
+
+warning - The '!' will have no effect because the receiver can't be null - lib\features\gantt\presentation\inspection\product_result_input_page.dart:120:64 - unnecessary_non_null_assertion
+

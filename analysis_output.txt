@@ -1,0 +1,53 @@
+﻿Analyzing product_result_input_page.dart...                     
+
+warning - The '!' will have no effect because the receiver can't be null - lib\features\gantt\presentation\inspection\product_result_input_page.dart:119:64 - unnecessary_non_null_assertion
+warning - The '!' will have no effect because the receiver can't be null - lib\features\gantt\presentation\inspection\product_result_input_page.dart:127:47 - unnecessary_non_null_assertion
+warning - The '!' will have no effect because the receiver can't be null - lib\features\gantt\presentation\inspection\product_result_input_page.dart:128:46 - unnecessary_non_null_assertion
+warning - The '!' will have no effect because the receiver can't be null - lib\features\gantt\presentation\inspection\product_result_input_page.dart:131:60 - unnecessary_non_null_assertion
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\gantt\presentation\inspection\product_result_input_page.dart:193:28 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\gantt\presentation\inspection\product_result_input_page.dart:195:27 - deprecated_member_use
+warning - The declaration '_InlineStatusStrip' isn't referenced - lib\features\gantt\presentation\inspection\product_result_input_page.dart:246:7 - unused_element
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\gantt\presentation\inspection\product_result_input_page.dart:320:30 - deprecated_member_use
+warning - The declaration '_KoukuFilterBlock' isn't referenced - lib\features\gantt\presentation\inspection\product_result_input_page.dart:375:7 - unused_element
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\gantt\presentation\inspection\product_result_input_page.dart:453:47 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\gantt\presentation\inspection\product_result_input_page.dart:490:55 - deprecated_member_use
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre - lib\features\gantt\presentation\inspection\product_result_input_page.dart:747:17 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\gantt\presentation\inspection\product_result_input_page.dart:852:21 - deprecated_member_use
+warning - A value for optional parameter 'key' isn't ever given - lib\features\gantt\presentation\inspection\product_result_input_page.dart:943:40 - unused_element_parameter
+warning - A value for optional parameter 'helperText' isn't ever given - lib\features\gantt\presentation\inspection\product_result_input_page.dart:1559:10 - unused_element_parameter
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\gantt\presentation\inspection\product_result_input_page.dart:1867:41 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\gantt\presentation\inspection\product_result_input_page.dart:1928:56 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\gantt\presentation\inspection\product_result_input_page.dart:1935:63 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\gantt\presentation\inspection\product_result_input_page.dart:1972:46 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\gantt\presentation\inspection\product_result_input_page.dart:2098:41 - deprecated_member_use
+warning - The value of the local variable 'productsAsync' isn't used - lib\features\gantt\presentation\inspection\product_result_input_page.dart:2140:11 - unused_local_variable
+warning - The value of the local variable 'filteredProducts' isn't used - lib\features\gantt\presentation\inspection\product_result_input_page.dart:2143:11 - unused_local_variable
+   info - The local variable '_findSelected' starts with an underscore - lib\features\gantt\presentation\inspection\product_result_input_page.dart:2148:14 - no_leading_underscores_for_local_identifiers
+warning - The declaration '_findSelected' isn't referenced - lib\features\gantt\presentation\inspection\product_result_input_page.dart:2148:14 - unused_element
+   info - 'surfaceVariant' is deprecated and shouldn't be used. Use surfaceContainerHighest instead. This feature was deprecated after v3.18.0-0.1.pre - lib\features\gantt\presentation\inspection\product_result_input_page.dart:2290:38 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\gantt\presentation\inspection\product_result_input_page.dart:2338:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\gantt\presentation\inspection\product_result_input_page.dart:2355:44 - deprecated_member_use
+warning - The value of the field '_formKey' isn't used - lib\features\gantt\presentation\inspection\product_result_input_page.dart:2763:9 - unused_field
+warning - The value of the local variable 'statusSelection' isn't used - lib\features\gantt\presentation\inspection\product_result_input_page.dart:3201:11 - unused_local_variable
+   info - The local variable '_selectedTaskFor' starts with an underscore - lib\features\gantt\presentation\inspection\product_result_input_page.dart:3208:16 - no_leading_underscores_for_local_identifiers
+warning - The declaration '_selectedTaskFor' isn't referenced - lib\features\gantt\presentation\inspection\product_result_input_page.dart:3208:16 - unused_element
+warning - The declaration '_NumericField' isn't referenced - lib\features\gantt\presentation\inspection\product_result_input_page.dart:3259:7 - unused_element
+warning - A value for optional parameter 'hint' isn't ever given - lib\features\gantt\presentation\inspection\product_result_input_page.dart:3267:10 - unused_element_parameter
+warning - A value for optional parameter 'validator' isn't ever given - lib\features\gantt\presentation\inspection\product_result_input_page.dart:3269:10 - unused_element_parameter
+
+flutter : 34 issues found. (ra
+n in 1.5s)
+発生場所 行:1 文字:1
++ flutter analyze "lib\feature
+s\gantt\presentation\inspectio
+n\product_r ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~
+    + CategoryInfo          : 
+    NotSpecified: (34 issues  
+   found. (ran in 1.5s):Str   
+ ing) [], RemoteException
+    + FullyQualifiedErrorId : 
+    NativeCommandError
+ 

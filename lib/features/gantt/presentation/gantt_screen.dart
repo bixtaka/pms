@@ -23,7 +23,7 @@ import '../application/gantt_shared_providers.dart' show selectedProjectIdProvid
 import '../../inspection/inspection_pencil_kit.dart';
 import '../../products/presentation/widgets/product_drawing_thumbnail.dart';
 
-import 'dart:math' as math;
+
 
 
 // 抽出したモジュールのインポート

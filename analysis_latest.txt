@@ -1,0 +1,17 @@
+﻿Analyzing product_result_input_page.dart...                     
+
+warning - The '!' will have no effect because the receiver can't be null - lib\features\gantt\presentation\inspection\product_result_input_page.dart:120:64 - unnecessary_non_null_assertion
+warning - The '!' will have no effect because the receiver can't be null - lib\features\gantt\presentation\inspection\product_result_input_page.dart:128:47 - unnecessary_non_null_assertion
+warning - The '!' will have no effect because the receiver can't be null - lib\features\gantt\presentation\inspection\product_result_input_page.dart:129:46 - unnecessary_non_null_assertion
+warning - A value for optional parameter 'key' isn't ever given - lib\features\gantt\presentation\inspection\product_result_input_page.dart:734:40 - unused_element_parameter
+warning - A value for optional parameter 'helperText' isn't ever given - lib\features\gantt\presentation\inspection\product_result_input_page.dart:1350:10 - unused_element_parameter
+warning - The value of the local variable 'productsAsync' isn't used - lib\features\gantt\presentation\inspection\product_result_input_page.dart:1880:11 - unused_local_variable
+warning - The value of the local variable 'filteredProducts' isn't used - lib\features\gantt\presentation\inspection\product_result_input_page.dart:1883:11 - unused_local_variable
+   info - The local variable '_findSelected' starts with an underscore - lib\features\gantt\presentation\inspection\product_result_input_page.dart:1888:14 - no_leading_underscores_for_local_identifiers
+warning - The declaration '_findSelected' isn't referenced - lib\features\gantt\presentation\inspection\product_result_input_page.dart:1888:14 - unused_element
+   info - 'surfaceVariant' is deprecated and shouldn't be used. Use surfaceContainerHighest instead. This feature was deprecated after v3.18.0-0.1.pre - lib\features\gantt\presentation\inspection\product_result_input_page.dart:2030:38 - deprecated_member_use
+warning - The value of the field '_formKey' isn't used - lib\features\gantt\presentation\inspection\product_result_input_page.dart:2503:9 - unused_field
+warning - The value of the local variable 'statusSelection' isn't used - lib\features\gantt\presentation\inspection\product_result_input_page.dart:2941:11 - unused_local_variable
+   info - The local variable '_selectedTaskFor' starts with an underscore - lib\features\gantt\presentation\inspection\product_result_input_page.dart:2948:16 - no_leading_underscores_for_local_identifiers
+warning - The declaration '_selectedTaskFor' isn't referenced - lib\features\gantt\presentation\inspection\product_result_input_page.dart:2948:16 - unused_element
+

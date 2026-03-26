@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:legacy_gantt_chart/legacy_gantt_chart.dart';
 import '../../products/domain/product.dart';
@@ -79,7 +78,7 @@ class GanttDataAdapter {
     if (processName.isEmpty) return Colors.blue;
     // hashCode を 360 の範囲に収める
     final double hue = processName.hashCode.abs() % 360.0;
-    
+
     if (isChild) {
       // 子タスク: 透明度ではなく色そのものを薄く（明るく）設定
       return HSLColor.fromAHSL(1.0, hue, 0.45, 0.85).toColor();
@@ -111,10 +110,12 @@ class GanttDataAdapter {
       for (final entries in byProduct.values) {
         for (final e in entries) {
           final d = e.date;
-          if (!stepMinStart.containsKey(stepId) || d.isBefore(stepMinStart[stepId]!)) {
+          if (!stepMinStart.containsKey(stepId) ||
+              d.isBefore(stepMinStart[stepId]!)) {
             stepMinStart[stepId] = d;
           }
-          if (!stepMaxEnd.containsKey(stepId) || d.isAfter(stepMaxEnd[stepId]!)) {
+          if (!stepMaxEnd.containsKey(stepId) ||
+              d.isAfter(stepMaxEnd[stepId]!)) {
             stepMaxEnd[stepId] = d;
           }
         }
@@ -157,10 +158,12 @@ class GanttDataAdapter {
       for (final p in progresses) {
         final s = p.startDate ?? fallbackStart;
         final e = p.endDate ?? fallbackEnd;
-        if (!stepMinStart.containsKey(p.processId) || s.isBefore(stepMinStart[p.processId]!)) {
+        if (!stepMinStart.containsKey(p.processId) ||
+            s.isBefore(stepMinStart[p.processId]!)) {
           stepMinStart[p.processId] = s;
         }
-        if (!stepMaxEnd.containsKey(p.processId) || e.isAfter(stepMaxEnd[p.processId]!)) {
+        if (!stepMaxEnd.containsKey(p.processId) ||
+            e.isAfter(stepMaxEnd[p.processId]!)) {
           stepMaxEnd[p.processId] = e;
         }
       }
@@ -189,7 +192,8 @@ class GanttDataAdapter {
     required DateTime fallbackStart,
     required DateTime fallbackEnd,
   }) {
-    final sortedGroups = [...groups]..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    final sortedGroups = [...groups]
+      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
 
     final List<LegacyGanttTask> tasks = [];
     final List<LegacyGanttRow> rows = [];
@@ -200,13 +204,13 @@ class GanttDataAdapter {
       final categoryRowId = 'cat_${group.id}';
 
       // このグループに属するステップを sortOrder 順に取得
-      final groupSteps = steps
-          .where((s) => s.groupId == group.id)
-          .toList()
+      final groupSteps = steps.where((s) => s.groupId == group.id).toList()
         ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
 
       // 実際に進捗データが存在するステップのみ
-      final activeSteps = groupSteps.where((s) => activeStepIds.contains(s.id)).toList();
+      final activeSteps = groupSteps
+          .where((s) => activeStepIds.contains(s.id))
+          .toList();
       if (activeSteps.isEmpty) continue;
 
       // グループ（親）の期間
@@ -251,27 +255,31 @@ class GanttDataAdapter {
       for (final merged in mergedSteps) {
         final processRowId = '${categoryRowId}_${merged.label}';
 
-        tasks.add(LegacyGanttTask(
-          id: processRowId,
-          rowId: processRowId,
-          name: merged.label,
-          parentId: categoryRowId,
-          start: merged.start,
-          end: merged.end,
-          color: childColor, // 所属するグループの薄い色を使用
-        ));
+        tasks.add(
+          LegacyGanttTask(
+            id: processRowId,
+            rowId: processRowId,
+            name: merged.label,
+            parentId: categoryRowId,
+            start: merged.start,
+            end: merged.end,
+            color: childColor, // 所属するグループの薄い色を使用
+          ),
+        );
         rows.add(LegacyGanttRow(id: processRowId, label: merged.label));
         rowMaxStackDepth[processRowId] = 1;
 
-        leaves.add(GanttProcessLeaf(
-          stepId: processRowId,
-          displayName: merged.label,
-          sortOrder: merged.sortOrder,
-          taskId: processRowId,
-          rowId: processRowId,
-          start: merged.start,
-          end: merged.end,
-        ));
+        leaves.add(
+          GanttProcessLeaf(
+            stepId: processRowId,
+            displayName: merged.label,
+            sortOrder: merged.sortOrder,
+            taskId: processRowId,
+            rowId: processRowId,
+            start: merged.start,
+            end: merged.end,
+          ),
+        );
       }
 
       // カテゴリ（親）タスクを子の前に挿入
@@ -282,36 +290,46 @@ class GanttDataAdapter {
       final dummyPlanStart = catStart.subtract(const Duration(days: 2));
       final dummyPlanEnd = catEnd.subtract(const Duration(days: 1));
 
-      tasks.insert(insertIdx, LegacyGanttTask(
-        id: categoryRowId,
-        rowId: categoryRowId,
-        name: group.label,
-        start: catStart,
-        end: catEnd,
-        isSummary: true,
-        color: baseColor, // グループ名ベースの濃い色を使用
-        baselineStart: dummyPlanStart, // 計画開始日
-        baselineEnd: dummyPlanEnd,     // 計画終了日
-      ));
-      rows.insert(insertIdx, LegacyGanttRow(id: categoryRowId, label: group.label));
+      tasks.insert(
+        insertIdx,
+        LegacyGanttTask(
+          id: categoryRowId,
+          rowId: categoryRowId,
+          name: group.label,
+          start: catStart,
+          end: catEnd,
+          isSummary: true,
+          color: baseColor, // グループ名ベースの濃い色を使用
+          baselineStart: dummyPlanStart, // 計画開始日
+          baselineEnd: dummyPlanEnd, // 計画終了日
+        ),
+      );
+      rows.insert(
+        insertIdx,
+        LegacyGanttRow(id: categoryRowId, label: group.label),
+      );
       rowMaxStackDepth[categoryRowId] = 1;
 
-      categoryTrees.add(GanttCategoryTree(
-        categoryId: group.id,
-        categoryName: group.label,
-        sortOrder: group.sortOrder,
-        processes: leaves,
-        start: catStart,
-        end: catEnd,
-      ));
+      categoryTrees.add(
+        GanttCategoryTree(
+          categoryId: group.id,
+          categoryName: group.label,
+          sortOrder: group.sortOrder,
+          processes: leaves,
+          start: catStart,
+          end: catEnd,
+        ),
+      );
     }
 
     // ── 【新規】最上部に「プロジェクトイベント」を追加 ──
     final String eventRootId = 'prj_events_root';
     final DateTime eventDate1 = fallbackStart.add(const Duration(days: 5));
-    final DateTime eventDate2 = fallbackStart.add(const Duration(days: 10)); // 追加: 第三者検査
+    final DateTime eventDate2 = fallbackStart.add(
+      const Duration(days: 10),
+    ); // 追加: 第三者検査
     final DateTime eventDate3 = fallbackStart.add(const Duration(days: 15));
-    
+
     // イベントデータを個別のタスクとして同じ行（eventRootId）に追加
     final List<Map<String, dynamic>> projectEvents = [
       {'id': '${eventRootId}_1', 'name': '材料入荷', 'date': eventDate1},
@@ -321,29 +339,35 @@ class GanttDataAdapter {
 
     for (final evt in projectEvents) {
       final evtDate = evt['date'] as DateTime;
-      tasks.insert(0, LegacyGanttTask(
-        id: evt['id'] as String,
-        rowId: eventRootId, // 同じ行に描画
-        name: evt['name'] as String,
-        start: evtDate,
-        end: evtDate.add(const Duration(days: 1)),
-        isSummary: false,
-        color: Colors.transparent, // 背景透明
-      ));
+      tasks.insert(
+        0,
+        LegacyGanttTask(
+          id: evt['id'] as String,
+          rowId: eventRootId, // 同じ行に描画
+          name: evt['name'] as String,
+          start: evtDate,
+          end: evtDate.add(const Duration(days: 1)),
+          isSummary: false,
+          color: Colors.transparent, // 背景透明
+        ),
+      );
     }
-    
+
     // 行データの追加
     rows.insert(0, LegacyGanttRow(id: eventRootId, label: 'プロジェクトイベント'));
     rowMaxStackDepth[eventRootId] = 1;
 
-    categoryTrees.insert(0, GanttCategoryTree(
-      categoryId: eventRootId,
-      categoryName: 'プロジェクトイベント',
-      sortOrder: -1,
-      processes: [], // 左ペインでは展開しないため空
-      start: fallbackStart,
-      end: fallbackEnd,
-    ));
+    categoryTrees.insert(
+      0,
+      GanttCategoryTree(
+        categoryId: eventRootId,
+        categoryName: 'プロジェクトイベント',
+        sortOrder: -1,
+        processes: [], // 左ペインでは展開しないため空
+        start: fallbackStart,
+        end: fallbackEnd,
+      ),
+    );
     // ───────────────────────────────────────────
 
     return GanttChartData(

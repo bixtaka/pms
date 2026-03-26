@@ -9,12 +9,6 @@ enum InspectionStatus { pending, inProgress, done }
 String _formatYmd(DateTime d) =>
     '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
-class _RowInputState {
-  InspectionStatus status;
-  int qty;
-
-  _RowInputState({required this.status, required this.qty});
-}
 
 InspectionStatus _statusFromProgress(double progress) {
   if (progress >= 1.0) return InspectionStatus.done;
@@ -103,7 +97,8 @@ class _ProcessSummaryText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (steps.isEmpty || statusByStep == null || statusByStep!.isEmpty) {
+    final statusByStep = this.statusByStep;
+    if (steps.isEmpty || statusByStep == null || statusByStep.isEmpty) {
       return const Text(
         '工程進捗: なし',
         maxLines: 2,
@@ -111,7 +106,7 @@ class _ProcessSummaryText extends StatelessWidget {
       );
     }
     final stepById = {for (final s in steps) s.id: s};
-    final completedIds = statusByStep!.entries
+    final completedIds = statusByStep.entries
         .where((e) => e.value == ProcessCellStatus.done)
         .map((e) => e.key)
         .toList();
@@ -122,7 +117,7 @@ class _ProcessSummaryText extends StatelessWidget {
       if (daily == null) continue;
       final step = stepById[sid];
       if (step == null) continue;
-      if (latestDaily == null || daily.date.isAfter(latestDaily!.date)) {
+      if (latestDaily == null || daily.date.isAfter(latestDaily.date)) {
         latestDaily = daily;
         latestStep = step;
       }
@@ -130,11 +125,11 @@ class _ProcessSummaryText extends StatelessWidget {
 
     final latestLabel = () {
       if (latestDaily == null || latestStep == null) return '最新完了: なし';
-      final groupName = groupLabels[latestStep!.groupId] ?? 'その他';
-      return '最新完了: $groupName / ${latestStep!.label}';
+      final groupName = groupLabels[latestStep.groupId] ?? 'その他';
+      return '最新完了: $groupName / ${latestStep.label}';
     }();
     final dateLine =
-        '日付: ${latestDaily != null ? _formatYmd(latestDaily!.date) : '—'}   担当者: —';
+        '日付: ${latestDaily != null ? _formatYmd(latestDaily.date) : '—'}   担当者: —';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -196,9 +191,9 @@ Color _processCellStatusColor(ProcessCellStatus status) {
     case ProcessCellStatus.notStarted:
       return const Color(0xFFE0E0E0);
     case ProcessCellStatus.inProgress:
-      return Colors.orange.withOpacity(0.85);
+      return Colors.orange.withValues(alpha: 0.85);
     case ProcessCellStatus.done:
-      return Colors.green.withOpacity(0.9);
+      return Colors.green.withValues(alpha: 0.9);
   }
 }
 
@@ -249,123 +244,6 @@ void _showProgressDetailDialog(
   );
 }
 
-class _InlineStatusStrip extends StatelessWidget {
-  const _InlineStatusStrip({
-    required this.steps,
-    required this.statusByStep,
-    required this.latestByStep,
-    required this.groupLabels,
-  });
-
-  final List<ProcessStep> steps;
-  final Map<String, ProcessCellStatus>? statusByStep;
-  final Map<String, ProcessProgressDaily>? latestByStep;
-  final Map<String, String> groupLabels;
-
-  @override
-  Widget build(BuildContext context) {
-    if (steps.isEmpty) return const SizedBox.shrink();
-    const double cellWidth = 44;
-    const double spacing = 4;
-
-    final grouped = <String, List<ProcessStep>>{};
-    for (final s in steps) {
-      grouped.putIfAbsent(s.groupId, () => <ProcessStep>[]).add(s);
-    }
-
-    final groupOrder = grouped.keys.toList()
-      ..sort((a, b) {
-        final aFirst = grouped[a]!.first.sortOrder;
-        final bFirst = grouped[b]!.first.sortOrder;
-        return aFirst.compareTo(bFirst);
-      });
-
-    final headerCells = <Widget>[];
-    final childCells = <Widget>[];
-    double totalWidth = 0;
-
-    for (final gid in groupOrder) {
-      final children = grouped[gid]!;
-      children.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
-      final width =
-          children.length * cellWidth + spacing * (children.length - 1);
-      totalWidth += width;
-      headerCells.add(
-        Container(
-          width: width,
-          alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: Text(
-            groupLabels[gid] ?? gid,
-            style: Theme.of(context).textTheme.labelSmall,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      );
-      for (final step in children) {
-        final status = statusByStep?[step.id] ?? ProcessCellStatus.notStarted;
-        final color = _processCellStatusColor(status);
-        final label = step.label.length > 2
-            ? step.label.substring(0, 2)
-            : step.label;
-        childCells.add(
-          InkWell(
-            onTap: () => _showProgressDetailDialog(
-              context,
-              step,
-              latestByStep?[step.id],
-              status,
-            ),
-            borderRadius: BorderRadius.circular(6),
-            child: Container(
-              width: cellWidth,
-              margin: EdgeInsets.only(right: spacing),
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.15),
-                border: Border.all(color: color, width: 1),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                label,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: color,
-                  fontWeight: FontWeight.bold,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ),
-        );
-      }
-    }
-
-    return SizedBox(
-      height: 48,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        primary: false,
-        physics: const ClampingScrollPhysics(),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            minWidth: totalWidth > 0 ? totalWidth : 0,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Row(children: headerCells),
-              const SizedBox(height: 4),
-              Row(children: childCells),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 String _statusLabel(InspectionStatus status) {
   switch (status) {
@@ -378,8 +256,9 @@ String _statusLabel(InspectionStatus status) {
   }
 }
 
-class _KoukuFilterBlock extends StatelessWidget {
-  const _KoukuFilterBlock({
+
+class _MultiChoiceChips extends StatelessWidget {
+  const _MultiChoiceChips({
     required this.options,
     required this.selected,
     required this.onToggle,
@@ -397,134 +276,40 @@ class _KoukuFilterBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (options.length >= 10) {
-      return Padding(
-        padding: const EdgeInsets.only(right: 12, bottom: 12),
-        child: _KoukuListSelector(
-          options: options,
-          selected: selected,
-          onToggle: onToggle,
-          onClearAll: onClearAll,
-          isAllSelected: isAllSelected,
-          isSelected: isSelected,
+    if (options.isEmpty) {
+      return Text(
+        '候補なし',
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: Theme.of(context).colorScheme.outline,
         ),
       );
     }
-    return _MultiChoiceChips(
-      options: options,
-      selected: selected,
-      onToggle: onToggle,
-      onClearAll: onClearAll,
-      isAllSelected: isAllSelected,
-      isSelected: isSelected,
+    return Padding(
+      padding: const EdgeInsets.only(right: 12, bottom: 12),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          ChoiceChip(
+            label: const Text('すべて'),
+            selected: isAllSelected,
+            showCheckmark: false,
+            onSelected: (_) => onClearAll(),
+          ),
+          for (final option in options)
+            ChoiceChip(
+              label: Text(option),
+              selected: isSelected(option),
+              showCheckmark: false,
+              onSelected: (_) => onToggle(option),
+            ),
+        ],
+      ),
     );
   }
 }
 
-class _KoukuListSelector extends StatelessWidget {
-  const _KoukuListSelector({
-    required this.options,
-    required this.selected,
-    required this.onToggle,
-    required this.onClearAll,
-    required this.isAllSelected,
-    required this.isSelected,
-  });
 
-  final List<String> options;
-  final Set<String> selected;
-  final ValueChanged<String> onToggle;
-  final VoidCallback onClearAll;
-  final bool isAllSelected;
-  final bool Function(String) isSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final height = math.min(
-      math.max(MediaQuery.sizeOf(context).height * 0.35, 200.0),
-      320.0,
-    );
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        InkWell(
-          onTap: onClearAll,
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: isAllSelected
-                  ? theme.colorScheme.primary.withOpacity(0.08)
-                  : null,
-              border: Border.all(
-                color: isAllSelected
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.outlineVariant,
-              ),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              'すべて',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: isAllSelected ? FontWeight.bold : null,
-                color: isAllSelected
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.onSurface,
-              ),
-            ),
-          ),
-        ),
-        SizedBox(
-          height: height,
-          child: ListView.builder(
-            shrinkWrap: false,
-            physics: const ClampingScrollPhysics(),
-            padding: const EdgeInsets.only(right: 12, bottom: 12),
-            itemCount: options.length,
-            itemBuilder: (context, index) {
-              final kouku = options[index];
-              final selectedItem = isSelected(kouku);
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 2),
-                child: InkWell(
-                  onTap: () => onToggle(kouku),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: selectedItem
-                          ? theme.colorScheme.primary.withOpacity(0.08)
-                          : null,
-                      border: Border.all(
-                        color: selectedItem
-                            ? theme.colorScheme.primary
-                            : theme.colorScheme.outlineVariant,
-                      ),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    child: Text(
-                      kouku,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: selectedItem ? FontWeight.bold : null,
-                        color: selectedItem
-                            ? theme.colorScheme.primary
-                            : theme.colorScheme.onSurface,
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-}
 
 final inspectionDateProvider = StateProvider<DateTime>((ref) {
   final now = DateTime.now();
@@ -750,7 +535,7 @@ class _ProcessSelectionCard extends ConsumerWidget {
               )
             else ...[
               DropdownButtonFormField<String>(
-                value: selectedGroupId,
+                initialValue: selectedGroupId,
                 isExpanded: true,
                 decoration: const InputDecoration(
                   labelText: '親工程',
@@ -855,7 +640,7 @@ class _StepChooser extends StatelessWidget {
                   selectedColor: ProcessColors.fromLabels(
                     stepLabel: step.label,
                     groupLabel: null,
-                  ).withOpacity(0.15),
+                  ).withValues(alpha: 0.1),
                   onSelected: (_) =>
                       onSelect(selectedStepId == step.id ? null : step.id),
                 ),
@@ -946,7 +731,7 @@ Future<void> _showStepSheet(
 class _CollapsibleFilterPanel extends ConsumerStatefulWidget {
   final Project project;
 
-  const _CollapsibleFilterPanel({super.key, required this.project});
+  const _CollapsibleFilterPanel({required this.project});
 
   @override
   ConsumerState<_CollapsibleFilterPanel> createState() =>
@@ -1562,12 +1347,11 @@ class _FilterSection extends StatelessWidget {
   const _FilterSection({
     required this.label,
     required this.child,
-    this.helperText,
   });
 
   final String label;
   final Widget child;
-  final String? helperText;
+
 
   @override
   Widget build(BuildContext context) {
@@ -1582,15 +1366,6 @@ class _FilterSection extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         child,
-        if (helperText != null) ...[
-          const SizedBox(height: 4),
-          Text(
-            helperText!,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).colorScheme.outline,
-            ),
-          ),
-        ],
       ],
     );
   }
@@ -1648,57 +1423,6 @@ class _ChoiceChips extends StatelessWidget {
   }
 }
 
-class _MultiChoiceChips extends StatelessWidget {
-  const _MultiChoiceChips({
-    required this.options,
-    required this.selected,
-    required this.onToggle,
-    required this.onClearAll,
-    required this.isAllSelected,
-    required this.isSelected,
-  });
-
-  final List<String> options;
-  final Set<String> selected;
-  final ValueChanged<String> onToggle;
-  final VoidCallback onClearAll;
-  final bool isAllSelected;
-  final bool Function(String) isSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    if (options.isEmpty) {
-      return Text(
-        '候補なし',
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-          color: Theme.of(context).colorScheme.outline,
-        ),
-      );
-    }
-    return Padding(
-      padding: const EdgeInsets.only(right: 12, bottom: 12),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          ChoiceChip(
-            label: const Text('すべて'),
-            selected: isAllSelected,
-            showCheckmark: false,
-            onSelected: (_) => onClearAll(),
-          ),
-          for (final option in options)
-            ChoiceChip(
-              label: Text(option),
-              selected: isSelected(option),
-              showCheckmark: false,
-              onSelected: (_) => onToggle(option),
-            ),
-        ],
-      ),
-    );
-  }
-}
 
 class ProductListPane extends ConsumerWidget {
   final Project project;
@@ -1870,7 +1594,7 @@ class _ProductListView extends StatelessWidget {
                   visualDensity: VisualDensity.compact,
                   backgroundColor: Theme.of(
                     context,
-                  ).colorScheme.primary.withOpacity(0.12),
+                  ).colorScheme.primary.withValues(alpha: 0.1),
                   labelStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).colorScheme.primary,
                     fontWeight: FontWeight.w600,
@@ -1931,14 +1655,14 @@ class _ProductListView extends StatelessWidget {
                       ),
                       backgroundColor: Theme.of(
                         context,
-                      ).colorScheme.secondaryContainer.withOpacity(0.9),
+                      ).colorScheme.secondaryContainer.withValues(alpha: 0.1),
                     )
                   : null;
 
               return Container(
                 decoration: BoxDecoration(
                   color: isSelected
-                      ? Theme.of(context).colorScheme.primary.withOpacity(0.06)
+                      ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
                       : null,
                   border: isSelected
                       ? Border(
@@ -1975,7 +1699,7 @@ class _ProductListView extends StatelessWidget {
                         width: 24,
                         height: 24,
                         decoration: BoxDecoration(
-                          color: statusColor.withOpacity(0.12),
+                          color: statusColor.withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                           border: Border.all(color: statusColor, width: 1.5),
                         ),
@@ -2101,7 +1825,7 @@ class _ProductListView extends StatelessWidget {
                   selected: isSelected,
                   selectedTileColor: Theme.of(
                     context,
-                  ).colorScheme.primary.withOpacity(0.08),
+                  ).colorScheme.primary.withValues(alpha: 0.1),
                   onTap: product == null
                       ? null
                       : () => onSelectProduct(product),
@@ -2143,21 +1867,7 @@ class _ProcessListPaneState extends ConsumerState<ProcessListPane> {
   Widget build(BuildContext context) {
     final selectedProductId = ref.watch(inspectionSelectedProductIdProvider);
     final selectedStepId = ref.watch(inspectionSelectedStepIdProvider);
-    final productsAsync = ref.watch(
-      productsByProjectProvider(widget.project.id),
-    );
-    final filteredProducts = ref.watch(
-      filteredProductsProvider(widget.project.id),
-    );
     final ganttProductsAsync = ref.watch(ganttProductsProvider(widget.project));
-
-    Product? _findSelected(List<Product> products) {
-      if (selectedProductId == null) return null;
-      for (final p in products) {
-        if (p.id == selectedProductId) return p;
-      }
-      return null;
-    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2293,7 +2003,7 @@ class _ProcessGroupSection extends StatelessWidget {
           onTap: onToggleExpanded,
           child: Container(
             width: double.infinity,
-            color: theme.colorScheme.surfaceVariant,
+            color: theme.colorScheme.surfaceContainerHighest,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: Row(
               children: [
@@ -2341,7 +2051,7 @@ class _ProcessStepRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bgColor = isSelected
-        ? Theme.of(context).colorScheme.primary.withOpacity(0.08)
+        ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
         : Colors.transparent;
     final status = _statusFromProgress(task.progress);
     final statusColor = switch (status) {
@@ -2358,7 +2068,7 @@ class _ProcessStepRow extends StatelessWidget {
           children: [
             CircleAvatar(
               radius: 16,
-              backgroundColor: statusColor.withOpacity(0.15),
+              backgroundColor: statusColor.withValues(alpha: 0.1),
               child: Text(
                 _statusLabel(status),
                 style: TextStyle(
@@ -2766,7 +2476,6 @@ class ProcessInputPane extends ConsumerStatefulWidget {
 }
 
 class _ProcessInputPaneState extends ConsumerState<ProcessInputPane> {
-  final _formKey = GlobalKey<FormState>();
   final _l1Ctrl = TextEditingController();
   final _l2Ctrl = TextEditingController();
   final _h1Ctrl = TextEditingController();
@@ -3019,21 +2728,6 @@ class _ProcessInputPaneState extends ConsumerState<ProcessInputPane> {
     return null;
   }
 
-  GanttTask? _selectedTaskFrom(
-    List<GanttProduct> products,
-    String? productId,
-    String? stepId,
-  ) {
-    if (productId == null || stepId == null) return null;
-    for (final product in products) {
-      if (product.id == productId) {
-        for (final task in product.tasks) {
-          if (task.stepId == stepId) return task;
-        }
-      }
-    }
-    return null;
-  }
 
   Future<void> _pickInspectionDate(BuildContext context) async {
     final current = ref.read(inspectionDateProvider);
@@ -3166,7 +2860,7 @@ class _ProcessInputPaneState extends ConsumerState<ProcessInputPane> {
       final stepId = ref.watch(inspectionSelectedStepIdProvider);
       debugPrint('[inspect] build tab: step=$stepId selected=${ids.length}');
     }
-    final selectedProductId = ref.watch(inspectionSelectedProductIdProvider);
+
     final selectedIds = ref
         .watch(inspectionSelectedProductIdsProvider)
         .toList();
@@ -3204,15 +2898,7 @@ class _ProcessInputPaneState extends ConsumerState<ProcessInputPane> {
       (_, __) => _loadExistingProgress(),
     );
 
-    final statusSelection = [
-      status == InspectionStatus.pending,
-      status == InspectionStatus.inProgress,
-      status == InspectionStatus.done,
-    ];
     const bool canSaveQty = true;
-
-    GanttTask? _selectedTaskFor(List<GanttProduct> products) =>
-        _selectedTaskFrom(products, selectedProductId, selectedStepId);
 
     final guardMessage = () {
       if (selectedIds.isEmpty && selectedStepId == null) {
@@ -3262,30 +2948,3 @@ class _ProcessInputPaneState extends ConsumerState<ProcessInputPane> {
   }
 }
 
-class _NumericField extends StatelessWidget {
-  final String label;
-  final String? hint;
-  final TextEditingController controller;
-  final FormFieldValidator<String>? validator;
-
-  const _NumericField({
-    required this.label,
-    this.hint,
-    required this.controller,
-    this.validator,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return TextFormField(
-      controller: controller,
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      validator: validator,
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        border: const OutlineInputBorder(),
-      ),
-    );
-  }
-}
