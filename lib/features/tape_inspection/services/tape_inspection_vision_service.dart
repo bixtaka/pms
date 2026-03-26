@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
@@ -49,20 +48,18 @@ class TapeInspectionVisionService {
       final model = GenerativeModel(
         model: 'gemini-2.5-flash',
         apiKey: apiKey,
-        generationConfig: GenerationConfig(
-          temperature: 0.0,
-        ),
+        generationConfig: GenerationConfig(temperature: 0.0),
       );
 
       // Create data part from bytes
-      final dataPart = DataPart('image/jpeg', imageBytes); // Assumption: JPEG or PNG works
+      final dataPart = DataPart(
+        'image/jpeg',
+        imageBytes,
+      ); // Assumption: JPEG or PNG works
 
       // Send request
       final content = [
-        Content.multi([
-          TextPart(PROMPT),
-          dataPart,
-        ])
+        Content.multi([TextPart(PROMPT), dataPart]),
       ];
 
       final response = await model.generateContent(content);
@@ -70,8 +67,10 @@ class TapeInspectionVisionService {
 
       if (text != null) {
         // Extract value using regex from <result> tag
-        final match = RegExp(r'<result>([+-]?\d+\.\d{2})</result>').firstMatch(text);
-        
+        final match = RegExp(
+          r'<result>([+-]?\d+\.\d{2})</result>',
+        ).firstMatch(text);
+
         if (match != null && match.groupCount >= 1) {
           return match.group(1)!;
         } else {
