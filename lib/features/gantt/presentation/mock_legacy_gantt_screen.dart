@@ -843,186 +843,7 @@ class _ProjectGanttWrapperState extends ConsumerState<_ProjectGanttWrapper> {
   // ── 予実バー（計画・実績）カスタム描画 ────────────────────────
 
   Widget _buildCustomTaskBar(LegacyGanttTask task) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // constraints.maxWidth は「実績（start〜end）」の描画幅に相当する。
-        // パッケージ側で Positioned(width: ...) されているため、この幅を基準にスケールを逆算。
-        final double actualWidth = constraints.maxWidth;
-        final int actualDurationMs =
-            task.end.millisecondsSinceEpoch - task.start.millisecondsSinceEpoch;
-
-        // （安全対策）期間がゼロ以下の場合は単純な Container を返す
-        if (actualDurationMs <= 0 || actualWidth <= 0) {
-          return Container(color: task.color);
-        }
-
-        final double msPerPixel = actualDurationMs / actualWidth;
-
-        // ── 【プロジェクトイベントの特例描画】 ──
-        if (task.rowId == 'prj_events_root') {
-          final dateFormat = DateFormat('M/d');
-          final evtName = task.name ?? '';
-          final evtDateStr = '${dateFormat.format(task.start)}';
-
-          // ピンの色を要件に応じて変更
-          Color pinColor = Colors.red;
-          if (evtName.contains('材料入荷')) pinColor = Colors.green;
-          if (evtName.contains('立会検査')) pinColor = Colors.red;
-          if (evtName.contains('第三者')) pinColor = Colors.blue;
-
-          return OverflowBox(
-            maxWidth: double.infinity,
-            maxHeight: double.infinity,
-            alignment: Alignment.centerLeft, // 左端基準（開始日）
-            child: FractionalTranslation(
-              // 左端を中心にしつつ、縦方向はマスの中央あたりに配置（-0.2だと上が見切れるので 0.0付近に）
-              translation: const Offset(-0.5, 0.0),
-              child: GestureDetector(
-                onTap: () {
-                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('📌 $evtName (対象日: $evtDateStr)'),
-                      behavior: SnackBarBehavior.floating,
-                      duration: const Duration(seconds: 3),
-                    ),
-                  );
-                },
-                child: MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: Tooltip(
-                    message: '$evtName ($evtDateStr)',
-                    child: Icon(Icons.push_pin, color: pinColor, size: 20),
-                  ),
-                ),
-              ),
-            ),
-          );
-        }
-        // ────────────────────────────────────────
-
-        // 【UI要件1・2】進行度のダミー値設定とテキスト生成
-        // （※将来 ProcessProgress から取得した実データに差し替える）
-        final double progressRatio = task.isSummary ? 0.45 : 0.60;
-        final String progressText = '${(progressRatio * 100).toInt()}%';
-        final String labelText = '${task.name} $progressText';
-
-        // 共通テキストウィジェット（はみ出し回避対応）
-        Widget buildLabel() {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4.0),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                labelText,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                ),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-              ),
-            ),
-          );
-        }
-
-        // 【親タスク】 計画と実績の2段表示
-        if (task.isSummary) {
-          // モック用：ダミーの計画期間を実績期間の少し前にずらして設定
-          final planStart = task.start.subtract(const Duration(days: 2));
-          final planEnd = task.end.subtract(const Duration(days: 1));
-
-          final int planStartDiffMs =
-              planStart.millisecondsSinceEpoch -
-              task.start.millisecondsSinceEpoch;
-          final int planDurationMs =
-              planEnd.millisecondsSinceEpoch - planStart.millisecondsSinceEpoch;
-
-          final double planLeftOffset = planStartDiffMs / msPerPixel;
-          final double planWidth = planDurationMs / msPerPixel;
-
-          // 高さの計算（行の高さの 40% ずつを割り当て）
-          final double barHeight = kRowHeight * 0.4;
-
-          return Stack(
-            clipBehavior: Clip.none, // 枠外に計画バーがはみ出ることを許可
-            children: [
-              // ── 上段：計画バー ──
-              Positioned(
-                top: kRowHeight * 0.05, // 少し上寄り
-                left: planLeftOffset,
-                width: planWidth,
-                height: barHeight,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade400, // 計画は薄いグレー
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-              ),
-              // ── 下段：実績バー ──
-              Positioned(
-                top: kRowHeight * 0.55, // 少し下寄り
-                left: 0,
-                width: actualWidth,
-                height: barHeight,
-                child: Container(
-                  clipBehavior: Clip.hardEdge,
-                  decoration: BoxDecoration(
-                    color:
-                        task.color?.withValues(alpha: 0.3) ??
-                        Colors.blue.withValues(alpha: 0.3), // 背景（薄い色）
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Stack(
-                    children: [
-                      // 進捗塗りつぶし（濃い色）
-                      Container(
-                        width: actualWidth * progressRatio,
-                        color: task.color,
-                      ),
-                      // テキストラベル
-                      buildLabel(),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          );
-        }
-
-        // 【子タスク】 実績バーのみを行の中央に描画
-        final double childBarHeight = kRowHeight * 0.5; // 少し太め
-        return GestureDetector(
-          onTap: () => _showDatePickerAndUpdate(context, task),
-          child: Center(
-            child: Container(
-              height: childBarHeight,
-              width: actualWidth,
-              clipBehavior: Clip.hardEdge,
-              decoration: BoxDecoration(
-                color:
-                    task.color?.withValues(alpha: 0.3) ??
-                    Colors.blue.withValues(alpha: 0.3), // 背景（薄い同系色）
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Stack(
-                children: [
-                  // 進捗塗りつぶし（濃い色）
-                  Container(
-                    width: actualWidth * progressRatio,
-                    color: task.color, // もともと task.color が親の色の明るい版になっている
-                  ),
-                  // テキストラベル
-                  buildLabel(),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
+    return _GanttBarRenderer(task: task);
   }
 
   // ── カレンダーでの日付更新処理 ───────────────────────────────
@@ -1374,70 +1195,83 @@ class _ProjectGanttWrapperState extends ConsumerState<_ProjectGanttWrapper> {
                             controller: _ganttController,
                             visibleRows: visibleRows,
                             rowMaxStackDepth: widget.data.rowMaxStackDepth,
-
-                            // ── 左ペインと同じ定数で厳格に固定 ───────────────
                             rowHeight: kRowHeight,
                             axisHeight: kAxisHeight,
                             showEmptyRows: true,
-
-                            // ── 縦スクロール同期 ──────────────────────────────
                             scrollController: _sharedScroll,
-
-                            // ── タスクの操作（ドラッグ＆ドロップ、リサイズ） ───────
                             enableDragAndDrop: false,
                             enableResize: false,
                             onTaskUpdate: _onTaskUpdate,
-
-                            // ── 現在日（Today）ライン表示 ───────────────────
                             showNowLine: true,
                             nowLineDate: DateTime.now(),
-
-                            // ── カスタム背景やヘッダーを描画するためデフォルトは透過 ──
                             theme: LegacyGanttTheme.fromTheme(Theme.of(context))
                                 .copyWith(
                                   nowLineColor: Colors.red,
-                                  gridColor: Colors.transparent, // デフォルトの罫線を消す
-                                  backgroundColor:
-                                      Colors.transparent, // チャート本体背景を透けさせる
+                                  gridColor: Colors.transparent,
+                                  backgroundColor: Colors.transparent,
                                 ),
+                            timelineAxisHeaderBuilder: (context, scale, visibleDomain, totalDomain, theme, width) {
+                              return Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
+                                ),
+                                child: CustomPaint(
+                                  size: Size(_chartWidth, kAxisHeight),
+                                  painter: _CustomAxisPainter(
+                                    visibleStart: _ganttController.visibleStartDate,
+                                    visibleEnd: _ganttController.visibleEndDate,
+                                    viewScale: widget.currentScale,
+                                    chartWidth: _chartWidth,
+                                    isHeader: true,
+                                  ),
+                                ),
+                              );
+                            },
+                             taskBarBuilder: _buildCustomTaskBar,
+                           ),
 
-                            // ── 独自定義したヘッダー（境界線の中央に文字を配置） ──
-                            timelineAxisHeaderBuilder:
-                                (
-                                  context,
-                                  scale,
-                                  visibleDomain,
-                                  totalDomain,
-                                  theme,
-                                  width,
-                                ) {
-                                  return Container(
-                                    decoration: BoxDecoration(
-                                      color: Colors.white, // 重なるタスクを隠すために背景白
-                                      border: Border(
-                                        bottom: BorderSide(
-                                          color: Colors.grey.shade300,
-                                        ),
-                                      ),
-                                    ),
-                                    child: CustomPaint(
-                                      size: Size(_chartWidth, kAxisHeight),
-                                      painter: _CustomAxisPainter(
-                                        visibleStart:
-                                            _ganttController.visibleStartDate,
-                                        visibleEnd:
-                                            _ganttController.visibleEndDate,
-                                        viewScale: widget.currentScale,
-                                        chartWidth: _chartWidth,
-                                        isHeader: true,
-                                      ),
-                                    ),
-                                  );
-                                },
-
-                            // ── タスクバーカスタマイズ（予実） ────────────────
-                            taskBarBuilder: _buildCustomTaskBar,
-                          ),
+                           // ── フローティング工程名ラベル（左端固定） ──
+                           if (isMobile)
+                             Positioned(
+                               top: kAxisHeight,
+                               left: 0,
+                               bottom: 0,
+                               child: IgnorePointer(
+                                 child: SizedBox(
+                                   width: 80,
+                                   child: ListView.builder(
+                                     controller: _sharedScroll,
+                                     physics: const NeverScrollableScrollPhysics(),
+                                     padding: EdgeInsets.zero,
+                                     itemCount: visibleRows.length,
+                                     itemBuilder: (context, index) {
+                                       final row = visibleRows[index];
+                                       return Container(
+                                         height: kRowHeight,
+                                         padding: const EdgeInsets.only(left: 4, top: 4),
+                                         child: Text(
+                                           row.label ?? '',
+                                           style: const TextStyle(
+                                             fontSize: 9,
+                                             fontWeight: FontWeight.bold,
+                                             color: Colors.black87,
+                                             shadows: [
+                                               Shadow(offset: Offset(0, 1), blurRadius: 3.0, color: Colors.white),
+                                               Shadow(offset: Offset(0, -1), blurRadius: 3.0, color: Colors.white),
+                                               Shadow(offset: Offset(1, 0), blurRadius: 3.0, color: Colors.white),
+                                               Shadow(offset: Offset(-1, 0), blurRadius: 3.0, color: Colors.white),
+                                             ],
+                                           ),
+                                           maxLines: 1,
+                                           overflow: TextOverflow.ellipsis,
+                                         ),
+                                       );
+                                     },
+                                   ),
+                                 ),
+                               ),
+                             ),
 
                           // ── 現在日（Today）テキストラベル ─────────────────
                           // チャートのスクロール位置（_ganttController の startDate/endDate）から
@@ -1555,6 +1389,9 @@ class _CustomAxisPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (chartWidth <= 0 || visibleStart.isAfter(visibleEnd)) return;
+
+    // 左端 80px はラベル領域なのでクリッピングして背景描画を防ぐ
+    canvas.clipRect(Rect.fromLTWH(80, 0, size.width - 80, size.height));
 
     final linePaint = Paint()
       ..color = Colors.grey.shade300
@@ -2337,3 +2174,122 @@ class _MasterGanttWrapperState extends State<_MasterGanttWrapper> {
     );
   }
 }
+
+// ─── 汎用ガントバー描画 ─────────────────────────────────────────────────────────
+
+class _GanttBarRenderer extends StatelessWidget {
+  final LegacyGanttTask task;
+  const _GanttBarRenderer({required this.task});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final actualWidth = constraints.maxWidth;
+        final actualDurationMs = task.end.millisecondsSinceEpoch - task.start.millisecondsSinceEpoch;
+        if (actualDurationMs <= 0 || actualWidth <= 0) return Container(color: task.color);
+
+        final double msPerPixel = actualDurationMs / actualWidth;
+        const double progressRatio = 0.60;
+        final labelText = '${task.name} ${(progressRatio * 100).toInt()}%';
+
+        if (task.isSummary) {
+          final planStart = task.start;
+          final planEnd = task.end;
+          final int planDurationMs = planEnd.millisecondsSinceEpoch - planStart.millisecondsSinceEpoch;
+          final double planWidth = planDurationMs / msPerPixel;
+
+          return Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned(
+                top: kRowHeight * 0.25,
+                left: 0,
+                width: planWidth,
+                height: 10,
+                child: CustomPaint(
+                  painter: _SummaryPlanPainter(color: Colors.grey.shade600, triangleSize: 6, strokeWidth: 1.2),
+                ),
+              ),
+              Positioned(
+                top: kRowHeight * 0.5,
+                left: 0,
+                width: actualWidth,
+                height: kRowHeight * 0.4,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: task.color?.withValues(alpha: 0.3) ?? Colors.blue.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  clipBehavior: Clip.hardEdge,
+                  child: Stack(
+                    children: [
+                      Container(width: actualWidth * progressRatio, color: task.color),
+                      _buildLabel(labelText),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          );
+        }
+
+        return Center(
+          child: Container(
+            height: kRowHeight * 0.5,
+            width: actualWidth,
+            clipBehavior: Clip.hardEdge,
+            decoration: BoxDecoration(
+              color: task.color?.withValues(alpha: 0.3) ?? Colors.blue.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Stack(
+              children: [
+                Container(width: actualWidth * progressRatio, color: task.color),
+                _buildLabel(labelText),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildLabel(String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4.0),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Text(
+          text,
+          style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+          overflow: TextOverflow.ellipsis,
+          maxLines: 1,
+        ),
+      ),
+    );
+  }
+}
+
+class _SummaryPlanPainter extends CustomPainter {
+  final Color color;
+  final double triangleSize;
+  final double strokeWidth;
+  _SummaryPlanPainter({required this.color, required this.triangleSize, required this.strokeWidth});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = color..strokeWidth = strokeWidth..style = PaintingStyle.stroke;
+    final h = size.height / 2;
+    canvas.drawLine(Offset(0, h), Offset(size.width, h), paint);
+    final fillPaint = Paint()..color = color..style = PaintingStyle.fill;
+    final pathLeft = Path()..moveTo(0, h)..lineTo(triangleSize, h - triangleSize / 2)..lineTo(triangleSize, h + triangleSize / 2)..close();
+    canvas.drawPath(pathLeft, fillPaint);
+    final pathRight = Path()..moveTo(size.width, h)..lineTo(size.width - triangleSize, h - triangleSize / 2)..lineTo(size.width - triangleSize, h + triangleSize / 2)..close();
+    canvas.drawPath(pathRight, fillPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
