@@ -380,6 +380,9 @@ class MockLegacyGanttScreen extends ConsumerStatefulWidget {
 
 class _MockLegacyGanttScreenState extends ConsumerState<MockLegacyGanttScreen> {
   GanttViewScale _currentScale = GanttViewScale.week;
+  int _daySpan = 7;
+  int _weekSpan = 1;
+  int _monthSpan = 1;
 
   @override
   void initState() {
@@ -405,57 +408,130 @@ class _MockLegacyGanttScreenState extends ConsumerState<MockLegacyGanttScreen> {
       initialIndex: 1, // 物件タブを初期選択
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('マスター工程表・物件詳細'),
+          title: const Text('マスター工程表'),
           actions: [
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
-              child: IconButton(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => ProjectSettingsScreen(projectId: selectedProjectId),
-                    ),
-                  );
-                },
-                tooltip: '物件設定',
-                icon: const Icon(Icons.settings),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 8.0,
-              ),
-              child: SegmentedButton<GanttViewScale>(
-                segments: const [
-                  ButtonSegment(
-                    value: GanttViewScale.day,
-                    label: Text('日', style: TextStyle(fontSize: 12)),
+            IconButton(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => ProjectSettingsScreen(projectId: selectedProjectId),
                   ),
-                  ButtonSegment(
-                    value: GanttViewScale.week,
-                    label: Text('週', style: TextStyle(fontSize: 12)),
-                  ),
-                  ButtonSegment(
-                    value: GanttViewScale.month,
-                    label: Text('月', style: TextStyle(fontSize: 12)),
-                  ),
-                ],
-                selected: <GanttViewScale>{_currentScale},
-                onSelectionChanged: (Set<GanttViewScale> newSelection) {
-                  _changeScale(newSelection.first);
-                },
-                style: const ButtonStyle(visualDensity: VisualDensity.compact),
-              ),
+                );
+              },
+              tooltip: '物件設定',
+              icon: const Icon(Icons.settings),
             ),
           ],
-          bottom: const TabBar(
-            tabs: [
-              Tab(text: '全体'),
-              Tab(text: '物件'),
-              Tab(text: '工程'),
-              Tab(text: '製品'),
-            ],
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(kTextTabBarHeight + 48),
+            child: Column(
+              children: [
+                const TabBar(
+                  tabs: [
+                    Tab(text: '全体'),
+                    Tab(text: '物件'),
+                    Tab(text: '工程'),
+                    Tab(text: '製品'),
+                  ],
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                  child: Row(
+                    children: [
+                      DropdownButton<GanttViewScale>(
+                        value: _currentScale,
+                        isDense: true,
+                        items: const [
+                          DropdownMenuItem(value: GanttViewScale.day, child: Text('日')),
+                          DropdownMenuItem(value: GanttViewScale.week, child: Text('週')),
+                          DropdownMenuItem(value: GanttViewScale.month, child: Text('月')),
+                        ],
+                        onChanged: (v) { if (v != null) _changeScale(v); },
+                      ),
+                      const SizedBox(width: 8),
+                      if (_currentScale == GanttViewScale.day)
+                        ...([1, 3, 5, 7].map((d) {
+                          final selected = _daySpan == d;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 4),
+                            child: selected
+                                ? FilledButton(
+                                    onPressed: () => setState(() => _daySpan = d),
+                                    style: FilledButton.styleFrom(
+                                      minimumSize: const Size(40, 32),
+                                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                    child: Text('$d日'),
+                                  )
+                                : OutlinedButton(
+                                    onPressed: () => setState(() => _daySpan = d),
+                                    style: OutlinedButton.styleFrom(
+                                      minimumSize: const Size(40, 32),
+                                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                    child: Text('$d日'),
+                                  ),
+                          );
+                        }))
+                      else if (_currentScale == GanttViewScale.week)
+                        ...([1, 2].map((w) {
+                          final selected = _weekSpan == w;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 4),
+                            child: selected
+                                ? FilledButton(
+                                    onPressed: () => setState(() => _weekSpan = w),
+                                    style: FilledButton.styleFrom(
+                                      minimumSize: const Size(40, 32),
+                                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                    child: Text('$w週'),
+                                  )
+                                : OutlinedButton(
+                                    onPressed: () => setState(() => _weekSpan = w),
+                                    style: OutlinedButton.styleFrom(
+                                      minimumSize: const Size(40, 32),
+                                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                    child: Text('$w週'),
+                                  ),
+                          );
+                        }))
+                      else if (_currentScale == GanttViewScale.month)
+                        ...([1, 3, 6, 12].map((m) {
+                          final selected = _monthSpan == m;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 4),
+                            child: selected
+                                ? FilledButton(
+                                    onPressed: () => setState(() => _monthSpan = m),
+                                    style: FilledButton.styleFrom(
+                                      minimumSize: const Size(40, 32),
+                                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                    child: Text('$mヶ月'),
+                                  )
+                                : OutlinedButton(
+                                    onPressed: () => setState(() => _monthSpan = m),
+                                    style: OutlinedButton.styleFrom(
+                                      minimumSize: const Size(40, 32),
+                                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                    child: Text('$mヶ月'),
+                                  ),
+                          );
+                        })),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
         body: SafeArea(
@@ -463,12 +539,20 @@ class _MockLegacyGanttScreenState extends ConsumerState<MockLegacyGanttScreen> {
             physics: const NeverScrollableScrollPhysics(), // スワイプで切り替えを防止
             children: [
               // 0: 全体
-              MasterGanttTab(currentScale: _currentScale),
+              MasterGanttTab(
+                currentScale: _currentScale,
+                daySpan: _daySpan,
+                weekSpan: _weekSpan,
+                monthSpan: _monthSpan,
+              ),
 
               // 1: 物件
               ProjectGanttTab(
                 projectId: selectedProjectId,
                 currentScale: _currentScale,
+                daySpan: _daySpan,
+                weekSpan: _weekSpan,
+                monthSpan: _monthSpan,
               ),
 
               // 2: 工程
@@ -488,10 +572,16 @@ class _MockLegacyGanttScreenState extends ConsumerState<MockLegacyGanttScreen> {
 class ProjectGanttTab extends ConsumerWidget {
   final String projectId;
   final GanttViewScale currentScale;
+  final int daySpan;
+  final int weekSpan;
+  final int monthSpan;
   const ProjectGanttTab({
     super.key,
     required this.projectId,
     required this.currentScale,
+    required this.daySpan,
+    required this.weekSpan,
+    required this.monthSpan,
   });
 
   @override
@@ -506,6 +596,9 @@ class ProjectGanttTab extends ConsumerWidget {
             data: data,
             projectId: projectId,
             currentScale: currentScale,
+            daySpan: daySpan,
+            weekSpan: weekSpan,
+            monthSpan: monthSpan,
           ),
         );
   }
@@ -517,10 +610,16 @@ class _ProjectGanttWrapper extends ConsumerStatefulWidget {
   final GanttChartData data;
   final String projectId;
   final GanttViewScale currentScale;
+  final int daySpan;
+  final int weekSpan;
+  final int monthSpan;
   const _ProjectGanttWrapper({
     required this.data,
     required this.projectId,
     required this.currentScale,
+    required this.daySpan,
+    required this.weekSpan,
+    required this.monthSpan,
   });
 
   @override
@@ -530,6 +629,7 @@ class _ProjectGanttWrapper extends ConsumerStatefulWidget {
 class _ProjectGanttWrapperState extends ConsumerState<_ProjectGanttWrapper> {
   late LegacyGanttController _ganttController;
   List<LegacyGanttTask> _tasks = [];
+  double _dragAccumX = 0;
 
   /// 左ペインの ListView と右チャートで共有するスクロールコントローラー。
   /// - 左：ListView(controller: _sharedScroll)
@@ -557,24 +657,56 @@ class _ProjectGanttWrapperState extends ConsumerState<_ProjectGanttWrapper> {
     minStart ??= now.subtract(const Duration(days: 3));
     maxEnd ??= now.add(const Duration(days: 30));
 
-    final isMobile =
-        ui.PlatformDispatcher.instance.views.first.physicalSize.width /
-            ui.PlatformDispatcher.instance.views.first.devicePixelRatio <
-        600;
-
-    final initialDuration = widget.currentScale == GanttViewScale.day
-        ? (isMobile ? const Duration(days: 7) : const Duration(days: 30))
-        : widget.currentScale == GanttViewScale.week
-        ? const Duration(days: 90)
-        : const Duration(days: 365);
+    final DateTime initialStart;
+    final DateTime initialEnd;
+    final today = DateTime.now();
+    final todayMidnight = DateTime(today.year, today.month, today.day);
+    if (widget.currentScale == GanttViewScale.day) {
+      initialStart = todayMidnight;
+      initialEnd = todayMidnight.add(Duration(days: widget.daySpan));
+    } else if (widget.currentScale == GanttViewScale.week) {
+      // 今週の月曜日 0:00 (weekday: 月=1 … 日=7)
+      final monday = todayMidnight.subtract(
+        Duration(days: todayMidnight.weekday - 1),
+      );
+      initialStart = monday;
+      initialEnd = monday.add(Duration(days: widget.weekSpan * 7));
+    } else {
+      // 月: 今月1日〜monthSpan か月後の1日
+      initialStart = DateTime(today.year, today.month, 1);
+      initialEnd = DateTime(today.year, today.month + widget.monthSpan, 1);
+    }
 
     _ganttController = LegacyGanttController(
-      initialVisibleStartDate: minStart.subtract(const Duration(days: 3)),
-      initialVisibleEndDate: minStart
-          .subtract(const Duration(days: 3))
-          .add(initialDuration),
+      initialVisibleStartDate: initialStart,
+      initialVisibleEndDate: initialEnd,
       initialTasks: currentTasks,
     );
+  }
+
+  void _flipPage(int direction) {
+    final s = _ganttController.visibleStartDate;
+    if (widget.currentScale == GanttViewScale.day) {
+      final snapped = DateTime(s.year, s.month, s.day);
+      final newStart = snapped.add(Duration(days: direction * widget.daySpan));
+      _ganttController.setVisibleRange(
+        newStart,
+        newStart.add(Duration(days: widget.daySpan)),
+      );
+    } else if (widget.currentScale == GanttViewScale.week) {
+      final snapped = DateTime(s.year, s.month, s.day);
+      final newStart =
+          snapped.add(Duration(days: direction * widget.weekSpan * 7));
+      _ganttController.setVisibleRange(
+        newStart,
+        newStart.add(Duration(days: widget.weekSpan * 7)),
+      );
+    } else {
+      // 月: 月単位でページ送り
+      final newStart = DateTime(s.year, s.month + direction * widget.monthSpan, 1);
+      final newEnd = DateTime(newStart.year, newStart.month + widget.monthSpan, 1);
+      _ganttController.setVisibleRange(newStart, newEnd);
+    }
   }
 
   // ── 可視データ構築 ─────────────────────────────────────────────────────────
@@ -630,7 +762,11 @@ class _ProjectGanttWrapperState extends ConsumerState<_ProjectGanttWrapper> {
   @override
   void didUpdateWidget(covariant _ProjectGanttWrapper old) {
     super.didUpdateWidget(old);
-    if (old.data != widget.data || old.currentScale != widget.currentScale) {
+    if (old.data != widget.data ||
+        old.currentScale != widget.currentScale ||
+        old.daySpan != widget.daySpan ||
+        old.weekSpan != widget.weekSpan ||
+        old.monthSpan != widget.monthSpan) {
       _tasks = List.of(widget.data.tasks);
       _ganttController.dispose();
       _initController(tasks: _buildVisibleData().tasks);
@@ -1183,6 +1319,7 @@ class _ProjectGanttWrapperState extends ConsumerState<_ProjectGanttWrapper> {
                                       viewScale: widget.currentScale,
                                       chartWidth: _chartWidth,
                                       isHeader: false,
+                                      isMobile: isMobile,
                                     ),
                                   ),
                                 );
@@ -1224,6 +1361,7 @@ class _ProjectGanttWrapperState extends ConsumerState<_ProjectGanttWrapper> {
                                     viewScale: widget.currentScale,
                                     chartWidth: _chartWidth,
                                     isHeader: true,
+                                    isMobile: isMobile,
                                   ),
                                 ),
                               );
@@ -1328,11 +1466,32 @@ class _ProjectGanttWrapperState extends ConsumerState<_ProjectGanttWrapper> {
                             },
                           ),
 
+                          // ── ボディ領域ページ切替オーバーレイ ──
+                          Positioned(
+                            top: kAxisHeight,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.translucent,
+                              onHorizontalDragStart: (_) {
+                                _dragAccumX = 0;
+                              },
+                              onHorizontalDragUpdate: (d) {
+                                _dragAccumX += d.delta.dx;
+                              },
+                              onHorizontalDragEnd: (d) {
+                                final vel = d.velocity.pixelsPerSecond.dx;
+                                if (_dragAccumX.abs() > 50 ||
+                                    vel.abs() > 300) {
+                                  _flipPage(_dragAccumX < 0 ? 1 : -1);
+                                }
+                                _dragAccumX = 0;
+                              },
+                            ),
+                          ),
+
                           // ── ヘッダー領域の透明 GestureDetector ──────────────
-                          // パッケージの onPanUpdate は `dy < timeAxisHeight` の位置から
-                          // 開始したドラッグをタスクヒットなしと判定し、水平パンを開始しない。
-                          // 外側に透明 GestureDetector を被せることでヘッダードラッグを捕捉し、
-                          // _shiftGanttRange で表示範囲を更新する。
                           Positioned(
                             top: 0,
                             left: 0,
@@ -1340,10 +1499,20 @@ class _ProjectGanttWrapperState extends ConsumerState<_ProjectGanttWrapper> {
                             height: kAxisHeight,
                             child: GestureDetector(
                               behavior: HitTestBehavior.translucent,
-                              onPanStart: (_) {}, // ドラッグ開始を受け取るだけ
+                              onPanStart: (_) {
+                                _dragAccumX = 0;
+                              },
                               onPanUpdate: (details) {
-                                // delta.dx < 0 → 右（未来）へパン、> 0 → 左（過去）へパン
-                                _shiftGanttRange(-details.delta.dx);
+                                _dragAccumX += details.delta.dx;
+                              },
+                              onPanEnd: (details) {
+                                final vel =
+                                    details.velocity.pixelsPerSecond.dx;
+                                if (_dragAccumX.abs() > 50 ||
+                                    vel.abs() > 300) {
+                                  _flipPage(_dragAccumX < 0 ? 1 : -1);
+                                }
+                                _dragAccumX = 0;
                               },
                             ),
                           ),
@@ -1369,6 +1538,7 @@ class _CustomAxisPainter extends CustomPainter {
   final GanttViewScale viewScale;
   final double chartWidth;
   final bool isHeader;
+  final bool isMobile;
 
   _CustomAxisPainter({
     required this.visibleStart,
@@ -1376,6 +1546,7 @@ class _CustomAxisPainter extends CustomPainter {
     required this.viewScale,
     required this.chartWidth,
     required this.isHeader,
+    this.isMobile = false,
   });
 
   double _getX(DateTime date) {
@@ -1390,8 +1561,11 @@ class _CustomAxisPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (chartWidth <= 0 || visibleStart.isAfter(visibleEnd)) return;
 
-    // 左端 80px はラベル領域なのでクリッピングして背景描画を防ぐ
-    canvas.clipRect(Rect.fromLTWH(80, 0, size.width - 80, size.height));
+    // モバイル時かつ本体背景のみ: 左端 80px はフローティングラベル領域なのでクリップ
+    // ヘッダーはフローティングラベルと重ならないためクリップ不要
+    if (isMobile && !isHeader) {
+      canvas.clipRect(Rect.fromLTWH(80, 0, size.width - 80, size.height));
+    }
 
     final linePaint = Paint()
       ..color = Colors.grey.shade300
@@ -1634,7 +1808,16 @@ class _CustomAxisPainter extends CustomPainter {
 
 class MasterGanttTab extends ConsumerWidget {
   final GanttViewScale currentScale;
-  const MasterGanttTab({super.key, required this.currentScale});
+  final int daySpan;
+  final int weekSpan;
+  final int monthSpan;
+  const MasterGanttTab({
+    super.key,
+    required this.currentScale,
+    required this.daySpan,
+    required this.weekSpan,
+    required this.monthSpan,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1643,8 +1826,13 @@ class MasterGanttTab extends ConsumerWidget {
         .when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(child: Text('エラー: $e')),
-          data: (data) =>
-              _MasterGanttWrapper(data: data, currentScale: currentScale),
+          data: (data) => _MasterGanttWrapper(
+            data: data,
+            currentScale: currentScale,
+            daySpan: daySpan,
+            weekSpan: weekSpan,
+            monthSpan: monthSpan,
+          ),
         );
   }
 }
@@ -1652,7 +1840,16 @@ class MasterGanttTab extends ConsumerWidget {
 class _MasterGanttWrapper extends StatefulWidget {
   final GanttChartData data;
   final GanttViewScale currentScale;
-  const _MasterGanttWrapper({required this.data, required this.currentScale});
+  final int daySpan;
+  final int weekSpan;
+  final int monthSpan;
+  const _MasterGanttWrapper({
+    required this.data,
+    required this.currentScale,
+    required this.daySpan,
+    required this.weekSpan,
+    required this.monthSpan,
+  });
 
   @override
   State<_MasterGanttWrapper> createState() => _MasterGanttWrapperState();
@@ -1663,6 +1860,7 @@ class _MasterGanttWrapperState extends State<_MasterGanttWrapper> {
   final ScrollController _sharedScroll = ScrollController();
   final Set<String> _expandedCategoryIds = {};
   double _chartWidth = 0;
+  double _dragAccumX = 0;
 
   void _initController({List<LegacyGanttTask>? tasks}) {
     DateTime? minStart;
@@ -1676,54 +1874,64 @@ class _MasterGanttWrapperState extends State<_MasterGanttWrapper> {
     minStart ??= now.subtract(const Duration(days: 3));
     maxEnd ??= now.add(const Duration(days: 30));
 
-    final isMobile =
-        ui.PlatformDispatcher.instance.views.first.physicalSize.width /
-            ui.PlatformDispatcher.instance.views.first.devicePixelRatio <
-        600;
-
-    final initialDuration = widget.currentScale == GanttViewScale.day
-        ? (isMobile ? const Duration(days: 7) : const Duration(days: 30))
-        : widget.currentScale == GanttViewScale.week
-        ? const Duration(days: 90)
-        : const Duration(days: 365);
+    final today = DateTime.now();
+    final todayMidnight = DateTime(today.year, today.month, today.day);
+    final DateTime initialStart;
+    final DateTime initialEnd;
+    if (widget.currentScale == GanttViewScale.day) {
+      initialStart = todayMidnight;
+      initialEnd = todayMidnight.add(Duration(days: widget.daySpan));
+    } else if (widget.currentScale == GanttViewScale.week) {
+      // 今週の月曜日 0:00 (weekday: 月=1 … 日=7)
+      final monday = todayMidnight.subtract(
+        Duration(days: todayMidnight.weekday - 1),
+      );
+      initialStart = monday;
+      initialEnd = monday.add(Duration(days: widget.weekSpan * 7));
+    } else {
+      // 月: 今月1日〜monthSpan か月後の1日
+      initialStart = DateTime(today.year, today.month, 1);
+      initialEnd = DateTime(today.year, today.month + widget.monthSpan, 1);
+    }
 
     _ganttController = LegacyGanttController(
-      initialVisibleStartDate: minStart.subtract(const Duration(days: 3)),
-      initialVisibleEndDate: minStart
-          .subtract(const Duration(days: 3))
-          .add(initialDuration),
+      initialVisibleStartDate: initialStart,
+      initialVisibleEndDate: initialEnd,
       initialTasks: currentTasks,
     );
   }
 
-  void _applyNewScale(GanttViewScale newScale) {
-    final isMobile = MediaQuery.sizeOf(context).width < 600;
-    final currentStart = _ganttController.visibleStartDate;
-    final currentEnd = _ganttController.visibleEndDate;
-    final centerMs =
-        (currentStart.millisecondsSinceEpoch +
-            currentEnd.millisecondsSinceEpoch) ~/
-        2;
-    final center = DateTime.fromMillisecondsSinceEpoch(centerMs);
-
-    Duration duration;
-    switch (newScale) {
-      case GanttViewScale.day:
-        duration = isMobile
-            ? const Duration(days: 7)
-            : const Duration(days: 30);
-        break;
-      case GanttViewScale.week:
-        duration = const Duration(days: 90);
-        break;
-      case GanttViewScale.month:
-        duration = const Duration(days: 365);
-        break;
+  void _flipPage(int direction) {
+    final s = _ganttController.visibleStartDate;
+    if (widget.currentScale == GanttViewScale.day) {
+      final snapped = DateTime(s.year, s.month, s.day);
+      final newStart = snapped.add(Duration(days: direction * widget.daySpan));
+      _ganttController.setVisibleRange(
+        newStart,
+        newStart.add(Duration(days: widget.daySpan)),
+      );
+    } else if (widget.currentScale == GanttViewScale.week) {
+      final snapped = DateTime(s.year, s.month, s.day);
+      final newStart =
+          snapped.add(Duration(days: direction * widget.weekSpan * 7));
+      _ganttController.setVisibleRange(
+        newStart,
+        newStart.add(Duration(days: widget.weekSpan * 7)),
+      );
+    } else {
+      // 月: 月単位でページ送り
+      final newStart =
+          DateTime(s.year, s.month + direction * widget.monthSpan, 1);
+      final newEnd =
+          DateTime(newStart.year, newStart.month + widget.monthSpan, 1);
+      _ganttController.setVisibleRange(newStart, newEnd);
     }
+  }
 
-    final newStart = center.subtract(Duration(days: duration.inDays ~/ 2));
-    final newEnd = center.add(Duration(days: duration.inDays ~/ 2));
-    _ganttController.setVisibleRange(newStart, newEnd);
+  void _applyNewScale(GanttViewScale newScale) {
+    // スケール・span 変更は常に再初期化
+    _ganttController.dispose();
+    _initController();
   }
 
   ({List<LegacyGanttRow> rows, List<LegacyGanttTask> tasks})
@@ -1771,10 +1979,12 @@ class _MasterGanttWrapperState extends State<_MasterGanttWrapper> {
   @override
   void didUpdateWidget(covariant _MasterGanttWrapper old) {
     super.didUpdateWidget(old);
-    if (old.currentScale != widget.currentScale) {
+    if (old.currentScale != widget.currentScale ||
+        old.daySpan != widget.daySpan ||
+        old.weekSpan != widget.weekSpan ||
+        old.monthSpan != widget.monthSpan) {
       _applyNewScale(widget.currentScale);
-    }
-    if (old.data != widget.data) {
+    } else if (old.data != widget.data) {
       _ganttController.dispose();
       _initController(tasks: _buildVisibleData().tasks);
     }
@@ -2090,6 +2300,7 @@ class _MasterGanttWrapperState extends State<_MasterGanttWrapper> {
                                       viewScale: widget.currentScale,
                                       chartWidth: _chartWidth,
                                       isHeader: false,
+                                      isMobile: isMobile,
                                     ),
                                   ),
                                 );
@@ -2142,12 +2353,39 @@ class _MasterGanttWrapperState extends State<_MasterGanttWrapper> {
                                         viewScale: widget.currentScale,
                                         chartWidth: _chartWidth,
                                         isHeader: true,
+                                        isMobile: isMobile,
                                       ),
                                     ),
                                   );
                                 },
                             taskBarBuilder: _buildCustomTaskBarMaster,
                           ),
+                          // ── ボディ領域ページ切替オーバーレイ ──
+                          Positioned(
+                            top: kAxisHeight,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.translucent,
+                              onHorizontalDragStart: (_) {
+                                _dragAccumX = 0;
+                              },
+                              onHorizontalDragUpdate: (d) {
+                                _dragAccumX += d.delta.dx;
+                              },
+                              onHorizontalDragEnd: (d) {
+                                final vel = d.velocity.pixelsPerSecond.dx;
+                                if (_dragAccumX.abs() > 50 ||
+                                    vel.abs() > 300) {
+                                  _flipPage(_dragAccumX < 0 ? 1 : -1);
+                                }
+                                _dragAccumX = 0;
+                              },
+                            ),
+                          ),
+
+                          // ── ヘッダー領域の透明 GestureDetector ──────────────
                           Positioned(
                             top: 0,
                             left: 0,
@@ -2155,9 +2393,20 @@ class _MasterGanttWrapperState extends State<_MasterGanttWrapper> {
                             height: kAxisHeight,
                             child: GestureDetector(
                               behavior: HitTestBehavior.translucent,
-                              onPanStart: (_) {},
+                              onPanStart: (_) {
+                                _dragAccumX = 0;
+                              },
                               onPanUpdate: (details) {
-                                _shiftGanttRange(-details.delta.dx);
+                                _dragAccumX += details.delta.dx;
+                              },
+                              onPanEnd: (details) {
+                                final vel =
+                                    details.velocity.pixelsPerSecond.dx;
+                                if (_dragAccumX.abs() > 50 ||
+                                    vel.abs() > 300) {
+                                  _flipPage(_dragAccumX < 0 ? 1 : -1);
+                                }
+                                _dragAccumX = 0;
                               },
                             ),
                           ),
